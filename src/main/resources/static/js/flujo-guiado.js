@@ -27,7 +27,7 @@
     const INDICADOR = { destino: 0, confirmar_destino: 0, origen: 1, confirmar_origen: 1, resumen: 2, calculando: 2, recomendacion: 2, viaje: 2 };
     const MUY_CERCA_M = 60;
 
-    const leerModo = () => { try { return localStorage.getItem(CLAVE_MODO) === 'avanzado' ? 'avanzado' : 'guiado'; } catch { return 'guiado'; } };
+    const leerModo = () => { try { return localStorage.getItem(CLAVE_MODO) === 'guiado' ? 'guiado' : 'avanzado'; } catch { return 'avanzado'; } };
     const guardarModo = (m) => { try { localStorage.setItem(CLAVE_MODO, m); } catch { /* sin almacenamiento */ } };
     let modo = leerModo(), paso = 'destino', escribiendoOrigen = false, montado = false, interaccion = false;
 
@@ -59,15 +59,21 @@
         <div class="guiado-pie">
             <button type="button" id="guiadoAyudaBtn" class="guiado-enlace">Necesito ayuda</button>
             <button type="button" id="guiadoVoz" class="guiado-enlace" hidden>Leer instrucciones en voz alta</button>
-            <button type="button" id="guiadoAvanzado" class="guiado-enlace">Modo avanzado</button>
+            <button type="button" id="guiadoAvanzado" class="guiado-enlace">Usar el planificador con A y B</button>
         </div>`;
     $('formAB').after(acciones);
     const ocultarTodo = (v) => { raiz.hidden = v; acciones.hidden = v; };
 
-    const volver = document.createElement('button');
-    volver.type = 'button'; volver.id = 'guiadoVolver'; volver.className = 'guiado-volver'; volver.hidden = true;
-    volver.textContent = 'Volver al modo guiado';
-    panel.prepend(volver);
+    // Entrada APARTE en el menú lateral: «Planear paso a paso» (modo guiado) / «Usar el planificador con A y B» (el de siempre).
+    const entrada = document.createElement('button');
+    entrada.type = 'button'; entrada.id = 'menuPasoAPaso'; entrada.className = 'secondary menu-inicio';
+    if ($('menuInicio')) $('menuInicio').after(entrada);
+    function pintarEntrada() {
+        const guiado = modo === 'guiado';
+        entrada.textContent = guiado ? 'Usar el planificador con A y B' : 'Planear paso a paso';
+        entrada.setAttribute('aria-label', guiado ? 'Volver al planificador con origen A y destino B' : 'Planear tu viaje paso a paso, con una pregunta por pantalla');
+    }
+    const volver = { hidden: true, focus() {} };       // compatibilidad: ya no hay botón dentro del panel
 
     const el = { titulo: $('guiadoTitulo'), ayuda: $('guiadoAyuda'), cuerpo: $('guiadoCuerpo'), mensaje: $('guiadoMensaje'), pasos: $('guiadoPasos') };
 
@@ -327,7 +333,7 @@
 
     // Mensajes del planificador (errores, GPS, búsqueda) → región en vivo del paso actual, sin repetirlos.
     const estado = $('tripStatus');
-    const OMITIR = /^Marca A y B|^Primero selecciona el punto A/i;
+    const OMITIR = /^Marca A y B|^Primero selecciona el punto A|^Punto seleccionado\.|^Origen y destino listos|^Comparando /i;      // avisos de rutina del planificador: el paso ya dice qué sigue
     const alEstado = () => {
         if (modo !== 'guiado' || !estado) return;
         const txt = (estado.textContent || '').trim();
@@ -351,7 +357,7 @@
     function aplicarModo() {
         const guiado = modo === 'guiado';
         document.body.classList.toggle('guiado', guiado);
-        ocultarTodo(!guiado); volver.hidden = guiado;
+        ocultarTodo(!guiado); pintarEntrada();
         if (!guiado) { delete document.body.dataset.paso; document.body.classList.remove('g-escribiendo-origen', 'g-todas'); }
         // Etiquetas visibles en el modo guiado (en el avanzado vuelven a ser solo para lectores de pantalla).
         const lo = document.querySelector('label[for="tripOrigin"]'), ld = document.querySelector('label[for="tripDestination"]');
@@ -360,8 +366,14 @@
         if (guiado) { paso = derivar(); render(); }
         window.dispatchEvent(new CustomEvent('spevb-modo-planificador', { detail: { modo } }));
     }
-    $('guiadoAvanzado').addEventListener('click', () => { modo = 'avanzado'; guardarModo(modo); aplicarModo(); try { volver.focus({ preventScroll: true }); } catch { /* nada */ } });
-    volver.addEventListener('click', () => { modo = 'guiado'; guardarModo(modo); interaccion = true; aplicarModo(); try { el.titulo.focus({ preventScroll: true }); } catch { /* nada */ } });
+    function cambiarModo(nuevo) {
+        if (modo === nuevo) return;
+        modo = nuevo; guardarModo(modo); interaccion = true;
+        aplicarModo();
+        if (modo === 'guiado') { try { el.titulo.focus({ preventScroll: true }); } catch { /* nada */ } }
+    }
+    $('guiadoAvanzado').addEventListener('click', () => cambiarModo('avanzado'));
+    entrada.addEventListener('click', () => { const c = $('closeMenu'); if (c) c.click(); cambiarModo(modo === 'guiado' ? 'avanzado' : 'guiado'); });
     $('guiadoAyudaBtn').addEventListener('click', () => tocar('helpButton'));
 
     // Leer en voz alta: opcional, solo con capacidades nativas, nunca automático; el texto completo siempre está en pantalla.

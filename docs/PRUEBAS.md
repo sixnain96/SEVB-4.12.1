@@ -64,6 +64,6 @@ Conteo de navegador: 20 + 13 + 16 + 21 + 25 + 4 + 17 + 11 + 16 + 10 = **153**.
 | Avatares (manifiesto, estabilidad, Google > regional > chigüiro, cuentas) | `python e2e/avatares_e2e.py` | Inyecta un manifiesto temporal; **no hay ilustraciones reales todavía** |
 | Compartir mi viaje (diálogo, creación, límites, revocación, llegada, página pública) | `python e2e/compartir_e2e.py` | El stub simula `/api/compartir` con el contrato del controlador |
 | Compartir mi viaje en Java | `mvn clean verify "-Dsevb.sinDocker=true"` | `ViajeCompartidoServiceTest` y `ViajeCompartidoControllerTest` (JdbcTemplate simulado); la migración V13 real exige Docker |
-| Todo junto | `python e2e/run_e2e.py` | Las suites anteriores se ejecutan en modo avanzado (`spevb-modo-planificador=avanzado` desde el arnés) |
+| Todo junto | `python e2e/run_e2e.py` | Las suites anteriores usan el planificador con A y B (predeterminado); solo `guiado_e2e.py` y `capturas_guiado.py` piden el modo guiado |
 
 Las pruebas con una respuesta 4xx/5xx **provocada a propósito** descartan solo el mensaje genérico «Failed to load resource» de la consola; cualquier otro error de JavaScript o promesa rechazada sigue fallando.

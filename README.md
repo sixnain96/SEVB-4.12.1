@@ -68,4 +68,4 @@ Los recorridos pueden representar conocimiento de campo del equipo y **no son in
 Proyecto académico. Consulta [LICENSE](LICENSE) para las condiciones vigentes y los componentes de terceros.
 
 ## Novedades de la 4.15.0
-Flujo guiado de planificación (con «Modo avanzado»), ruta que se consume durante el viaje, avatares regionales de respaldo y «Compartir mi viaje». Ver [CHANGELOG.md](CHANGELOG.md), [docs/FLUJO-GUIADO.md](docs/FLUJO-GUIADO.md), [docs/COMPARTIR-VIAJE.md](docs/COMPARTIR-VIAJE.md) y [docs/PRUEBAS-USABILIDAD-GUIADA.md](docs/PRUEBAS-USABILIDAD-GUIADA.md).
+Flujo guiado de planificación como opción aparte (menú ☰ → «Planear paso a paso»; el planificador con A y B no cambia), ruta que se consume durante el viaje, avatares regionales de respaldo y «Compartir mi viaje». Ver [CHANGELOG.md](CHANGELOG.md), [docs/FLUJO-GUIADO.md](docs/FLUJO-GUIADO.md), [docs/COMPARTIR-VIAJE.md](docs/COMPARTIR-VIAJE.md) y [docs/PRUEBAS-USABILIDAD-GUIADA.md](docs/PRUEBAS-USABILIDAD-GUIADA.md).

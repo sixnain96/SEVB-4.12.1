@@ -69,7 +69,7 @@ La posición del GPS se procesa **solo en el teléfono**: no se envía al servid
 | Dato | Dónde | Cuánto dura | Quién lo ve |
 |---|---|---|---|
 | Paso del flujo guiado | Solo en memoria; se **deduce** al recargar | Hasta cerrar la pestaña | Nadie |
-| Preferencia «modo guiado/avanzado» | `localStorage` (`spevb-modo-planificador`) | Hasta borrar los datos del sitio | Solo este dispositivo |
+| Preferencia «paso a paso» o «planificador con A y B» | `localStorage` (`spevb-modo-planificador`) | Hasta borrar los datos del sitio | Solo este dispositivo |
 | Avatar regional | Se calcula en el dispositivo con un hash del identificador de la cuenta; no se envía ni se guarda | — | Solo la persona |
 | Foto de Google | URL validada en `usuarios.foto_url` (V12); se muestra solo con la sesión | Mientras exista la cuenta | Solo la persona |
 | Enlace de «Compartir mi viaje» | Tabla `viajes_compartidos` (V13): **hash** de dos tokens, última posición, fase, progreso, recorrido sin nombres ni direcciones | Máx. 3 h; al llegar se borran las coordenadas y queda 10 min; al revocar/cerrar sesión se borra al instante | Quien tenga el enlace (de lectura, mientras dure) |

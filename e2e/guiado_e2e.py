@@ -129,10 +129,11 @@ def persona_nueva_ve_solo_la_pregunta_del_destino_sin_a_ni_b_y_sin_pedir_ubicaci
     assert 'Escribe un lugar, una dirección o el nombre de un sitio.' in p.inner_text('#guiado')
     assert visible(p, '#tripDestination') and not visible(p, '#tripOrigin'), 'solo el campo del destino'
     assert not visible(p, '#planTrip') and not visible(p, '.endpoint-letter') and not visible(p, '#swapTrip') and not visible(p, '#startTripBar'), 'sin las herramientas del planificador'
-    textos = p.evaluate("[document.getElementById('guiado').innerText, document.getElementById('guiadoAcciones').innerText].join(' ')")
+    textos = p.evaluate("[document.getElementById('guiado').innerText, document.getElementById('guiadoCuerpo').innerText, document.getElementById('guiadoMensaje').innerText].join(' ')")      # sin el enlace del pie, que nombra el otro planificador
     assert not re.search(r'punto [AB]\b|\b[AB] y [AB]\b|\(A\)|\(B\)|\bA/B\b', textos), f'la interfaz principal no habla de A y B: {textos}'
-    for t in ('Buscar destino', 'Elegir en el mapa', 'Necesito ayuda'):
+    for t in ('Buscar destino', 'Elegir en el mapa'):
         assert t in textos, (t, textos)
+    assert 'Necesito ayuda' in p.inner_text('#guiadoAcciones'), 'la ayuda está siempre a mano'
     assert visibles(p, '.guiado-boton.primario') == 1, 'una sola acción principal'
     assert p.evaluate('window.__gpsPedidos') == 0, 'no se pide la ubicación al abrir la aplicación'
     assert p.evaluate("document.querySelector('#guiadoPasos li[aria-current=step]').textContent.includes('Destino')"), 'indicador con palabras y aria-current'
@@ -417,14 +418,38 @@ def sin_conexion_el_resumen_avisa_que_solo_hay_viajes_ya_consultados(nav):
 
 
 # ---------------------------------------------------------------------------------------------- modo avanzado, ayuda, voz
+def abrir_menu(p):
+    if not p.evaluate("document.getElementById('sideMenu').classList.contains('open')"):
+        pulsar(p, '#menuButton')
+        p.wait_for_timeout(500)
+
+
 @prueba
-def el_modo_avanzado_sigue_funcionando_comparte_los_mismos_puntos_y_se_puede_volver(nav):
+def el_planificador_con_a_y_b_es_el_predeterminado_y_el_paso_a_paso_es_una_entrada_aparte_del_menu(nav):
+    s = B.Sesion(nav, viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True, device_scale_factor=2)      # sin pedir el modo guiado
+    p = s.ctx.pages[0]
+    p.goto(B.URL, wait_until='domcontentloaded')
+    B.esperar(p, "!!(window.Spevb && Spevb.Guiado && Spevb.Planner.puntos)", 20000)
+    p.wait_for_timeout(1000)
+    assert not p.evaluate("document.body.classList.contains('guiado')") and visible(p, '#tripOrigin') and visible(p, '#tripDestination') and visible(p, '#planTrip'), 'por defecto se ve el planificador con A y B'
+    assert p.evaluate("document.getElementById('guiado').hidden && document.getElementById('guiadoAcciones').hidden") and not visible(p, '#guiadoTitulo'), '«¿A dónde quieres ir?» no aparece solo'
+    assert visible(p, '.endpoint-letter'), 'las letras A y B siguen ahí'
+    abrir_menu(p)
+    assert p.inner_text('#menuPasoAPaso').strip() == 'Planear paso a paso', 'la entrada aparte está en el menú'
+    pulsar(p, '#menuPasoAPaso')
+    p.wait_for_timeout(600)
+    assert p.evaluate("document.body.classList.contains('guiado')") and paso(p) == 'destino' and titulo(p) == '¿A dónde quieres ir?', 'desde el menú se entra al paso a paso'
+    s.limpio('predeterminado')
+    s.cerrar()
+
+
+@prueba
+def el_planificador_con_a_y_b_comparte_los_mismos_puntos_y_la_eleccion_se_recuerda(nav):
     s, p = abrir_guiado(nav)
     elegir_destino(p)
     pulsar(p, '#guiadoAvanzado')
     p.wait_for_timeout(300)
     assert not p.evaluate("document.body.classList.contains('guiado')") and visible(p, '#tripOrigin') and visible(p, '#tripDestination') and visible(p, '#planTrip'), 'planificador completo'
-    assert visible(p, '#guiadoVolver') and 'modo guiado' in p.inner_text('#guiadoVolver').lower()
     assert p.input_value('#tripDestination').strip() and puntos(p)['destino'], 'el mismo destino, sin duplicar estado'
     p.fill('#tripOrigin', ORIG)
     p.keyboard.press('Enter')
@@ -436,8 +461,9 @@ def el_modo_avanzado_sigue_funcionando_comparte_los_mismos_puntos_y_se_puede_vol
     B.esperar(p, "!!(Spevb.Guiado && Spevb.Planner.puntos)", 20000)
     p.wait_for_timeout(800)
     assert not p.evaluate("document.body.classList.contains('guiado')"), 'la preferencia se recuerda'
-    pulsar(p, '#guiadoVolver')
-    p.wait_for_timeout(400)
+    abrir_menu(p)
+    pulsar(p, '#menuPasoAPaso')
+    p.wait_for_timeout(500)
     assert p.evaluate("document.body.classList.contains('guiado')") and paso(p) == 'destino' and titulo(p) == '¿A dónde quieres ir?'
     s.limpio('avanzado')
     s.cerrar()
