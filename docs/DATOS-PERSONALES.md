@@ -1,4 +1,4 @@
-# Datos personales, retención y borrado · SEVB 4.13.5
+# Datos personales, retención y borrado · SEVB 4.15.0
 
 Este documento describe lo que el sistema **ya conserva** hoy. No añade funciones nuevas. Si alguien administra una instalación de SEVB, es responsable de informar a sus usuarias y usuarios y de cumplir la normativa aplicable (en Colombia, la Ley 1581 de 2012 de protección de datos personales).
 
@@ -64,3 +64,15 @@ Si un ZIP o un `.env` con credenciales se compartió, **hay que rotar esas crede
 
 ## Modo viaje (4.11.0)
 La posición del GPS se procesa **solo en el teléfono**: no se envía al servidor ni se guarda. Mientras dura un viaje se conserva en `localStorage` (`spevb-viaje-curso`) únicamente el recorrido elegido y la fase en que iba la persona, para poder reanudar tras recargar la página; se borra al llegar, al terminar el viaje o a las 3 horas.
+
+## 4.15.0 · Flujo guiado, avatares y «Compartir mi viaje»
+| Dato | Dónde | Cuánto dura | Quién lo ve |
+|---|---|---|---|
+| Paso del flujo guiado | Solo en memoria; se **deduce** al recargar | Hasta cerrar la pestaña | Nadie |
+| Preferencia «modo guiado/avanzado» | `localStorage` (`spevb-modo-planificador`) | Hasta borrar los datos del sitio | Solo este dispositivo |
+| Avatar regional | Se calcula en el dispositivo con un hash del identificador de la cuenta; no se envía ni se guarda | — | Solo la persona |
+| Foto de Google | URL validada en `usuarios.foto_url` (V12); se muestra solo con la sesión | Mientras exista la cuenta | Solo la persona |
+| Enlace de «Compartir mi viaje» | Tabla `viajes_compartidos` (V13): **hash** de dos tokens, última posición, fase, progreso, recorrido sin nombres ni direcciones | Máx. 3 h; al llegar se borran las coordenadas y queda 10 min; al revocar/cerrar sesión se borra al instante | Quien tenga el enlace (de lectura, mientras dure) |
+| Token de escritura | `localStorage` (`spevb-compartir`) del dispositivo que viaja | Hasta que termina o se revoca | Solo ese dispositivo |
+
+No se guarda historial de posiciones ni se registran coordenadas ni tokens en los registros. Detalle y límites: `docs/COMPARTIR-VIAJE.md`.

@@ -20,6 +20,8 @@ Funciona igual en computador, celular y tablet. **Sin cuenta todo sigue funciona
 ## Entrar con Google (opcional)
 Botón «Continuar con Google» en «Entrar / Crear cuenta», con un solo toque y sin inventar contraseña. Se activa poniendo `GOOGLE_CLIENT_ID` en el `.env`: ver `docs/GOOGLE.md` (paso a paso). Una cuenta de Google se crea sola la primera vez; si ese correo ya tenía cuenta con contraseña se vincula (y la contraseña anterior se anula por seguridad).
 
+**Foto de perfil.** Si el token verificado de Google trae `picture`, el servidor la acepta solo por HTTPS desde un subdominio de `googleusercontent.com` (sin credenciales ni puerto, ≤ 512 caracteres), la guarda en `usuarios.foto_url` (migración V12, opcional) y la devuelve como `usuario.foto` en `/api/cuenta/yo` y en los accesos. Se renueva en cada inicio con Google (las cuentas antiguas la reciben en el siguiente). En la pantalla se muestra en «Mi cuenta» y «Ajustes de la cuenta» dentro de un círculo de 40 px; si falta, es inválida, falla al cargar o no hay internet, se ve el chigüiro de SEVB (recurso local). La foto nunca es requisito para entrar y se descarta al cerrar sesión o cambiar de cuenta. CSP: solo `img-src` admite `*.googleusercontent.com` en ambos modos de mapa.
+
 ## Seguridad (qué se hizo)
 - Contraseña: **PBKDF2-HMAC-SHA256, 600 000 iteraciones**, sal aleatoria por clave, comparación en tiempo constante. Nunca se guarda ni se envía de vuelta.
 - Sesión: token aleatorio de 256 bits en cookie **HttpOnly + SameSite=Lax** (y `Secure` en HTTPS); en la base solo se guarda su **hash SHA-256**. Dura 30 días (se renueva), máx. 10 sesiones por persona.

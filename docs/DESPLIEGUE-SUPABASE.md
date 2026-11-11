@@ -2,6 +2,8 @@
 
 Variante de `docs/DOCKER-Y-OPERACION.md`: la aplicación y Caddy corren en el VPS y la base PostgreSQL/PostGIS vive en Supabase. El archivo es `compose.prod.supabase.yml` (igual que `compose.prod.yml` pero sin el contenedor de la base; `DB_URL` y `DB_USER` salen del `.env`). El estado de lo probado está al final, en «Qué está verificado».
 
+> **Importante:** con la base en Supabase se usa SIEMPRE `-f compose.prod.supabase.yml`. Con `compose.prod.yml` se crea un contenedor PostgreSQL local y **vacío** (volumen `spevb-prod_pgdata`) y la aplicación se conecta a él en vez de a Supabase. Si pasó, vuelve a levantar con `compose.prod.supabase.yml up -d --build --remove-orphans` y borra el volumen vacío con `docker volume rm spevb-prod_pgdata`. Para saber qué versión corre: `git log --oneline -1` en el servidor y `docker compose -f compose.prod.supabase.yml ps`.
+
 ## 1. Supabase (una vez)
 - Proyecto en la región **East US (North Virginia)**, cerca del VPS.
 - Al crearlo, desmarca «Enable Data API» y «Automatically expose new tables»: SEVB se conecta directo por JDBC y no usa esa API.

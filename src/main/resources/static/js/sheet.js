@@ -94,7 +94,12 @@
        sirve para depurar y para las pruebas. */
     let manual = 'peek', temporal = null;
     const motivo = (m) => { sheet.dataset.motivo = m; };
-    function pedirEstado(name, porque) { manual = name; temporal = null; motivo(porque); apply(name); }
+    function pedirEstado(name, porque) {
+        manual = name; temporal = null; motivo(porque); apply(name);
+        // Volver a la vista compacta con el asa (o arrastrando) con una opción elegida: «Iniciar viaje» queda a la vista. Sin esto, tras mirar A y B el botón podía quedar
+        // fuera del área visible y, con el desplazamiento bloqueado en esa altura, inalcanzable.
+        if (name === 'peek' && mobile.matches && ['asa', 'arrastre-asa', 'teclado-asa'].includes(porque)) requestAnimationFrame(() => requestAnimationFrame(alinearBarraInicio));
+    }
     function temporalmente(name, porque) {
         if (!mobile.matches || STATES.indexOf(name) <= STATES.indexOf(state)) return;      // ya hay espacio de sobra: no se toca
         temporal = name; motivo(porque); apply(name);
@@ -170,6 +175,7 @@
     // Eventos de la aplicación: el panel se adapta a lo que la persona está haciendo.
     window.addEventListener('spevb-picking', () => go('peek', 'elegir-punto'));          // para ver el mapa mientras elige un punto
     window.addEventListener('spevb-focus-map', () => go('peek', 'ver-mapa'));
+    window.addEventListener('spevb-panel-medio', () => { if (mobile.matches) go('half', 'guiado'); if (body) { try { body.scrollTop = 0; } catch { /* nada */ } } });      // flujo guiado: la pregunta del paso queda a la vista
     // Con un solo punto puesto la pantalla NO se mueve (la pestañita «Ahora escribe B» avisa qué sigue); con los dos, el panel baja para ver el mapa.
     window.addEventListener('spevb-point-selected', () => {
         terminarEdicion('punto-confirmado');         // el ajuste para escribir se deshace: vuelve a la altura que la persona tenía
@@ -180,6 +186,15 @@
     function alinearArriba(el, margen = 4) {
         if (!el || !body) return;
         fijarScroll(el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - margen);
+    }
+    /** Lleva «Iniciar viaje» (la barra de la opción elegida) al inicio del área visible del panel compacto, justo bajo la fila de «Buscar rutas». */
+    function alinearBarraInicio() {
+        const barra = document.getElementById('startTripBar'), fila = document.querySelector('#planTrip')?.closest('.plan-actions');
+        if (!barra || barra.hidden || !fila || !body || state !== 'peek') return false;
+        const f = document.activeElement;
+        if (f && f.tagName === 'INPUT' && sheet.contains(f)) return false;      // se está escribiendo: no se mueve nada
+        alinearArriba({ getBoundingClientRect: () => ({ top: fila.getBoundingClientRect().bottom }) }, -3);
+        return true;
     }
     // Tras buscar, la prioridad es EMPEZAR: el panel queda compacto con el botón «Iniciar viaje» y la ruta elegida a la vista, y el mapa grande
     // con la ruta dibujada. Las demás rutas siguen ahí: «Ver otras opciones» (o arrastrar el panel hacia arriba) las muestra.
@@ -194,11 +209,8 @@
             auto.raf = requestAnimationFrame(() => {
                 if (!auto.pendiente || auto.usuario || !mobile.matches || !body) return;
                 auto.pendiente = false;
-                const barra = document.getElementById('startTripBar');
                 // El botón vive justo debajo de «Buscar rutas»: se alinea por el borde inferior de esa fila (su posición natural).
-                const fila = document.querySelector('#planTrip')?.closest('.plan-actions');
-                if (!sinRutas && barra && !barra.hidden && fila) alinearArriba({ getBoundingClientRect: () => ({ top: fila.getBoundingClientRect().bottom }) }, -3);      // sin dejar ver el borde del botón de arriba
-                else alinearArriba(document.getElementById('tripResults'));
+                if (sinRutas || !alinearBarraInicio()) alinearArriba(document.getElementById('tripResults'));
             });
         });
     }
@@ -209,6 +221,19 @@
         go('half', 'ver-opciones');
         marcarUsuario();
         requestAnimationFrame(() => requestAnimationFrame(() => alinearArriba(document.getElementById('tripResults'))));
+    });
+    // «Editar A y B» (barra de «Iniciar viaje» o botón que trae el planificador durante un viaje): es una petición DELIBERADA. El panel sube a media altura (el formulario cabe), SU contenedor de
+    // scroll lleva el formulario al inicio, se cancela el posicionamiento automático pendiente y el foco queda en el grupo (no en un campo: no se abre el teclado). Nada del plan ni del viaje se toca.
+    window.addEventListener('spevb-editar-ab', () => {
+        const form = document.getElementById('formAB');
+        if (mobile.matches) go('half', 'editar-ab');
+        marcarUsuario();
+        const mostrar = () => {
+            if (form && body) alinearArriba(form, 6);
+            if (form) { try { form.focus({ preventScroll: true }); } catch { /* sin foco */ } }
+        };
+        mostrar();
+        requestAnimationFrame(() => requestAnimationFrame(mostrar));      // vuelve a alinear cuando la altura del panel ya se asentó
     });
     // Enfocar un campo NO maximiza el panel por sí solo: sube a «half» (lo justo para escribir y ver sugerencias) y solo a «full» si el teclado
     // virtual está realmente visible (ver sincronizarTeclado) o el área visible es muy baja (< 520 px: ventana encogida por el teclado en Android, celular horizontal). El ajuste es temporal: se deshace al confirmar el punto o al salir del campo.

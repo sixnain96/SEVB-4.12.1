@@ -1,6 +1,6 @@
-# SEVB 4.13.5 · Sistema de Enrutamiento y Visualización de Buses (Villavicencio)
+# SEVB 4.15.0 · Sistema de Enrutamiento y Visualización de Buses (Villavicencio)
 
-**Versión vigente: 4.13.5** (única fuente: `<version>` de `pom.xml`; la leen `/api/estado`, el service worker, el manifest, el JAR `spevb-rutas-4.13.5.jar` y el paquete `SEVB-4.13.5.zip`).
+**Versión vigente: 4.15.0** (única fuente: `<version>` de `pom.xml`; la leen `/api/estado`, el service worker, el manifest, el JAR `spevb-rutas-4.15.0.jar` y el paquete `SEVB-4.15.0.zip`).
 
 ## Nombres
 

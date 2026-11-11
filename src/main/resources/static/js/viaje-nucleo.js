@@ -76,6 +76,42 @@
         return r.dist === Infinity ? buscar(0) : r;      // sin tope hasta no hay nada que ocultar: la búsqueda de reserva es completa
     }
 
+    /** Divide la línea en un avance (m desde su inicio): { recorrida, pendiente } como listas de [lat, lng], con el punto de corte INTERPOLADO exacto en ambas
+     *  y { corte }. Antes del inicio todo queda pendiente; después del final, todo recorrido. Tolera puntos repetidos y segmentos de longitud cero. No modifica la línea. */
+    function dividirLinea(linea, avance) {
+        const { pts, acum, total } = linea;
+        const ll = (p) => [p.lat, p.lng];
+        if (!pts.length) return { recorrida: [], pendiente: [], corte: null };
+        const a = Math.max(0, Math.min(Number.isFinite(avance) ? avance : 0, total));
+        if (a <= 0) return { recorrida: [], pendiente: pts.map(ll), corte: ll(pts[0]) };
+        if (a >= total) return { recorrida: pts.map(ll), pendiente: [], corte: ll(pts[pts.length - 1]) };
+        let i = 0;
+        while (i < pts.length - 2 && acum[i + 1] <= a) i++;
+        const seg = acum[i + 1] - acum[i], t = seg > 0 ? (a - acum[i]) / seg : 0;
+        const c = [pts[i].lat + (pts[i + 1].lat - pts[i].lat) * t, pts[i].lng + (pts[i + 1].lng - pts[i].lng) * t];
+        return { recorrida: pts.slice(0, i + 1).map(ll).concat([c]), pendiente: [c].concat(pts.slice(i + 1).map(ll)), corte: c };
+    }
+
+    /** Posición MONÓTONA sobre una línea: el avance máximo nunca retrocede, no salta a un tramo vecino por una lectura mala y un avance grande solo se acepta si varias
+     *  lecturas seguidas lo confirman. {@code st} = { avanceMax, avanceT, avanceSalto } (se modifica); {@code c} = CFG (usa AVANCE_*, DESVIO_BUS_M como distancia máxima a la línea).
+     *  Devuelve { dist, avance, enRuta, saltoPendiente? }. El núcleo la usa para el tramo del bus y la ruta consumible (viaje-ruta.js) para cada etapa. */
+    function posicionMonotona(linea, st, L, c) {
+        const dtS = st.avanceT === null || st.avanceT === undefined ? 0 : Math.max(0, (L.t - st.avanceT) / 1000);
+        const tope = st.avanceMax + c.AVANCE_VENTANA_M + c.AVANCE_VEL_MAX * dtS;
+        const acotada = proyectar(linea, L, Math.max(0, st.avanceMax - 100), tope);
+        if (acotada.dist <= c.DESVIO_BUS_M) { st.avanceSalto = null; st.avanceT = L.t; return { ...acotada, enRuta: true }; }
+        // No está cerca de la línea dentro de lo plausible: ¿está más adelante? Solo se acepta si varias lecturas seguidas lo confirman.
+        const libre = proyectar(linea, L, Math.max(0, st.avanceMax - 100));
+        if (libre.dist <= c.DESVIO_BUS_M && libre.avance > tope) {
+            const s0 = st.avanceSalto;
+            st.avanceSalto = s0 && Math.abs(libre.avance - s0.avance) <= 250 ? { avance: libre.avance, n: s0.n + 1 } : { avance: libre.avance, n: 1 };
+            if (st.avanceSalto.n >= c.AVANCE_CONFIRMAN) { st.avanceSalto = null; st.avanceT = L.t; return { ...libre, enRuta: true }; }
+            return { ...acotada, enRuta: false, saltoPendiente: true };
+        }
+        st.avanceSalto = null;
+        return { ...acotada, enRuta: false };
+    }
+
     // ------------------------------------------------------------------ filtro de lecturas
     class FiltroLecturas {
         constructor(cfg = CFG) { this.cfg = cfg; this.reiniciar(); }
@@ -215,22 +251,7 @@
         }
 
         /** Posición sobre el tramo del bus: continua (no salta a una parte posterior de la ruta por una lectura mala ni por un tramo vecino). */
-        function posicionEnTramo(b, L) {
-            const dtS = e.avanceT === null ? 0 : Math.max(0, (L.t - e.avanceT) / 1000);
-            const tope = e.avanceMax + c.AVANCE_VENTANA_M + c.AVANCE_VEL_MAX * dtS;
-            const acotada = proyectar(b.linea, L, Math.max(0, e.avanceMax - 100), tope);
-            if (acotada.dist <= c.DESVIO_BUS_M) { e.avanceSalto = null; e.avanceT = L.t; return { ...acotada, enRuta: true }; }
-            // No está cerca de la ruta dentro de lo plausible: ¿está más adelante? Solo se acepta si varias lecturas seguidas lo confirman.
-            const libre = proyectar(b.linea, L, Math.max(0, e.avanceMax - 100));
-            if (libre.dist <= c.DESVIO_BUS_M && libre.avance > tope) {
-                const s0 = e.avanceSalto;
-                e.avanceSalto = s0 && Math.abs(libre.avance - s0.avance) <= 250 ? { avance: libre.avance, n: s0.n + 1 } : { avance: libre.avance, n: 1 };
-                if (e.avanceSalto.n >= c.AVANCE_CONFIRMAN) { e.avanceSalto = null; e.avanceT = L.t; return { ...libre, enRuta: true }; }
-                return { ...acotada, enRuta: false, saltoPendiente: true };
-            }
-            e.avanceSalto = null;
-            return { ...acotada, enRuta: false };
-        }
+        function posicionEnTramo(b, L) { return posicionMonotona(b.linea, e, L, c); }
 
         function enBus(L, ev) {
             const b = bus();
@@ -434,5 +455,5 @@
         return { procesar, responder, confirmarSubida: () => confirmarManual('subida'), confirmarBajada: () => confirmarManual('bajada'), sinSenal, terminar, info, serializar, restaurar, filtro, cfg: c };
     }
 
-    S.ViajeNucleo = { CFG, dist, prepararLinea, proyectar, FiltroLecturas, crearViaje };
+    S.ViajeNucleo = { CFG, dist, prepararLinea, proyectar, dividirLinea, posicionMonotona, FiltroLecturas, crearViaje };
 })();

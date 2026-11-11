@@ -1616,11 +1616,11 @@
                 [t.caminataCambio, out1, board2, 'Camina de la ruta ' + Spevb.rutaNombre(t.primerBus.codigo) + ' a la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo) + ' (transbordo)'],
                 [t.caminataFin, out2, coordinates(finish), 'Camina hasta tu destino'],
             ];
-            legs.forEach(([leg, from, to, label]) => {
+            legs.forEach(([leg, from, to, label], indiceLeg) => {
                 const walk = map.polyline([from, to], { ...walkStyle, tooltip: Spevb.text(label + ' · ' + distance(leg.metros)) }).addTo(tripLayers);
                 if (leg?.coordinates?.length) walkCache.set(walkKey(from, to), Promise.resolve({ coordinates: leg.coordinates, metros: leg.metros, minutos: leg.minutos }));
                 walk._onPuentes = (lista) => notaPuentes(card, lista);
-                streetWalk(walk, from, to, tripLayers);
+                streetWalk(walk, from, to, tripLayers, (data) => { const sel = Planner.seleccion; if (sel && sel.viaje && Array.isArray(data.coordinates)) (sel.viaje.caminatas ||= {})[indiceLeg] = { coordinates: data.coordinates, metros: data.metros, minutos: data.minutos }; });
             });
             punto('sube', board1, 'Aquí tomas la ruta ' + Spevb.rutaNombre(t.primerBus.codigo) + (t.primerBus.paraderoSubida ? ' (paradero ' + t.primerBus.paraderoSubida + ')' : '')).addTo(tripLayers);
             punto('baja', out1, 'Aquí te bajas de la ruta ' + Spevb.rutaNombre(t.primerBus.codigo)).addTo(tripLayers);
@@ -2142,7 +2142,20 @@
         puntos: () => ({ origen: origin && { ...origin }, destino: destination && { ...destination } }),
         poner(modo, punto) { choose(modo, { ...punto }); },
         buscar() { $('planTrip').click(); },
-        limpiar() { clearBothEndpoints({ focus: false }); },      // «volver al inicio»: borra A y B sin abrir el teclado
+        limpiar() { clearBothEndpoints({ focus: false }); },
+        /** Flujo guiado: ¿hay una búsqueda en curso? */
+        buscando: () => planning,
+        /** Flujo guiado: cancela la búsqueda en curso SIN borrar el origen ni el destino. */
+        cancelarBusqueda() {
+            if (!planning) return false;
+            sequence++; controller?.abort(); revealToken++;
+            releasePlannerRoute(); tripLayers.clear(); $('tripResults').replaceChildren();
+            planning = false; $('planTrip').disabled = false;
+            status('Búsqueda cancelada. Tus lugares siguen ahí: cuando quieras, vuelve a buscar.', 'info');
+            return true;
+        },
+        /** Traspaso al modo viaje (4.15): suelta SU copia estática del recorrido (capas del planificador y el recorrido del explorador); el plan y la selección no se tocan. */
+        liberarRecorrido() { revealToken++; releasePlannerRoute(); tripLayers.clear(); },      // «volver al inicio»: borra A y B sin abrir el teclado
         detenerGps() { stopFollowing(); },
         viajeDe,      // recorrido de «Modo viaje» a partir de A, B y los tramos de bus (lo usa viaje.js para un recálculo seguro)                        // «volver al inicio»: libera el seguimiento de «mi ubicación»
         estados: () => ({ origen: campo.origin.estado, destino: campo.destination.estado, indicador: { origin: lookupRequests.origin ? 1 : 0, destination: lookupRequests.destination ? 1 : 0 }, sesion: { origin: campo.origin.sesion, destination: campo.destination.sesion } }),      // diagnóstico y pruebas

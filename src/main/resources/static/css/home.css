@@ -428,9 +428,16 @@ body.modal-open { overflow: hidden; }
 .account-user { display: flex; align-items: center; gap: 10px; }
 .account-user strong { display: block; font-size: 15px; }
 .account-user small { display: block; color: #66736d; font-size: 12px; overflow-wrap: anywhere; }
-.account-avatar { flex: 0 0 40px; height: 40px; border-radius: 50%; background: #176650; position: relative; }
-.account-avatar::before { content: ''; position: absolute; left: 14px; top: 8px; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
-.account-avatar::after { content: ''; position: absolute; left: 9px; top: 22px; width: 22px; height: 12px; border-radius: 12px 12px 4px 4px; background: #fff; }
+/* Avatar de «Mi cuenta» (4.14): círculo de tamaño fijo. El chigüiro de SEVB (recurso local) se ve SIEMPRE y al instante; la foto de Google, si llega bien, se pone encima
+   (cuenta.js). Si falta, es inválida, falla o no hay internet, queda el chigüiro: nunca un círculo vacío ni una imagen rota. */
+.account-avatar { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; position: relative; overflow: hidden; border: 1px solid #c3d9cf;
+    background: #e8f3ee url('/img/marca/sevb-cabeza-96.png') center 55% / 80% no-repeat; }
+.account-avatar > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; border-radius: 50%; opacity: 0; }
+.account-avatar.con-foto > img { opacity: 1; }
+/* Avatar regional estable (avatares.js): ocupa el círculo completo; la imagen viene de /img/avatares/ (manifiesto central). */
+.account-avatar.con-regional { background-image: var(--avatar-regional); background-size: cover; background-position: center; }
+.set-user { margin: 4px 0 8px; }
+.set-user > p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .pass-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .pass-row button { min-width: 64px; min-height: 44px; }
 .modal-card label { font-size: 13px; font-weight: 700; margin-top: 4px; }

@@ -44,7 +44,10 @@ public class CuentaService {
     public boolean esAdmin(String correo, boolean verificado) { return verificado && correo != null && admins.contains(correo.toLowerCase()); }
     public boolean adminConfigurado() { return !admins.isEmpty(); }
 
-    public record Usuario(long id, String nombre, String correo, boolean tieneClave, boolean conGoogle, boolean admin) {}
+    /** {@code foto}: URL de la foto de Google (solo cuentas con Google, ya validada) o null. */
+    public record Usuario(long id, String nombre, String correo, boolean tieneClave, boolean conGoogle, boolean admin, String foto) {
+        public Usuario(long id, String nombre, String correo, boolean tieneClave, boolean conGoogle, boolean admin) { this(id, nombre, correo, tieneClave, conGoogle, admin, null); }
+    }
 
     // ------------------------------------------------------------------ validaciones
     public static String normalizarCorreo(String correo) {
@@ -83,7 +86,7 @@ public class CuentaService {
     public Optional<Usuario> autenticar(String correo, String clave) {
         String c = correo == null ? "" : correo.strip().toLowerCase();
         List<Map<String, Object>> filas = c.length() > 120 ? List.of()
-                : jdbc.queryForList("SELECT id, nombre, correo, clave_hash, google_sub, correo_verificado FROM usuarios WHERE LOWER(correo) = ?", c);
+                : jdbc.queryForList("SELECT id, nombre, correo, clave_hash, google_sub, correo_verificado, foto_url FROM usuarios WHERE LOWER(correo) = ?", c);
         // Una cuenta creada con Google puede no tener contraseña: se trata igual que un correo inexistente (mismo mensaje y tiempo).
         String hash = filas.isEmpty() || filas.get(0).get("clave_hash") == null ? HASH_RELLENO : (String) filas.get(0).get("clave_hash");
         boolean ok = clave != null && clave.length() <= 128 && ClaveHash.verificar(clave, hash);
@@ -91,7 +94,7 @@ public class CuentaService {
         var f = filas.get(0);
         jdbc.update("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?", f.get("id"));
         return Optional.of(new Usuario(((Number) f.get("id")).longValue(), (String) f.get("nombre"), (String) f.get("correo"), true, f.get("google_sub") != null,
-                esAdmin((String) f.get("correo"), Boolean.TRUE.equals(f.get("correo_verificado")))));
+                esAdmin((String) f.get("correo"), Boolean.TRUE.equals(f.get("correo_verificado"))), f.get("google_sub") != null ? (String) f.get("foto_url") : null));
     }
 
     /**
@@ -106,8 +109,8 @@ public class CuentaService {
         List<Map<String, Object>> porSub = jdbc.queryForList("SELECT id, nombre, correo, clave_hash FROM usuarios WHERE google_sub = ?", g.sub());
         if (!porSub.isEmpty()) {
             var f = porSub.get(0);
-            jdbc.update("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?", f.get("id"));
-            return new Usuario(((Number) f.get("id")).longValue(), (String) f.get("nombre"), (String) f.get("correo"), f.get("clave_hash") != null, true, esAdmin((String) f.get("correo"), true));
+            jdbc.update("UPDATE usuarios SET ultimo_acceso = NOW(), foto_url = ? WHERE id = ?", g.foto(), f.get("id"));      // la foto se renueva en cada inicio con Google (también en cuentas antiguas)
+            return new Usuario(((Number) f.get("id")).longValue(), (String) f.get("nombre"), (String) f.get("correo"), f.get("clave_hash") != null, true, esAdmin((String) f.get("correo"), true), g.foto());
         }
         List<Map<String, Object>> porCorreo = jdbc.queryForList("SELECT id, nombre, correo, correo_verificado, clave_hash FROM usuarios WHERE LOWER(correo) = ?", g.correo());
         if (!porCorreo.isEmpty()) {
@@ -115,19 +118,19 @@ public class CuentaService {
             long id = ((Number) f.get("id")).longValue();
             boolean verificada = Boolean.TRUE.equals(f.get("correo_verificado"));
             if (verificada) {
-                jdbc.update("UPDATE usuarios SET google_sub = ?, ultimo_acceso = NOW() WHERE id = ?", g.sub(), id);
+                jdbc.update("UPDATE usuarios SET google_sub = ?, foto_url = ?, ultimo_acceso = NOW() WHERE id = ?", g.sub(), g.foto(), id);
             } else {
                 // Nombre y datos los puso quien creó esa cuenta sin verificar el correo: se reemplazan por los de Google y se descartan.
-                jdbc.update("UPDATE usuarios SET google_sub = ?, correo_verificado = TRUE, clave_hash = NULL, nombre = ?, ultimo_acceso = NOW() WHERE id = ?", g.sub(), g.nombre(), id);
+                jdbc.update("UPDATE usuarios SET google_sub = ?, correo_verificado = TRUE, clave_hash = NULL, nombre = ?, foto_url = ?, ultimo_acceso = NOW() WHERE id = ?", g.sub(), g.nombre(), g.foto(), id);
                 jdbc.update("DELETE FROM sesiones WHERE usuario_id = ?", id);
                 jdbc.update("DELETE FROM usuario_datos WHERE usuario_id = ?", id);
             }
-            return new Usuario(id, verificada ? (String) f.get("nombre") : g.nombre(), (String) f.get("correo"), verificada && f.get("clave_hash") != null, true, esAdmin((String) f.get("correo"), true));
+            return new Usuario(id, verificada ? (String) f.get("nombre") : g.nombre(), (String) f.get("correo"), verificada && f.get("clave_hash") != null, true, esAdmin((String) f.get("correo"), true), g.foto());
         }
         try {
-            Long id = jdbc.queryForObject("INSERT INTO usuarios (correo, nombre, clave_hash, google_sub, correo_verificado, ultimo_acceso) VALUES (?, ?, NULL, ?, TRUE, NOW()) RETURNING id",
-                    Long.class, g.correo(), g.nombre(), g.sub());
-            return new Usuario(id, g.nombre(), g.correo(), false, true, esAdmin(g.correo(), true));
+            Long id = jdbc.queryForObject("INSERT INTO usuarios (correo, nombre, clave_hash, google_sub, correo_verificado, foto_url, ultimo_acceso) VALUES (?, ?, NULL, ?, TRUE, ?, NOW()) RETURNING id",
+                    Long.class, g.correo(), g.nombre(), g.sub(), g.foto());
+            return new Usuario(id, g.nombre(), g.correo(), false, true, esAdmin(g.correo(), true), g.foto());
         } catch (org.springframework.dao.DuplicateKeyException e) {
             return entrarConGoogle(g);       // otra solicitud lo creó justo antes
         }
@@ -175,7 +178,7 @@ public class CuentaService {
     public Optional<Usuario> usuarioDeSesion(String token) {
         if (token == null || token.length() < 20 || token.length() > 100) return Optional.empty();
         List<Map<String, Object>> filas = jdbc.queryForList("""
-                SELECT u.id, u.nombre, u.correo, (u.clave_hash IS NOT NULL) AS tiene_clave, (u.google_sub IS NOT NULL) AS con_google, u.correo_verificado, s.vista_en < NOW() - INTERVAL '1 day' AS renovar
+                SELECT u.id, u.nombre, u.correo, (u.clave_hash IS NOT NULL) AS tiene_clave, (u.google_sub IS NOT NULL) AS con_google, u.correo_verificado, u.foto_url, s.vista_en < NOW() - INTERVAL '1 day' AS renovar
                 FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id
                 WHERE s.token_hash = ? AND s.expira_en > NOW()""", hashToken(token));
         if (filas.isEmpty()) return Optional.empty();
@@ -184,14 +187,22 @@ public class CuentaService {
             jdbc.update("UPDATE sesiones SET vista_en = NOW(), expira_en = NOW() + make_interval(days => ?) WHERE token_hash = ?", DIAS_SESION, hashToken(token));
         return Optional.of(new Usuario(((Number) f.get("id")).longValue(), (String) f.get("nombre"), (String) f.get("correo"),
                 Boolean.TRUE.equals(f.get("tiene_clave")), Boolean.TRUE.equals(f.get("con_google")),
-                esAdmin((String) f.get("correo"), Boolean.TRUE.equals(f.get("correo_verificado")))));
+                esAdmin((String) f.get("correo"), Boolean.TRUE.equals(f.get("correo_verificado"))),
+                Boolean.TRUE.equals(f.get("con_google")) ? (String) f.get("foto_url") : null));
     }
 
     public void cerrarSesion(String token) {
-        if (token != null) jdbc.update("DELETE FROM sesiones WHERE token_hash = ?", hashToken(token));
+        if (token != null) {
+            // Cerrar sesión no deja un enlace de «Compartir mi viaje» huérfano: los de esa persona se borran antes de borrar la sesión.
+            jdbc.update("DELETE FROM viajes_compartidos WHERE usuario_id = (SELECT usuario_id FROM sesiones WHERE token_hash = ?)", hashToken(token));
+            jdbc.update("DELETE FROM sesiones WHERE token_hash = ?", hashToken(token));
+        }
     }
 
-    public void cerrarTodas(long usuarioId) { jdbc.update("DELETE FROM sesiones WHERE usuario_id = ?", usuarioId); }
+    public void cerrarTodas(long usuarioId) {
+        jdbc.update("DELETE FROM viajes_compartidos WHERE usuario_id = ?", usuarioId);
+        jdbc.update("DELETE FROM sesiones WHERE usuario_id = ?", usuarioId);
+    }
 
     // ------------------------------------------------------------------ datos sincronizados
     public Map<String, Object> leerDatos(long usuarioId) {

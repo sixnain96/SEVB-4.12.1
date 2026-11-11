@@ -1,0 +1,27 @@
+/* Página pública «Viaje compartido» (4.15): móvil primero, contraste AA, modo oscuro y movimiento reducido. Sin recursos de terceros. */
+:root { --fondo: #f6faf8; --tarjeta: #ffffff; --texto: #14211b; --suave: #4a5a52; --verde: #176650; --borde: #c3d9cf; --alerta: #7a4b00; --alerta-fondo: #fff4d6; --ruta: #1e5fbf; --yo: #1a73e8; }
+@media (prefers-color-scheme: dark) { :root { --fondo: #0f1a15; --tarjeta: #17261f; --texto: #eef6f1; --suave: #b4c7bc; --verde: #6fd3ae; --borde: #2c4339; --alerta: #ffd98a; --alerta-fondo: #3a2d0b; --ruta: #7fb2ff; --yo: #8ab4f8; } }
+* { box-sizing: border-box; }
+html { font-size: 100%; }
+body { margin: 0; background: var(--fondo); color: var(--texto); font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.seg-cab { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--tarjeta); border-bottom: 1px solid var(--borde); }
+.seg-cab strong { display: block; font-size: 1.1rem; }
+.seg-cab span { color: var(--suave); font-size: .9rem; }
+.seg-main { max-width: 640px; margin: 0 auto; padding: 16px; }
+.seg-main:focus { outline: none; }
+.seg-estado { margin: 8px 0 4px; font-size: clamp(1.4rem, 5vw, 1.8rem); line-height: 1.25; }
+.seg-detalle { margin: 0 0 12px; color: var(--suave); font-size: 1.05rem; }
+.seg-aviso { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: var(--alerta-fondo); color: var(--alerta); border: 1px solid var(--alerta); font-weight: 600; }
+.seg-barra { height: 14px; border-radius: 8px; background: var(--borde); overflow: hidden; margin: 12px 0; }
+.seg-barra > i { display: block; height: 100%; width: 0; background: var(--verde); transition: width .6s ease; }
+.seg-mapa { margin: 12px 0; padding: 8px; background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 12px; }
+.seg-mapa svg { display: block; width: 100%; height: auto; max-height: 55vh; }
+.seg-mapa figcaption { color: var(--suave); font-size: .85rem; margin-top: 4px; }
+.seg-ruta { fill: none; stroke: var(--ruta); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.seg-ruta.b2 { stroke-dasharray: 10 6; }
+.seg-yo { fill: var(--yo); stroke: #fff; stroke-width: 3; }
+.seg-yo-halo { fill: var(--yo); opacity: .2; }
+.seg-actualizado { color: var(--suave); font-size: .95rem; margin: 8px 0; }
+.seg-privacidad { color: var(--suave); font-size: .85rem; margin-top: 24px; border-top: 1px solid var(--borde); padding-top: 12px; }
+.seg-noscript { padding: 16px; }
+@media (prefers-reduced-motion: reduce) { .seg-barra > i { transition: none; } }

@@ -13,6 +13,7 @@ import pathlib
 import re
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -463,6 +464,10 @@ FORZAR = {'estado': 0}
 LOG = []      # peticiones de búsqueda recibidas (para comprobar sesion=, magicKey y cuántas consultas hizo la página): GET /__log/busqueda
 
 
+COMPARTIDOS = {}
+COMPARTIR_LOG = []
+
+
 class H(BaseHTTPRequestHandler):
     server_version = 'SEVB-stub'
 
@@ -481,6 +486,58 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != 'HEAD':
             self.wfile.write(data)
+
+    def _compartir(self, cuerpo):
+        """«Compartir mi viaje» en memoria, con el MISMO contrato que ViajeCompartidoController: tokens en cabeceras, 404 genérico, ETag, llegada sin coordenadas."""
+        import hashlib
+        import secrets
+        h = lambda t: hashlib.sha256(t.encode()).hexdigest()
+        formato = lambda t: bool(t) and re.fullmatch(r'[A-Za-z0-9_-]{43}', t) is not None
+        COMPARTIR_LOG.append({'metodo': self.command, 'ruta': self.path})        # solo método y ruta: nunca cabeceras ni cuerpo
+        no = lambda: self._json({'status': 404, 'message': 'Este enlace ya no está disponible.'}, 404)
+        if self.command == 'POST':
+            try:
+                q = json.loads(cuerpo or b'{}')
+                tramos = q['ruta']['tramos']
+                assert isinstance(tramos, list) and 1 <= len(tramos) <= 2 and all(isinstance(t, list) and len(t) >= 2 for t in tramos)
+                assert sum(len(t) for t in tramos) <= 4000
+            except Exception:  # noqa: BLE001
+                return self._json({'status': 400, 'message': 'Para compartir hace falta un viaje en curso.'}, 400)
+            lectura, escritura = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+            COMPARTIDOS[h(lectura)] = {'w': h(escritura), 'estado': 'activo', 'fase': 'iniciando', 'leg': 0, 'progreso': 0, 'lat': None, 'lng': None, 'eta': None, 'version': 0,
+                                       'act': int(time.time()), 'exp': int(time.time()) + 10800, 'ruta': {'tramos': tramos, 'etiquetas': q['ruta'].get('etiquetas', [])[:2]}}
+            return self._json({'lectura': lectura, 'escritura': escritura, 'expira': int(time.time()) + 10800})
+        if self.command == 'PUT':
+            w = self.headers.get('X-Seguimiento-Escritura')
+            fila = next((f for f in COMPARTIDOS.values() if formato(w) and f['w'] == h(w)), None)
+            if not fila or fila['exp'] < time.time():
+                return no()
+            q = json.loads(cuerpo or b'{}')
+            if q.get('fase') not in ('iniciando', 'caminar', 'esperando', 'en_bus', 'caminar_final', 'llegaste'):
+                return self._json({'status': 400, 'message': 'Estado del viaje no válido.'}, 400)
+            fila.update(fase=q['fase'], leg=q.get('leg') or 0, progreso=q.get('progreso') or 0, lat=q.get('lat'), lng=q.get('lng'), eta=q.get('etaMin'), act=int(time.time()), version=fila['version'] + 1)
+            if q['fase'] == 'llegaste':
+                fila.update(estado='llego', lat=None, lng=None, progreso=1, exp=min(fila['exp'], int(time.time()) + 600))
+            return self._json({'ok': True})
+        if self.command == 'DELETE':
+            w = self.headers.get('X-Seguimiento-Escritura')
+            for k in [k for k, f in COMPARTIDOS.items() if formato(w) and f['w'] == h(w)]:
+                del COMPARTIDOS[k]
+            return self._json({'ok': True})
+        t = self.headers.get('X-Seguimiento')
+        fila = COMPARTIDOS.get(h(t)) if formato(t) else None
+        if not fila or fila['exp'] < time.time():
+            return no()
+        etag = '"%d"' % fila['version']
+        extra = {'ETag': etag, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow'}
+        if self.headers.get('If-None-Match') == etag:
+            return self._enviar(304, b'', 'application/json', extra)
+        cuerpo_r = {'estado': fila['estado'], 'fase': fila['fase'], 'leg': fila['leg'], 'progreso': fila['progreso'], 'actualizado': fila['act'], 'expira': fila['exp'], 'ruta': fila['ruta']}
+        if fila['lat'] is not None and fila['estado'] != 'llego':
+            cuerpo_r['posicion'] = {'lat': fila['lat'], 'lng': fila['lng']}
+        if fila['eta'] is not None:
+            cuerpo_r['etaMin'] = fila['eta']
+        return self._enviar(200, json.dumps(cuerpo_r), 'application/json', extra)
 
     def _json(self, obj, codigo=200):
         self._enviar(codigo, json.dumps(obj), 'application/json', {'Cache-Control': 'no-store'})
@@ -612,6 +669,8 @@ class H(BaseHTTPRequestHandler):
             return self._busqueda(q, mk, sugerencias=False)
         if ruta.startswith('/api/lugares'):
             return self._json({'lugares': [], 'sugerencias': [], 'dirigida': False})
+        if ruta == '/api/compartir':
+            return self._compartir(cuerpo)
         if ruta == '/api/cuenta/yo':
             return self._json({'autenticado': False})
         if ruta == '/api/cuenta/config':
@@ -680,8 +739,15 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         if u.path == '/__log/busqueda':
             return self._json(list(LOG))
+        if u.path == '/__log/compartir':
+            return self._json(list(COMPARTIR_LOG))
+        if u.path == '/__compartir/vencer':      # pruebas: hace vencer todos los enlaces
+            for f in COMPARTIDOS.values():
+                f['exp'] = 0
+            return self._json({'ok': True})
         if u.path == '/__log/limpiar':
             LOG.clear()
+            COMPARTIR_LOG.clear()
             return self._json({'ok': True})
         m = re.fullmatch(r'/__fallo/(\d{1,3})', u.path)
         if m:

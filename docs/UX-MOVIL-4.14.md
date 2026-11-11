@@ -152,3 +152,10 @@ git switch main
 ```
 
 Si luego haces commit y quieres deshacerlo: `git revert <commit>` o `git switch main` (la rama conserva el trabajo). Configuración: basta con volver a definir `GEOCODER_URL`, `GEOCODER_REVERSE_URL` y las dos variables `*_IMPORT_AL_ARRANCAR` si algún día se quisiera reactivar lo apagado (no se recomienda).
+
+## 11. Flujo del pasajero: «Editar A y B», pregunta sobre menús y foto de perfil
+
+- **«Editar A y B».** Botón secundario en `#startTripBar` (junto a «Iniciar viaje» y «Ver otras opciones»). Dispara `spevb-editar-ab`; `sheet.js` pide `half` al controlador del panel, cancela el posicionamiento automático (`marcarUsuario`), alinea su `.sheet-body` con `#formAB` y enfoca el grupo (no un campo). Con un viaje activo, `#panelShow` pasa a decir «Editar A y B» y lanza el mismo evento. Volver a la vista compacta con el asa realinea «Iniciar viaje» (`alinearBarraInicio`). Medido a 320 × 568: antes A/B quedaban en y = 115/242 con el cuerpo visible en 421–568 y el scroll bloqueado; ahora un toque los deja en 336–511.
+- **Pregunta urgente.** La tarjeta urgente ya no se estira (la regla de `panel-oculto.viaje-activo` fijaba `bottom`); con un menú o diálogo abierto la pregunta entra en la pila de `modales.js` (`sincronizarVentanaPregunta` en `viaje.js`): foco en «Sí», Tab atrapado, Escape = respuesta prudente, fondo inerte y atenuado, regreso del foco al terminar. 320 × 568: 58 % → 24 % de la pantalla, botones de 143 → 48 px, 30 Tab ahora sí llegan a «Sí» y «Todavía no».
+- **Menú por fases.** `superficies.js` (`ordenarMenu`) ordena y pliega el menú según haya o no viaje y lo aplica al cerrarlo si cambió con el menú abierto. 2,60 → 2,01 pantallas (inicio) y 3,64 → 1,43 (viaje) a 320 × 568 con una cuenta de prueba.
+- **Foto de perfil.** `picture` del ID token (validada) → `usuarios.foto_url` (V12) → `usuario.foto` en la sesión → círculo de 40 px en «Mi cuenta» y «Ajustes de la cuenta» con el chigüiro local de respaldo. Ver `docs/CUENTAS.md` y `CHANGELOG.md`.

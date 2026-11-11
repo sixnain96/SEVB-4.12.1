@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="/css/viaje.css" />
     <link rel="stylesheet" href="/css/recomendacion.css" />
     <link rel="stylesheet" href="/css/guia.css" />
+    <link rel="stylesheet" href="/css/guiado.css" />
     <script defer src="/js/mapa/geo.js"></script>
     <script defer src="/js/mapa/nucleo.js"></script>
     <script defer src="/js/common.js"></script>
@@ -36,16 +37,20 @@
     <script defer src="/js/mapa-salud.js"></script>
     <script defer src="/js/confort.js"></script>
     <script defer src="/js/offline.js"></script>
+    <script defer src="/js/avatares.js"></script>
     <script defer src="/js/cuenta.js"></script>
     <script defer src="/js/gps.js"></script>
     <script defer src="/js/viaje-nucleo.js"></script>
+    <script defer src="/js/viaje-ruta.js"></script>
     <script defer src="/js/bus.js"></script>
     <script defer src="/js/app.js"></script>
     <script defer src="/js/planner.js"></script>
+    <script defer src="/js/flujo-guiado.js"></script>
     <script defer src="/js/paraderos-publicos.js"></script>
     <script defer src="/js/puentes-publicos.js"></script>
     <script defer src="/js/extras.js"></script>
     <script defer src="/js/viaje.js"></script>
+    <script defer src="/js/compartir.js"></script>
     <script defer src="/js/espacio.js"></script>
     <script defer src="/js/atajos.js"></script>
     <script defer src="/js/logros.js"></script>
@@ -75,16 +80,14 @@
         </div>
         <div id="accountUser" hidden>
             <p class="eyebrow">Mi cuenta</p>
-            <div class="account-user"><span class="account-avatar" aria-hidden="true"></span><div><strong id="accountName"></strong><small id="accountEmail"></small></div></div>
+            <div class="account-user"><span class="account-avatar" id="accountAvatar" aria-hidden="true"></span><div><strong id="accountName"></strong><small id="accountEmail"></small></div></div>
             <div class="account-buttons">
                 <button id="accountSettings" class="secondary" type="button">Ajustes de la cuenta</button>
                 <button id="accountLogout" class="secondary" type="button">Cerrar sesión</button>
             </div>
         </div>
     </section>
-    <div class="menu-divider"></div>
-    <section class="menu-space" aria-label="Mi espacio">
-        <p class="eyebrow">Mi espacio</p>
+    <details class="menu-seccion menu-space" id="menuEspacio" open><summary><span>Mi espacio</span></summary>
     <div id="atajos" class="atajos" role="group" aria-label="Lugares frecuentes">
         <button type="button" class="atajo" data-atajo="Casa"><span class="atajo-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 11 12 4l8.5 7M6 9.5V20h12V9.5M10 20v-5.5h4V20"/></svg></span><span class="atajo-txt">Ir a Casa</span></button>
         <button type="button" class="atajo" data-atajo="Trabajo"><span class="atajo-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="7.5" width="17" height="12" rx="2.2"/><path d="M9 7.5V5.8A1.3 1.3 0 0 1 10.3 4.5h3.4A1.3 1.3 0 0 1 15 5.8v1.7M3.5 13h17M11 13v1.6h2V13"/></svg></span><span class="atajo-txt">Ir al Trabajo</span></button>
@@ -114,20 +117,20 @@
             </div>
         </div>
     </details>
-    </section>
+    </details>
     <details class="menu-seccion menu-logros" id="logros" aria-label="Mis viajes y logros"><summary><span>Mis viajes y logros</span></summary>
         <p class="eyebrow">Mis viajes</p>
         <p id="semanaResumen" class="logros-resumen semana-resumen" hidden></p>
         <p id="logrosResumen" class="logros-resumen">Aún no has terminado ningún viaje. ¡Tu primer viaje te da un logro!</p>
         <ul id="logrosLista" class="logros-lista"></ul>
     </details>
-    <section class="menu-ayuda" aria-label="Ayuda">
-        <p class="eyebrow">Ayuda</p>
-        <button id="menuBienvenida" class="secondary" type="button">Ver la bienvenida otra vez</button>
-        <button id="menuPractica" class="secondary" type="button">Hacer un viaje de práctica</button>
-    </section>
-    <div class="menu-divider"></div>
-    <nav class="menu-links" aria-label="Funciones del sistema">
+    <details class="menu-seccion menu-ayuda" id="menuAyuda"><summary><span>Ayuda</span></summary>
+        <div class="menu-ayuda-botones">
+            <button id="menuBienvenida" class="secondary" type="button">Ver la bienvenida otra vez</button>
+            <button id="menuPractica" class="secondary" type="button">Hacer un viaje de práctica</button>
+        </div>
+    </details>
+    <nav class="menu-links" id="menuLinks" aria-label="Funciones del sistema">
         <a href="/">Planear viaje</a>
         <a class="admin-only" hidden href="/lugares.html">Direcciones y lugares</a>
         <a class="admin-only" hidden href="/paraderos.html">Paraderos de bus</a>
@@ -136,8 +139,7 @@
         <a class="admin-only" hidden href="/reportes.html">Reportes</a>
         <a class="admin-only" hidden href="/editor.html">Editor de recorridos</a>
     </nav>
-    <div class="menu-divider"></div>
-    <details class="menu-seccion menu-view" aria-labelledby="viewTitle"><summary><span>Pantalla y accesibilidad</span></summary>
+    <details class="menu-seccion menu-view" id="menuVista" aria-labelledby="viewTitle"><summary><span>Pantalla y accesibilidad</span></summary>
         <p class="eyebrow">Pantalla</p>
         <h3 id="viewTitle">Mapa y accesibilidad</h3>
         <div class="confort-row" role="group" aria-label="Tamaño de la letra">
@@ -155,7 +157,6 @@
         <label class="switch-row"><input type="checkbox" data-ajuste="daltonico" /><span>Colores para daltónicos<small>Tramos en azul y naranja, el segundo bus con línea discontinua y cada tramo numerado.</small></span></label>
         <label class="switch-row"><input type="checkbox" data-ajuste="paraderosMapa" /><span>Mostrar paraderos del sistema<small>Dibuja en el mapa los paraderos registrados cerca de lo que ves (desde el zoom 14). Los de tu viaje se muestran siempre.</small></span></label>
     </details>
-    <div class="menu-divider"></div>
     <details id="colorGuide" class="favorites color-guide">
         <summary>Guía de colores</summary>
         <ul class="guide-list">
@@ -167,8 +168,7 @@
         </ul>
         <label class="switch-row guide-switch"><input type="checkbox" data-ajuste="daltonico" /><span>Colores para daltónicos</span></label>
     </details>
-    <div class="menu-divider"></div>
-    <details class="menu-seccion menu-offline" aria-labelledby="offlineTitle"><summary><span>Mala señal o sin internet</span></summary>
+    <details class="menu-seccion menu-offline" id="menuOffline" aria-labelledby="offlineTitle"><summary><span>Mala señal o sin internet</span></summary>
         <p class="eyebrow">Mala señal o sin internet</p>
         <h3 id="offlineTitle">Uso sin conexión</h3>
         <p id="offlineInfo" class="offline-info" role="status" aria-live="polite">Revisando…</p>
@@ -179,15 +179,13 @@
         <p id="installHint" class="offline-hint" hidden>En iPhone: toca <b>Compartir</b> en Safari y luego <b>Añadir a pantalla de inicio</b> para instalarla.</p>
         <p class="offline-hint">Descárgalo una vez con buena señal (Wi-Fi si puedes). Las rutas y tus últimos viajes se guardan solos.</p>
     </details>
-    <div class="menu-divider"></div>
-    <section class="menu-near" aria-label="Rutas cerca del origen">
+    <section class="menu-near" id="menuCerca" aria-label="Rutas cerca del origen">
     <div class="nearby-origin-block">
         <button id="nearOriginRoutes" class="text-button chip-button" type="button" disabled>Rutas cerca del origen</button>
         <div id="nearbyResults" class="nearby-results"></div>
     </div>
     </section>
-    <div class="menu-divider"></div>
-    <details class="menu-seccion menu-route-browser"><summary><span>Explorar recorridos</span></summary>
+    <details class="menu-seccion menu-route-browser" id="menuExplorar"><summary><span>Explorar recorridos</span></summary>
         <p class="eyebrow">Rutas registradas</p>
         <h3>Explorar recorridos</h3>
         <label for="routeSearch">Buscar ruta</label>
@@ -201,8 +199,6 @@
         <div id="routeList" class="route-list compact-route-list"></div>
         <div id="statusMessage" class="status info" role="status" aria-live="polite">Cargando rutas…</div>
         <button id="retryRoutes" class="secondary hidden" type="button">Volver a intentar</button>
-    </details>
-
     <section id="routeCard" class="route-card menu-route-card hidden" aria-live="polite">
         <div class="route-title-row"><span id="routeColor" class="route-color"></span><div><p id="routeCode" class="route-code"></p><h3 id="routeName"></h3></div></div>
         <div class="route-meta"><span id="directionBadge" class="pill"></span></div>
@@ -217,7 +213,9 @@
         <div id="stopsBlock" class="stops-block hidden"><div class="stops-head"><h4>Paradas</h4><button type="button" id="toggleRouteStops" class="chip-button" aria-pressed="false">Ver en el mapa</button></div><ol id="stopsList"></ol></div>
         <button id="exportRoute" class="secondary" type="button">Descargar GeoJSON ↓</button>
     </section>
-    <div class="menu-brand"><img src="/img/marca/sevb-chiguiro-360.png" alt="" width="160" height="160" loading="lazy" decoding="async"><span class="menu-brand-name">SEVB</span></div>
+    </details>
+
+    <div class="menu-brand" id="menuMarca"><img src="/img/marca/sevb-chiguiro-360.png" alt="" width="160" height="160" loading="lazy" decoding="async"><span class="menu-brand-name">SEVB</span></div>
 </aside>
 
 <div class="app">
@@ -253,7 +251,7 @@
                         <button id="siempreNo" class="text-button" type="button">Ahora no</button>
                     </div>
                 </div>
-                <div class="endpoints">
+                <div class="endpoints" id="formAB" role="group" aria-label="Origen y destino (A y B)" tabindex="-1">
                     <div class="endpoint-block">
                         <span class="endpoint-letter a" aria-hidden="true">A</span>
                         <div class="endpoint-field">
@@ -291,7 +289,10 @@
                 <div id="startTripBar" class="start-trip-bar" hidden>
                     <button id="startTrip" class="start-trip-main" type="button"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 3l7 17-7-4-7 4z" fill="currentColor"/></svg><span>Iniciar viaje</span></button>
                     <small id="startTripInfo" class="start-trip-info"></small>
-                    <button id="verOpciones" class="start-trip-more" type="button" hidden>Ver otras opciones</button>
+                    <div class="start-trip-sec">
+                        <button id="editarAB" class="start-trip-edit" type="button" hidden aria-controls="formAB"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 20l4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM14 7l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Editar A y B</span></button>
+                        <button id="verOpciones" class="start-trip-more" type="button" hidden>Ver otras opciones</button>
+                    </div>
                 </div>
                 <div id="tripStatus" class="status info" role="status" aria-live="polite">Marca A y B en el mapa o escribe una dirección.</div>
                 <div id="tripTools" class="trip-tools" hidden>
@@ -361,7 +362,7 @@
 <div id="settingsModal" class="modal-backdrop" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="setTitle">
         <h2 id="setTitle">Ajustes de la cuenta</h2>
-        <p class="muted"><strong id="setName"></strong><br /><span id="setEmail"></span></p>
+        <div class="account-user set-user"><span class="account-avatar" id="setAvatar" aria-hidden="true"></span><p class="muted"><strong id="setName"></strong><br /><span id="setEmail"></span></p></div>
         <p id="setGoogle" class="muted" hidden>Esta cuenta está vinculada a Google: puedes entrar siempre con el botón de Google.</p>
         <form id="setPassForm" class="set-block">
             <h3 id="setPassTitle">Cambiar contraseña</h3>

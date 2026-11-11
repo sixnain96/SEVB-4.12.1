@@ -38,7 +38,10 @@
         if (causa === 'usuario') { if (oculto) mostrar.focus({ preventScroll: true }); else ocultar.focus({ preventScroll: true }); }
     }
     ocultar.addEventListener('click', () => poner(true, 'usuario'));
-    mostrar.addEventListener('click', () => poner(false, 'usuario'));
+    mostrar.addEventListener('click', () => {
+        poner(false, 'usuario');
+        if (body.classList.contains('viaje-activo')) window.dispatchEvent(new CustomEvent('spevb-editar-ab'));      // durante el viaje el botón lleva directo a A y B
+    });
     window.Spevb = window.Spevb || {};
     window.Spevb.Panel = { ocultar: (c = 'usuario') => poner(true, c), mostrar: (c = 'usuario') => poner(false, c), oculto: () => body.classList.contains('panel-oculto'), ocultoPor: () => ocultoPor };
 
@@ -61,11 +64,18 @@
     // Al llegar los resultados el panel se queda a la vista con «Iniciar viaje» (lo normal). Solo si la persona activó «Bajar el panel al buscar»
     // (celular) baja solo y deja el mapa libre, con un botón grande «Ver rutas» para volver.
     const etiqueta = mostrar.querySelector('span');
+    let hayResultados = false;
+    /** Rótulo del botón que trae el planificador: durante un viaje dice «Editar A y B» (el viaje sigue activo); fuera de él, «Ver rutas» si hay resultados o «Buscar ruta». */
+    function rotular() {
+        const viaje = body.classList.contains('viaje-activo');
+        etiqueta.textContent = viaje ? 'Editar A y B' : hayResultados ? 'Ver rutas' : 'Buscar ruta';
+        mostrar.setAttribute('aria-label', viaje ? 'Traer el planificador para consultar o editar A y B. Tu viaje sigue activo' : hayResultados ? 'Mostrar las rutas encontradas' : 'Mostrar el panel para buscar una ruta');
+    }
+    window.addEventListener('spevb-viaje-modo', rotular);
     const automatico = () => movil.matches && !!(window.Spevb && window.Spevb.Ajustes && window.Spevb.Ajustes.get('panelBajar') === true);
     let temporizador = null;
     window.addEventListener('spevb-results', () => {
-        etiqueta.textContent = 'Ver rutas';
-        mostrar.setAttribute('aria-label', 'Mostrar las rutas encontradas');
+        hayResultados = true; rotular();
         clearTimeout(temporizador);
         if (automatico()) {
             temporizador = setTimeout(() => {

@@ -88,6 +88,21 @@ class GoogleTokenVerifierTest {
     }
 
     @Test
+    void laFotoDeGoogleSoloSeAceptaSiEsHttpsDeUnHostDeImagenesDeGoogle() throws Exception {
+        String buena = "https://lh3.googleusercontent.com/a/ACg8ocK=s96-c";
+        assertEquals(buena, verificador().verificar(token(par, Map.of("picture", buena)), AHORA).foto());
+        assertNull(verificador().verificar(token(par, Map.of()), AHORA).foto(), "sin picture: sin foto (avatar local)");
+        for (String mala : new String[] {
+                "http://lh3.googleusercontent.com/a/x", "https://evil.com/foto.png", "https://googleusercontent.com.evil.com/a",
+                "https://evil.com/.googleusercontent.com", "https://user:pw@lh3.googleusercontent.com/a", "https://lh3.googleusercontent.com:8443/a",
+                "javascript:alert(1)", "data:image/png;base64,AAAA", "//lh3.googleusercontent.com/a", "https://lh3.googleusercontent.com/" + "a".repeat(600), "no es una url" }) {
+            var id = verificador().verificar(token(par, Map.of("picture", mala)), AHORA);
+            assertNull(id.foto(), "debe ignorarse: " + mala);
+            assertEquals("ana@gmail.com", id.correo(), "una foto inválida nunca impide entrar");
+        }
+    }
+
+    @Test
     void sinClientIdConfiguradoNadaEntra() throws Exception {
         var v = new GoogleTokenVerifier(M, "", kid -> par.getPublic());
         assertFalse(v.activo());

@@ -48,6 +48,28 @@
     (doc.querySelector('.app') || body).appendChild(flotante);
     function sincronizarFlotante() { flotante.hidden = E.planificador === 'visible'; flotante.setAttribute('aria-expanded', String(E.menu)); }
 
+    // ------------------------------------------------------------------ menú por fase (4.14)
+    // Orden y secciones abiertas según lo que la persona necesita AHORA; nada se quita (lo secundario queda en secciones plegables). Antes de la fase de viaje el menú medía ≈ 2,6 pantallas
+    // a 320 × 568 y durante el viaje ≈ 3,6 (la ficha de la ruta abierta añadía 540 px). No se mueve nada mientras el menú está abierto: se aplica al cerrarlo.
+    const ORDEN = {
+        planificar: ['menuEspacio', 'logros', 'menuAyuda', 'menuLinks', 'menuVista', 'colorGuide', 'menuOffline', 'menuCerca', 'menuExplorar'],
+        viaje: ['menuVista', 'menuOffline', 'menuAyuda', 'menuEspacio', 'logros', 'menuLinks', 'colorGuide', 'menuCerca', 'menuExplorar'],
+    };
+    const ABIERTAS = { planificar: ['menuEspacio'], viaje: [] };
+    let faseMenu = null, pendienteFase = null;
+    function ordenarMenu(fase) {
+        if (!menu || faseMenu === fase) { pendienteFase = null; return; }
+        if (E.menu) { pendienteFase = fase; return; }
+        pendienteFase = null;
+        const marca = $('menuMarca');
+        ORDEN[fase].forEach((id) => { const el = $(id); if (el && el.parentElement === menu) menu.insertBefore(el, marca); });
+        ORDEN[fase].forEach((id) => { const el = $(id); if (el && el.tagName === 'DETAILS') el.open = ABIERTAS[fase].includes(id); });
+        menu.scrollTop = 0;
+        faseMenu = fase; body.dataset.menuFase = fase;
+        nota('menu:fase', fase);
+    }
+    const faseActual = () => (E.viaje ? 'viaje' : 'planificar');
+
     // ------------------------------------------------------------------ menú (observado)
     function revisarMenu() {
         const abierto = !!menu && menu.classList.contains('open');
@@ -56,6 +78,7 @@
         if (abierto && S.Siguiente) S.Siguiente.quitar();
         nota(abierto ? 'menu:abre' : 'menu:cierra');
         aplicar();
+        if (!abierto && pendienteFase) ordenarMenu(pendienteFase);      // la fase cambió con el menú abierto: se acomoda al cerrarlo
     }
     if (menu) new MutationObserver(revisarMenu).observe(menu, { attributes: true, attributeFilter: ['class'] });
 
@@ -77,13 +100,13 @@
     // ------------------------------------------------------------------ planificador y viaje
     const Panel = () => S.Panel;
     function viajeIniciado(causa = 'viaje:inicia') {
-        E.viaje = true;
+        E.viaje = true; ordenarMenu('viaje');
         // La tarjeta del viaje pasa a ser la superficie principal: el planificador cede (se oculta, sin perder lo escrito). Solo en celular/ventana angosta.
         if (E.planificador === 'visible' && compacto.matches && Panel()) Panel().ocultar('viaje');
         nota(causa); aplicar();
     }
     function viajeTerminado(causa = 'viaje:termina') {
-        E.viaje = false;
+        E.viaje = false; ordenarMenu('planificar');
         // Si el planificador lo ocultó el propio viaje, se recupera; si lo ocultó la persona, se respeta.
         if (E.ocultoPor === 'viaje' && Panel()) Panel().mostrar('viaje-terminado');
         nota(causa); aplicar();
@@ -140,5 +163,5 @@
             if (estado && /^(Preparando|El mapa tarda)/.test(estado.textContent)) estado.textContent = original;
         }, { once: true });
     }
-    revisarMenu(); revisarModales(); nota('inicio'); aplicar();
+    revisarMenu(); revisarModales(); ordenarMenu(faseActual()); nota('inicio'); aplicar();
 })();

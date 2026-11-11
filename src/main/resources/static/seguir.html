@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Viaje compartido · SEVB</title>
+    <!-- Página pública de solo lectura: sin indexar, sin Referer, sin datos en metadatos sociales. El token vive en el fragmento (#…): nunca llega a registros del servidor. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="stylesheet" href="/css/seguir.css" />
+</head>
+<body>
+    <header class="seg-cab">
+        <img src="/img/marca/sevb-chiguiro-96.png" alt="" width="40" height="40" />
+        <div><strong>SEVB</strong><span>Viaje compartido</span></div>
+    </header>
+    <main class="seg-main" id="contenido" tabindex="-1">
+        <h1 class="seg-estado" id="estado" aria-live="polite">Buscando el viaje…</h1>
+        <p class="seg-detalle" id="detalle" aria-live="polite"></p>
+        <div class="seg-aviso" id="aviso" role="status" hidden></div>
+        <div class="seg-barra" id="barra" role="progressbar" aria-label="Avance del viaje" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i></i></div>
+        <figure class="seg-mapa" id="mapaFigura" hidden>
+            <svg id="mapa" viewBox="0 0 320 240" role="img" aria-label="Esquema del recorrido y de dónde va la persona"></svg>
+            <figcaption>Esquema del recorrido (sin mapa de calles).</figcaption>
+        </figure>
+        <p class="seg-actualizado" id="actualizado"></p>
+        <p class="seg-privacidad">Solo ves este viaje mientras la persona lo comparte. El enlace se cierra solo al llegar o al pasar unas horas, y ella puede cerrarlo cuando quiera.</p>
+    </main>
+    <noscript><p class="seg-noscript">Esta página necesita JavaScript para mostrar el viaje.</p></noscript>
+    <script src="/js/seguir.js" defer></script>
+</body>
+</html>

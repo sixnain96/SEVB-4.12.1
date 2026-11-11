@@ -4,6 +4,8 @@ Aplicación web para consultar y planificar viajes en **bus urbano en Villavicen
 
 Indica de dónde sales y a dónde vas, y SEVB te propone qué ruta tomar, dónde subirte, dónde bajarte y cuánto caminar. Con **«Iniciar viaje»** te acompaña con el GPS del celular hasta tu destino.
 
+**Versión vigente: 4.15.0** (única fuente: `<version>` de `pom.xml`; el historial está en [CHANGELOG.md](CHANGELOG.md)).
+
 ## Qué hace
 
 - **Planificador de viaje:** compara tu origen y destino con las rutas registradas, incluidos transbordos, y muestra el camino a pie hasta el bus y desde el bus hasta tu destino.
@@ -64,3 +66,6 @@ Los recorridos pueden representar conocimiento de campo del equipo y **no son in
 ## Licencia
 
 Proyecto académico. Consulta [LICENSE](LICENSE) para las condiciones vigentes y los componentes de terceros.
+
+## Novedades de la 4.15.0
+Flujo guiado de planificación (con «Modo avanzado»), ruta que se consume durante el viaje, avatares regionales de respaldo y «Compartir mi viaje». Ver [CHANGELOG.md](CHANGELOG.md), [docs/FLUJO-GUIADO.md](docs/FLUJO-GUIADO.md), [docs/COMPARTIR-VIAJE.md](docs/COMPARTIR-VIAJE.md) y [docs/PRUEBAS-USABILIDAD-GUIADA.md](docs/PRUEBAS-USABILIDAD-GUIADA.md).

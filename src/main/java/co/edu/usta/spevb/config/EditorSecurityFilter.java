@@ -55,6 +55,11 @@ public class EditorSecurityFilter extends OncePerRequestFilter {
         }
         String path = request.getRequestURI().substring(request.getContextPath().length());
         if (path.startsWith("/api/")) response.setHeader("Cache-Control", "no-store");
+        if (path.equals("/seguir.html")) {      // página pública de «Compartir mi viaje»: nunca se guarda, no se indexa y no filtra la dirección en el Referer
+            response.setHeader("Cache-Control", "no-store");
+            response.setHeader("Referrer-Policy", "no-referrer");
+            response.setHeader("X-Robots-Tag", "noindex, nofollow");
+        }
         if (path.startsWith("/api/editor/")) {
             if (!enabled) { reject(response, 403, "El editor está deshabilitado en el servidor."); return; }
             String supplied = request.getHeader("X-Editor-Token");

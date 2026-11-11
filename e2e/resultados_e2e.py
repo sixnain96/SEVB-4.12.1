@@ -246,7 +246,7 @@ def en_384x848_la_lista_conserva_su_posicion_y_nada_la_devuelve_al_inicio(nav):
     p.evaluate("window.visualViewport && window.visualViewport.dispatchEvent(new Event('resize'))"); p.wait_for_timeout(500)
     assert abs(scroll_body(p) - pos) <= 2, 'visualViewport.resize conserva la posición'
     # abrir y cerrar tarjetas y grupos no devuelve la lista al inicio
-    visible = p.evaluate("(() => { const b = document.querySelector('.sheet-body').getBoundingClientRect(); const c = [...document.querySelectorAll('#tripResults .trip-option > summary')].find(e => { const r = e.getBoundingClientRect(); return r.top > b.top + 20 && r.bottom < b.bottom - 20; }); return c ? (c.scrollIntoView === undefined ? null : [c.getBoundingClientRect().x + 30, c.getBoundingClientRect().y + 20]) : null; })()")
+    visible = p.evaluate("(() => { const b = document.querySelector('.sheet-body').getBoundingClientRect(); const barra = document.getElementById('startTripBar').getBoundingClientRect(); const c = [...document.querySelectorAll('#tripResults .trip-option > summary')].find(e => { const r = e.getBoundingClientRect(); return r.top > Math.max(b.top, barra.bottom) + 20 && r.bottom < b.bottom - 20; }); return c ? (c.scrollIntoView === undefined ? null : [c.getBoundingClientRect().x + 30, c.getBoundingClientRect().y + 20]) : null; })()")
     assert visible, 'hay una tarjeta visible para tocar'
     p.touchscreen.tap(visible[0], visible[1]); p.wait_for_timeout(1500)
     assert scroll_body(p) > pos * 0.4 and scroll_body(p) > 50, f'abrir una tarjeta no devuelve la lista al inicio: {pos} → {scroll_body(p)}'

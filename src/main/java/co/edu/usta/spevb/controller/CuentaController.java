@@ -43,7 +43,7 @@ public class CuentaController {
 
     // ------------------------------------------------------------------ ayudas
     /** Las operaciones que cambian algo solo se aceptan desde esta misma página (defensa contra CSRF). */
-    private static void mismoSitio(HttpServletRequest r) {
+    static void mismoSitio(HttpServletRequest r) {
         String sitio = r.getHeader("Sec-Fetch-Site");
         if ("cross-site".equals(sitio)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solicitud de otro sitio no permitida.");
         String origen = r.getHeader("Origin");
@@ -59,7 +59,7 @@ public class CuentaController {
         }
     }
 
-    private static String token(HttpServletRequest r) {
+    static String token(HttpServletRequest r) {
         if (r.getCookies() == null) return null;
         for (Cookie c : r.getCookies()) if (COOKIE.equals(c.getName())) return c.getValue();
         return null;
@@ -75,7 +75,9 @@ public class CuentaController {
     }
 
     private static Map<String, Object> vista(Usuario u) {
-        return Map.of("id", u.id(), "nombre", u.nombre(), "correo", u.correo(), "tieneClave", u.tieneClave(), "conGoogle", u.conGoogle(), "admin", u.admin());
+        var m = new java.util.LinkedHashMap<String, Object>(Map.of("id", u.id(), "nombre", u.nombre(), "correo", u.correo(), "tieneClave", u.tieneClave(), "conGoogle", u.conGoogle(), "admin", u.admin()));
+        if (u.foto() != null) m.put("foto", u.foto());      // opcional: solo cuentas con Google que traen foto
+        return m;
     }
 
     private void limite(String clave, int max, Duration ventana, String mensaje) {

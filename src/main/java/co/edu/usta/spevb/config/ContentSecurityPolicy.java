@@ -4,7 +4,7 @@ package co.edu.usta.spevb.config;
  * Content-Security-Policy de la aplicación según el proveedor del mapa. Cada modo permite SOLO lo que su mapa necesita:
  * con Leaflet los hosts de teselas anteriores (OpenStreetMap, Esri, OpenFreeMap); con Google únicamente los de la Maps JavaScript API
  * (política por lista de dominios de https://developers.google.com/maps/documentation/javascript/content-security-policy) y ya no los anteriores.
- * El inicio de sesión con Google (accounts.google.com/gsi) se mantiene en ambos modos. Los textos de referencia están en
+ * El inicio de sesión con Google (accounts.google.com/gsi) se mantiene en ambos modos, y también las imágenes de perfil de Google (*.googleusercontent.com, solo img-src). Los textos de referencia están en
  * src/test/resources/csp/*.txt y los usa también el servidor simulado de pruebas (e2e/stub_server.py), de modo que no puedan divergir.
  */
 public final class ContentSecurityPolicy {
@@ -18,7 +18,7 @@ public final class ContentSecurityPolicy {
 
     public static String leaflet() {
         return "default-src 'self'; script-src 'self' " + GSI_SCRIPT + "; " +
-                "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https://tile.openstreetmap.org https://server.arcgisonline.com https://tiles.openfreemap.org; " +
+                "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https://tile.openstreetmap.org https://server.arcgisonline.com https://tiles.openfreemap.org https://*.googleusercontent.com; " +
                 "connect-src 'self' https://tiles.openfreemap.org https://accounts.google.com/gsi/; worker-src 'self' blob:; child-src 'self' blob:; " +
                 "frame-src 'self' https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
     }

@@ -30,7 +30,10 @@ import java.util.function.Function;
  */
 @Component
 public class GoogleTokenVerifier {
-    public record Identidad(String sub, String correo, String nombre) {}
+    /** {@code foto}: URL HTTPS de la foto de perfil (campo opcional «picture» del token ya verificado) o null si falta o no es de un host de imágenes de Google. */
+    public record Identidad(String sub, String correo, String nombre, String foto) {
+        public Identidad(String sub, String correo, String nombre) { this(sub, correo, nombre, null); }
+    }
     public static class TokenInvalido extends RuntimeException { public TokenInvalido(String m) { super(m); } }
 
     private static final Set<String> EMISORES = Set.of("https://accounts.google.com", "accounts.google.com");
@@ -82,11 +85,28 @@ public class GoogleTokenVerifier {
             if (!verificado) throw new TokenInvalido("Tu correo de Google no está verificado.");
             String nombre = c.path("name").asString("").replaceAll("[\\p{Cntrl}]", " ").strip();
             if (nombre.length() < 2) nombre = correo.substring(0, correo.indexOf('@'));
-            return new Identidad(sub, correo, nombre.length() > 60 ? nombre.substring(0, 60) : nombre);
+            return new Identidad(sub, correo, nombre.length() > 60 ? nombre.substring(0, 60) : nombre, fotoSegura(c.path("picture").asString("")));
         } catch (TokenInvalido e) {
             throw e;
         } catch (Exception e) {
             throw new TokenInvalido("Credencial de Google no válida.");
+        }
+    }
+
+    private static final java.util.regex.Pattern HOST_FOTO = java.util.regex.Pattern.compile("^[a-z0-9-]+(\\.[a-z0-9-]+)*\\.googleusercontent\\.com$");
+
+    /** La foto de Google solo se acepta por HTTPS, sin credenciales ni puerto, desde un subdominio de googleusercontent.com y de longitud razonable; si no, se ignora (la cuenta usa el avatar local). */
+    static String fotoSegura(String url) {
+        if (url == null) return null;
+        String u = url.strip();
+        if (u.isEmpty() || u.length() > 512) return null;
+        try {
+            URI uri = URI.create(u);
+            String host = uri.getHost();
+            if (!"https".equals(uri.getScheme()) || host == null || uri.getRawUserInfo() != null || uri.getPort() != -1) return null;
+            return HOST_FOTO.matcher(host.toLowerCase()).matches() ? uri.toASCIIString() : null;
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

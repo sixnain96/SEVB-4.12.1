@@ -51,3 +51,19 @@ Conteo de navegador: 20 + 13 + 16 + 21 + 25 + 4 + 17 + 11 + 16 + 10 = **153**.
 ## Continuidad del viaje 4.14 (`e2e/continuidad414_e2e.py`)
 
 `python e2e/continuidad414_e2e.py` (19 casos; **Google, red y GPS simulados**): reanudar, recálculo seguro, regreso de pantalla bloqueada, salud y recuperación del mapa. Lo que demuestran y lo que **no** (Google real, teléfono real, WebKit): `docs/CONTINUIDAD-VIAJE.md`. Última regresión completa (Chromium, 3 carriles): 17 suites sin fallos; `estados_e2e` se adaptó porque elegir una opción ya no espera al detalle de su ruta, y `mejoras414`/`aprender` abren las secciones plegadas del menú.
+
+## Flujo del pasajero 4.14 (`e2e/pasajero414_e2e.py`)
+
+`python e2e/pasajero414_e2e.py` (19 casos; **Google, su foto, la red y el GPS simulados**, tamaños emulados en Chromium/Edge): «Editar A y B» alcanzable con toques reales en 320 × 568, 390 × 844, tableta y escritorio (un toque lleva a A/B, conserva el plan, no abre el teclado; abrir y volver permite iniciar), el mismo botón durante un viaje sin tocar GPS ni fase, pregunta de subida y de bajada sobre el menú y sobre un diálogo de cuenta (compacta, botones de 48 px, foco en «Sí», Tab y Escape en la pregunta, regreso del foco y del scroll), menú más corto por fases con todas sus funciones, y la foto de perfil (válida, ausente, inválida, rota, sin internet, sesión restaurada, cambio de cuenta con carga tardía, CSP). **No** prueba una cuenta de Google real, una foto real ni un teléfono físico.
+
+## 4.15.0 · Suites nuevas
+| Qué prueba | Comando | Notas |
+|---|---|---|
+| Flujo guiado (pasos, GPS concedido/rechazado, retroceso, errores, teclado, tamaños 320–768, modo avanzado, voz opcional) | `python e2e/guiado_e2e.py` | Frontend real + stub; toques reales; **una suite a la vez por puerto** |
+| Ruta consumible (geometría pura, avance monótono, orden de etapas, traspaso de capas, estela, desvío, reanudar) | `python e2e/ruta_consumible_e2e.py` | GPS simulado |
+| Avatares (manifiesto, estabilidad, Google > regional > chigüiro, cuentas) | `python e2e/avatares_e2e.py` | Inyecta un manifiesto temporal; **no hay ilustraciones reales todavía** |
+| Compartir mi viaje (diálogo, creación, límites, revocación, llegada, página pública) | `python e2e/compartir_e2e.py` | El stub simula `/api/compartir` con el contrato del controlador |
+| Compartir mi viaje en Java | `mvn clean verify "-Dsevb.sinDocker=true"` | `ViajeCompartidoServiceTest` y `ViajeCompartidoControllerTest` (JdbcTemplate simulado); la migración V13 real exige Docker |
+| Todo junto | `python e2e/run_e2e.py` | Las suites anteriores se ejecutan en modo avanzado (`spevb-modo-planificador=avanzado` desde el arnés) |
+
+Las pruebas con una respuesta 4xx/5xx **provocada a propósito** descartan solo el mensaje genérico «Failed to load resource» de la consola; cualquier otro error de JavaScript o promesa rechazada sigue fallando.

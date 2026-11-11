@@ -22,7 +22,7 @@
         try {
             const sel = S.Planner && S.Planner.seleccion && S.Planner.seleccion.viaje;
             if (sel && sel.caminatas && !sesion.plan.caminatas && sel.destino && sel.destino.lat === sesion.plan.destino.lat && sel.destino.lng === sesion.plan.destino.lng) sesion.plan.caminatas = redondear(sel.caminatas);
-            localStorage.setItem(CLAVE, JSON.stringify({ v: 2, plan: sesion.plan, estado: sesion.nucleo.serializar(), t: Date.now(), inicio: sesion.inicio, ultima: sesion.ultima || null }));
+            localStorage.setItem(CLAVE, JSON.stringify({ v: 2, plan: sesion.plan, estado: sesion.nucleo.serializar(), t: Date.now(), inicio: sesion.inicio, ultima: sesion.ultima || null, ruta: sesion.ruta ? sesion.ruta.serializar() : (sesion.rutaGuardada || null) }));
         } catch { /* sin almacenamiento */ }
     };
     const redondear = (plan) => JSON.parse(JSON.stringify(plan, (k, v) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1e6) / 1e6 : v)));
@@ -102,6 +102,7 @@
     function limitarPosicion() {
         if (tarjeta.hidden) return;
         if (tarjeta.dataset.cede === 'overlay' && !tarjeta.dataset.urgente) return;      // cedida (desplazada 18 px por la animación): medirla ahora movería la posición guardada
+        if (tarjeta.dataset.urgente && (tarjeta.dataset.cede === 'overlay' || tarjeta.dataset.cede === 'planificador')) return;      // aviso arriba y reducido: el CSS ignora la posición de la persona; no se toca ni se guarda
         const r = tarjeta.getBoundingClientRect();
         if (!r.width) return;
         const margen = 4, arriba = 56;      // arriba se respeta la barra de la aplicación
@@ -131,6 +132,22 @@
     function mostrarCompleta() { if (cedida()) return sincronizarUrgente(); if (ui.modo !== 'completa') ponerModo('completa', { recordar: false }); }
     /** Un aviso importante (pregunta de subida/bajada, aviso próximo o urgente, error que pide acción) tiene que verse aunque la tarjeta haya cedido el sitio
      *  al menú o esté oculta: la misma tarjeta se muestra SOLO con esa pregunta/aviso, arriba de todo. Es UNA pila, no otra: nunca hay dos preguntas a la vez. */
+    // Una pregunta que pide respuesta, con un menú o diálogo abierto, pasa a ser LA ventana de arriba del controlador común (modales.js): ahí se coordinan el foco
+    // (entra en «Sí»), Tab (se queda en la pregunta), Escape (= la respuesta prudente), el fondo inerte y el regreso del foco al terminar. Sin menú ni diálogo no se usa:
+    // el mapa y el planificador siguen siendo operables junto a la tarjeta.
+    let ventanaPregunta = null;
+    const preguntaPideRespuesta = () => !!sesion && !q('viajePregunta').hidden && ['subida', 'bajada', 'recalculo'].includes(q('viajePregunta').dataset.id || '');
+    function escaparPregunta() { if (preguntaPideRespuesta()) q('viajeNo').click(); }      // «Todavía no» / «No, sigo en el bus» / «No, seguir con el actual»: nunca descarta ni cambia nada por sí sola
+    function sincronizarVentanaPregunta() {
+        if (!S.Modal || !S.Superficies) return;
+        const encima = !!S.Superficies.estado().overlay && preguntaPideRespuesta();
+        if (encima && !ventanaPregunta) {
+            ventanaPregunta = S.Modal.abrir(tarjeta, { mostrar: () => {}, ocultar: () => {}, tarjeta, escape: true, cerrar: escaparPregunta, foco: () => q('viajeSi') });
+        } else if (!encima && ventanaPregunta) {
+            ventanaPregunta = null;
+            S.Modal.cerrar(tarjeta);
+        }
+    }
     function sincronizarUrgente() {
         const aviso = q('viajeAviso'), preg = q('viajePregunta');
         const urgente = !!sesion && (!preg.hidden || (!aviso.hidden && (aviso.dataset.nivel === 'urgente' || aviso.dataset.nivel === 'alerta')));
@@ -140,6 +157,7 @@
         pastilla.classList.toggle('con-aviso', urgente);
         if (urgente && cedida() && tarjeta.hidden) { tarjeta.hidden = false; tarjeta.dataset.forzada = '1'; }
         else if (tarjeta.dataset.forzada && !(urgente && cedida())) { delete tarjeta.dataset.forzada; ponerModo(ui.modo, { recordar: false }); }
+        sincronizarVentanaPregunta();
     }
     window.addEventListener('spevb-superficies', () => { sincronizarUrgente(); requestAnimationFrame(limitarPosicion); });
     q('viajeMinimizar').addEventListener('click', () => ponerModo(ui.modo === 'completa' ? 'compacta' : 'completa'));
@@ -243,23 +261,15 @@
             setTimeout(() => { if (sesion) sesion.moviendo = false; }, 400);
         }
     }
-    /** Si el recorrido no está dibujado por el planificador (viaje reanudado o plan borrado), se dibuja aquí. */
+    /** Traspaso de propiedad (4.15): al empezar el viaje el planificador suelta su copia estática del recorrido y la ruta consumible (viaje-ruta.js) dibuja las etapas, los puntos
+     *  de subida/bajada y el destino. Sin mapa no se hace nada (el viaje sigue); cuando el mapa aparezca, se dibuja el estado actual (con el progreso ya guardado). */
     function asegurarRecorrido() {
-        const m = mapa(); if (!sesion || !m || sesion.capaRecorrido || S.Planner.seleccion) return;
+        const m = mapa(); if (!sesion || !m || sesion.ruta || !S.ViajeRuta) return;
         if (typeof m.group !== 'function') return;
-        sesion.capaRecorrido = m.group().addTo(m);
-        // Caminatas guardadas con el plan (si llegaron antes de guardar): línea punteada sobre las calles, como en el planificador.
-        Object.values(sesion.plan.caminatas || {}).forEach((c) => {
-            if (c && Array.isArray(c.coordinates) && c.coordinates.length > 1) m.polyline(S.Geo.desdeGeoJSON(c.coordinates), { color: '#2f3640', weight: 5, opacity: 0.9, dashArray: '1 10', interactive: false }).addTo(sesion.capaRecorrido);
-        });
-        sesion.plan.buses.forEach((b, i) => {
-            const ll = S.Geo.desdeGeoJSON(b.tramo);
-            m.polyline(ll, { color: '#fff', weight: 11, opacity: 0.95, interactive: false }).addTo(sesion.capaRecorrido);
-            m.polyline(ll, { color: i ? '#1e5fbf' : '#e53935', weight: 7, opacity: 1, interactive: false }).addTo(sesion.capaRecorrido);
-            m.dot([b.subida.lat, b.subida.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#176650', fillOpacity: 1, tooltip: 'Subes a la ruta ' + (b.etiqueta || b.codigo) }).addTo(sesion.capaRecorrido);
-            m.dot([b.bajada.lat, b.bajada.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#c62828', fillOpacity: 1, tooltip: 'Bajas de la ruta ' + (b.etiqueta || b.codigo) }).addTo(sesion.capaRecorrido);
-        });
-        m.dot([sesion.plan.destino.lat, sesion.plan.destino.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#1e5fbf', fillOpacity: 1, tooltip: 'Tu destino' }).addTo(sesion.capaRecorrido);
+        try { if (S.Planner && S.Planner.liberarRecorrido) S.Planner.liberarRecorrido(); } catch { /* sin planificador */ }
+        try { sesion.ruta = S.ViajeRuta.crear({ mapa: m, plan: sesion.plan, reducido: () => !!(S.Motion && S.Motion.reduced), estado: sesion.rutaGuardada || null }); } catch { sesion.ruta = null; return; }
+        sesion.rutaGuardada = null;
+        const i = sesion.nucleo.info(); sesion.ruta.actualizar(sesion.ultima && !sesion.antigua ? sesion.ultima : null, i);
     }
 
     // ------------------------------------------------------------------ pintar la tarjeta
@@ -310,9 +320,11 @@
         for (const ev of eventos) {
             if (!sesion) return;
             switch (ev.tipo) {
-                case 'progreso': pintarPosicion(ev.lectura); pintarInfo(ev.info); break;
+                case 'progreso': pintarPosicion(ev.lectura); pintarInfo(ev.info); if (sesion.ruta) sesion.ruta.actualizar(ev.lectura, ev.info);
+                    try { window.dispatchEvent(new CustomEvent('spevb-viaje-lectura', { detail: { fase: ev.info.fase, leg: ev.info.leg, etaMin: ev.info.etaMin, lat: ev.lectura.lat, lng: ev.lectura.lng, precision: ev.lectura.precision } })); } catch { /* sin compartir */ }
+                    break;
                 case 'fase':
-                    pintarInfo(ev.info); ocultarPregunta();
+                    pintarInfo(ev.info); ocultarPregunta(); if (sesion.ruta) sesion.ruta.actualizar(null, ev.info);
                     if (ev.fase !== 'llegaste' && ev.fase !== 'terminado') { ocultarAviso(); guardar(); }
                     if (ev.texto && !ev.inicial) { mostrarAviso(ev.texto, { nivel: 'ok', ms: 9000 }); }
                     if (ev.inicial && ev.distanciaAOrigen > 1500) {
@@ -344,7 +356,7 @@
     }
 
     function llegada() {
-        mostrarCompleta();
+        mostrarCompleta(); if (sesion && sesion.ruta) sesion.ruta.actualizar(null, { fase: 'llegaste' });
         avisarPersona('¡Llegaste a tu destino!', { vibra: [300, 120, 300, 120, 600], pitidos: 3 });
         mostrarAviso('¡Llegaste a tu destino! Gracias por viajar con SEVB.', { nivel: 'ok', ms: 0 });
         q('viajeTerminar').textContent = 'Cerrar';
@@ -451,7 +463,7 @@
         // Un viaje reanudado conserva la hora ORIGINAL de inicio y su última posición, que se marca como antigua hasta recibir una lectura nueva.
         const reanudado = !!opciones.reanudado;
         sesion = { plan, nucleo, capa: null, seguir: true, inicio: opciones.inicio || Date.now(), ultimaRecepcion: performance.now(), fase0: true, wake: null,
-                   ultima: opciones.ultima || null, antigua: reanudado, genGps: 0 };
+                   ultima: opciones.ultima || null, antigua: reanudado, genGps: 0, rutaGuardada: opciones.ruta || null, ruta: null };
         asegurarCapa();
         prepararAudio();
         try { window.SpevbExplorer.bus.suspender(true); } catch { /* sin explorador */ }      // el bus de demostración se pausa: compite con tu posición real y gasta batería
@@ -485,7 +497,7 @@
         clearTimeout(temporizadorAviso);
         try { sesion.capa && sesion.capa.remove(); } catch { /* nada */ }
         if (S.MapaSalud) { S.MapaSalud.poner('ubicacion', null); }
-        try { sesion.capaRecorrido && sesion.capaRecorrido.remove(); } catch { /* nada */ }
+        try { sesion.ruta && sesion.ruta.destruir(); } catch { /* nada */ }
         { const mm = mapa(); if (mm && mm.priorizarCaminata) mm.priorizarCaminata(null); }
         sesion = null;
         if (borrarEstado) borrar();
@@ -547,13 +559,13 @@
     async function aceptarRecalculo() {
         if (!sesion || !sesion.propuesta) return;
         const nuevo = sesion.propuesta;
-        const respaldo = { plan: sesion.plan, estado: sesion.nucleo.serializar(), inicio: sesion.inicio, ultima: sesion.ultima };
+        const respaldo = { plan: sesion.plan, estado: sesion.nucleo.serializar(), inicio: sesion.inicio, ultima: sesion.ultima, ruta: sesion.ruta ? sesion.ruta.serializar() : (sesion.rutaGuardada || null) };
         ocultarPregunta();
         finalizar({ borrarEstado: false });      // suelta GPS, capa y temporizadores del viaje viejo SIN borrar su estado guardado
         const ok = await iniciar(nuevo);
         if (ok) return;
         // El viaje nuevo no pudo arrancar: se recupera el anterior tal como estaba (misma fase, misma hora de inicio).
-        await iniciar(respaldo.plan, respaldo.estado, { reanudado: true, inicio: respaldo.inicio, ultima: respaldo.ultima });
+        await iniciar(respaldo.plan, respaldo.estado, { reanudado: true, inicio: respaldo.inicio, ultima: respaldo.ultima, ruta: respaldo.ruta });
         mostrarAviso('No pude cambiar de recorrido. Sigues con el anterior.', { nivel: 'alerta', ms: 10000 });
     }
     function rechazarRecalculo() { if (sesion) delete sesion.propuesta; ocultarPregunta(); mostrarAviso('Sigues con tu recorrido actual.', { nivel: 'info', ms: 5000 }); }
@@ -596,7 +608,7 @@
     });
     // Si la persona cambia o borra el plan mientras viaja, el viaje sigue con su propia copia y se dibuja aparte.
     window.addEventListener('spevb-seleccion', () => { if (sesion) asegurarRecorrido(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sesion && !q('viajePregunta').hidden && tarjeta.contains(document.activeElement)) q('viajeNo').click(); });
+    document.addEventListener('keydown', (e) => { if (e.defaultPrevented) return; if (e.key === 'Escape' && sesion && !q('viajePregunta').hidden && tarjeta.contains(document.activeElement)) q('viajeNo').click(); });
 
     // ------------------------------------------------------------------ reanudar un viaje interrumpido (recarga, cierre del navegador)
     let reanudarAbierta = false, descartarReanudar = () => {};
@@ -623,7 +635,7 @@
             e.stopImmediatePropagation();
             if (si.disabled) return;
             si.disabled = true;
-            iniciar(g.plan, g.estado, { reanudado: true, inicio: g.inicio, ultima: g.ultima || null }).then((ok) => {
+            iniciar(g.plan, g.estado, { reanudado: true, inicio: g.inicio, ultima: g.ultima || null, ruta: g.ruta || null }).then((ok) => {
                 si.disabled = false;
                 if (ok) { reanudarAbierta = false; restaurar(); }
                 else mostrarAviso('No pude reanudar todavía. Revisa que el GPS esté activado y vuelve a tocar «Reanudar»: tu viaje sigue guardado.', { nivel: 'alerta', ms: 0 });
@@ -641,6 +653,7 @@
     function mostrarBarraInicio() {
         const sel = S.Planner && S.Planner.seleccion;
         barraInicio.hidden = !(sel && sel.viaje) && !sesion;
+        $('editarAB').hidden = barraInicio.hidden;      // «Editar A y B» acompaña a «Iniciar viaje» mientras haya una opción elegida (o un viaje en curso)
         const otras = document.querySelectorAll('#tripResults .trip-option').length - 1;
         $('verOpciones').hidden = !!sesion || !(sel && sel.viaje) || otras < 1;
         $('verOpciones').textContent = 'Ver otras opciones · ' + otras;
@@ -655,8 +668,11 @@
     window.addEventListener('spevb-seleccion', mostrarBarraInicio);
     window.addEventListener('spevb-viaje-modo', mostrarBarraInicio);
     $('verOpciones').addEventListener('click', () => window.dispatchEvent(new CustomEvent('spevb-ver-opciones')));
+    $('editarAB').addEventListener('click', () => window.dispatchEvent(new CustomEvent('spevb-editar-ab')));
 
     S.Viaje = { iniciar, detener: finalizar, pendiente: () => !sesion && reanudarAbierta, descartarPendiente: () => descartarReanudar(),
-        llego: () => !!(sesion && q('viajeTerminar').dataset.llego), activo: () => !!sesion, info: () => (sesion ? sesion.nucleo.info() : null), nucleo: () => (sesion ? sesion.nucleo : null) };
+        llego: () => !!(sesion && q('viajeTerminar').dataset.llego), activo: () => !!sesion, info: () => (sesion ? sesion.nucleo.info() : null), nucleo: () => (sesion ? sesion.nucleo : null),
+        rutaEstado: () => (sesion && sesion.ruta ? sesion.ruta.estado() : null),
+        plan: () => (sesion ? sesion.plan : null) };      // diagnóstico de la ruta consumible (pruebas y soporte)
     ofrecerReanudar();
 })();

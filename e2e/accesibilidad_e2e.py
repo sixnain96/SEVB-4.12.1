@@ -115,6 +115,7 @@ def verificar_modal(p, id_, abrir, abridor, escape_cierra=True):
 
 def desde_menu(p, boton):
     p.click('#menuButton'); p.wait_for_timeout(400)
+    p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")      # «Ayuda» y otras secciones van plegadas
     p.click(boton)
 
 

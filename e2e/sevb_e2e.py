@@ -46,10 +46,13 @@ PNG_1PX = bytes.fromhex('89504e470d0a1a0a0000000d4948445200000001000000010806000
 class Sesion:
     """Un contexto de navegador desechable con vigilancia de errores de consola y promesas rechazadas."""
 
-    def __init__(self, navegador, **opciones):
+    def __init__(self, navegador, guiado=False, **opciones):
         self.errores = []
         self.ctx = navegador.new_context(**{'viewport': {'width': 1280, 'height': 860}, 'service_workers': 'block', **opciones})
         self.ctx.add_init_script(INIT)
+        if not guiado:
+            # Las pruebas anteriores al flujo guiado ejercitan el planificador completo: ese es el «modo avanzado» (se elige una sola vez por contexto; luego manda la persona).
+            self.ctx.add_init_script("try { if (!localStorage.getItem('__t2')) { localStorage.setItem('__t2', '1'); localStorage.setItem('spevb-modo-planificador', 'avanzado'); } } catch (e) {}")
         self.ctx.route(lambda u: not u.startswith(URL.rstrip('/')) and not u.startswith('data:') and not u.startswith('blob:'), self._externo)
         self.page = self.ctx.new_page()
         self.page.on('pageerror', lambda e: self.errores.append('pageerror: ' + str(e)))

@@ -430,7 +430,7 @@ body.practicando .viaje-card { display: none; }
 /* Resumen de la semana y ayuda en el menú */
 .semana-resumen { font-weight: 700; color: #123f31; background: #e3efe9; padding: 10px 12px; border-radius: 12px; }
 .semana-resumen[hidden] { display: none; }
-.menu-ayuda { display: grid; gap: 10px; margin: 8px 0; }
+.menu-ayuda-botones { display: grid; gap: 10px; margin: 4px 0 0; }
 .menu-ayuda .secondary { min-height: 52px; font-size: 16px; }
 .confort-row .desactivado, .switch-row input:disabled + span { opacity: .55; }
 
@@ -799,3 +799,56 @@ details.menu-seccion > summary:focus-visible { outline: 3px solid #1e5fbf; outli
 details.menu-seccion[open] { padding-bottom: 10px; }
 .menu-brand img { max-height: 84px; width: auto; }
 @media (prefers-reduced-motion: reduce) { details.menu-seccion > summary::after { transition: none; } }
+
+/* ===================== 4.14 · «Editar A y B» y acciones secundarias de la barra de «Iniciar viaje» ===================== */
+.start-trip-sec { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 2px; }
+.start-trip-sec > button { flex: 1 1 124px; min-height: 44px; margin: 0; }
+.start-trip-edit { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; border: 2px solid #0f4a38; border-radius: 12px; background: #fff; color: #0f4a38;
+    font: inherit; font-size: 14px; font-weight: 700; line-height: 1.15; cursor: pointer; }
+.start-trip-edit[hidden] { display: none; }
+.start-trip-edit:hover { background: #eaf2ef; }
+.start-trip-edit:focus-visible { outline: 3px solid #1e5fbf; outline-offset: 2px; }
+.start-trip-sec .start-trip-more { padding: 6px 8px; }
+.start-trip-bar { padding: 6px 0 4px; }
+.endpoints:focus { outline: none; }
+.endpoints:focus-visible { outline: 3px solid #1e5fbf; outline-offset: 4px; border-radius: 14px; }
+
+/* ===================== 4.14 · Pregunta o aviso importante sobre un menú o diálogo ===================== */
+/* La tarjeta nunca se estira: antes `body.home-sevb.viaje-activo.panel-oculto .viaje-card` fijaba también `bottom` y, con `top`, la tarjeta ocupaba más de media pantalla y los botones medían 140 px. */
+.viaje-card { align-content: start; }
+body.home-sevb.viaje-activo.sup-overlay .viaje-card[data-urgente], body.home-sevb.viaje-activo .viaje-card[data-cede='planificador'][data-urgente] {
+    top: calc(8px + env(safe-area-inset-top, 0px)); bottom: auto; height: auto; max-height: min(70dvh, 520px); transform: none !important; z-index: 3100;
+}
+.viaje-card[data-urgente] .viaje-pregunta { padding: 10px 12px; }
+.viaje-card[data-urgente] .viaje-pregunta p { font-size: 17px; line-height: 1.3; }
+.viaje-card[data-urgente] .viaje-botones button { min-height: 48px; }
+/* Con la pregunta encima, lo de abajo se ve pero no se toca (el controlador de ventanas le puso `inert`): se atenúa en vez de desaparecer. */
+body.sup-overlay .side-menu.open[inert] { visibility: visible; opacity: .38; transition: opacity .18s ease; }
+body.sup-overlay .modal-backdrop[inert]:not([hidden]) { opacity: .55; transition: opacity .18s ease; }
+
+/* ===================== 4.14 · Menú más corto: secciones plegables y un orden según la fase ===================== */
+.side-menu > .menu-seccion, .side-menu > .menu-near, .side-menu > .menu-links { margin-top: 0; margin-bottom: 0; }
+.side-menu > details.menu-seccion { border-top: 1px solid #e3e9e7; }
+.side-menu > .menu-near { border-top: 1px solid #e3e9e7; padding: 8px 0; }
+.side-menu > .menu-links { margin: 10px 0; }
+.side-menu .menu-account { margin-bottom: 10px; }
+.side-menu details.menu-space { border-top: 0; }
+.side-menu .menu-space > .atajos, .side-menu .menu-space > .recent-trips { margin-top: 4px; }
+.menu-brand { margin: 10px 0 0; padding-top: 8px; }
+.menu-brand img { max-height: 64px; }
+body.viaje-activo .menu-brand { display: none; }
+
+/* «Compartir mi viaje» (4.15): botón dentro de «Más», fila visible mientras se comparte y diálogo. Objetivos táctiles de al menos 48 px. */
+.viaje-compartir-boton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; width: 100%; padding: 10px 14px; border: 2px solid #176650; border-radius: 12px; background: #fff; color: #0f4a39; font: inherit; font-weight: 700; cursor: pointer; }
+.viaje-compartir-boton[hidden] { display: none; }
+.viaje-compartiendo { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 8px 10px; border-radius: 12px; background: #e8f3ee; border: 1px solid #c3d9cf; }
+.viaje-compartiendo[hidden] { display: none; }
+.viaje-compartiendo-txt { display: flex; flex-direction: column; min-width: 0; font-size: 14px; color: #14322a; }
+.viaje-compartiendo-txt small { color: #3d5249; overflow-wrap: anywhere; }
+.viaje-compartiendo button { flex: none; min-height: 48px; padding: 8px 12px; border: 2px solid #8a2b2b; border-radius: 12px; background: #fff; color: #8a2b2b; font: inherit; font-weight: 700; cursor: pointer; }
+#compartirModal .comp-botones { display: grid; gap: 8px; margin: 8px 0 4px; }
+#compartirModal .comp-botones > * { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; text-align: center; }
+#compartirModal #compEnlace { width: 100%; min-height: 48px; }
+#compartirModal .comp-peligro { color: #8a2b2b; border-color: #8a2b2b; }
+@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) .viaje-compartir-boton, html:not([data-theme="light"]) .viaje-compartiendo button { background: #17261f; color: #eef6f1; } html:not([data-theme="light"]) .viaje-compartiendo { background: #17261f; border-color: #2c4339; } html:not([data-theme="light"]) .viaje-compartiendo-txt, html:not([data-theme="light"]) .viaje-compartiendo-txt small { color: #eef6f1; } }
+#compartirModal [hidden] { display: none !important; }

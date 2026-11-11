@@ -179,6 +179,45 @@
     S.Cuenta = Cuenta;
 
     // ------------------------------------------------------------------ menú y ventanas
+    // ------------------------------------------------------------------ avatar (foto de Google con respaldo local)
+    /** Mismo criterio que el servidor: HTTPS y un subdominio de googleusercontent.com. Cualquier otra cosa se ignora (queda el avatar local). */
+    function fotoValida(url) {
+        if (typeof url !== 'string' || url.length > 512) return null;
+        try { const u = new URL(url); return u.protocol === 'https:' && !u.username && !u.port && /(^|\.)googleusercontent\.com$/i.test(u.hostname) ? u.href : null; } catch { return null; }
+    }
+    /** Pone (o quita) la foto sobre el avatar local. Cada llamada invalida las cargas anteriores de ese círculo: al cerrar sesión o cambiar de cuenta, una foto
+     *  que llega tarde nunca se muestra en lugar de la actual. La foto se pide solo cuando el perfil se va a ver (menú o ajustes abiertos). */
+    function pintarAvatar(el, u) {
+        if (!el) return;
+        const url = u ? fotoValida(u.foto) : null;
+        // Avatar regional estable (si hay imágenes en el manifiesto): se pinta de inmediato, antes de intentar la foto de Google.
+        const reg = u && S.Avatares ? S.Avatares.para(u.id != null ? 'id:' + u.id : u.correo) : null;
+        const clave = (url ? u.correo + '|' + url : '') + (reg ? '#' + reg.archivo : '');
+        if (el.dataset.clave === clave && (url ? el.querySelector('img') : !el.firstChild)) return;       // ya está así: no se vuelve a pedir
+        el.dataset.clave = clave;
+        const turno = (el._turno = (el._turno || 0) + 1);
+        el.classList.remove('con-foto');
+        el.replaceChildren();
+        el.classList.toggle('con-regional', !!reg);
+        if (reg) el.style.setProperty('--avatar-regional', 'url("' + reg.url + '")'); else el.style.removeProperty('--avatar-regional');
+        el.dataset.avatar = reg ? reg.archivo : '';
+        if (!url || navigator.onLine === false) return;
+        const img = new Image();
+        img.alt = ''; img.width = 40; img.height = 40; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+        img.onload = () => { if (el._turno === turno && el.contains(img)) el.classList.add('con-foto'); };
+        img.onerror = () => { if (el._turno === turno) { img.remove(); el.classList.remove('con-foto'); el.dataset.clave = (reg ? '#' + reg.archivo : ''); } };      // sin foto: se queda el avatar regional (o el chigüiro)
+        el.append(img);
+        img.src = url;
+    }
+    const perfilVisible = () => !!document.getElementById('sideMenu')?.classList.contains('open') || !$('settingsModal')?.hidden;
+    function pintarAvatares() {
+        const u = usuario;
+        const visibleMenu = !!document.getElementById('sideMenu')?.classList.contains('open'), visibleAjustes = !!$('settingsModal') && !$('settingsModal').hidden;
+        if (!u) { pintarAvatar($('accountAvatar'), null); pintarAvatar($('setAvatar'), null); return; }
+        if (visibleMenu) pintarAvatar($('accountAvatar'), u); else if ($('accountAvatar')?.dataset.clave && !$('accountAvatar').dataset.clave.startsWith(u.correo + '|')) pintarAvatar($('accountAvatar'), null);
+        if (visibleAjustes) pintarAvatar($('setAvatar'), u); else if ($('setAvatar')?.dataset.clave && !$('setAvatar').dataset.clave.startsWith(u.correo + '|')) pintarAvatar($('setAvatar'), null);
+    }
+    window.addEventListener('spevb-superficies', () => { if (usuario && perfilVisible()) pintarAvatares(); });
     function pintarMenu() {
         if (!$('accountGuest')) return;
         $('accountGuest').hidden = !!usuario;
@@ -187,6 +226,7 @@
             $('accountName').textContent = usuario.nombre;
             $('accountEmail').textContent = usuario.correo + (usuario.conGoogle ? ' · Google' : '') + (sinVerificar ? ' · sin conexión' : '');
         }
+        pintarAvatares();
     }
     // Apertura, foco, Escape, fondo inerte y regreso del foco: controlador único (modales.js).
     const abrir = (el, opciones) => S.Modal.abrir(el, { fondo: true, ...opciones });
@@ -301,6 +341,7 @@
             $('setDel').type = conClave ? 'password' : 'email';
             $('setDel').autocomplete = conClave ? 'current-password' : 'off';
             abrir($('settingsModal'), { foco: () => (conClave ? $('setCur') : $('setNew')) });
+            pintarAvatares();
         };
         $('settingsClose').onclick = () => cerrar($('settingsModal'));
         $('setPassForm').onsubmit = async (e) => {
