@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
-STATIC = RAIZ / 'src' / 'main' / 'resources' / 'static'
+STATIC = pathlib.Path(os.environ['SEVB_STUB_STATIC']) if os.environ.get('SEVB_STUB_STATIC') else RAIZ / 'src' / 'main' / 'resources' / 'static'      # SEVB_STUB_STATIC: sirve otra copia del frontend (comparaciones A/B de rendimiento)
 VERSION = re.search(r'<artifactId>spevb-rutas</artifactId>\s*<version>([^<]+)</version>', (RAIZ / 'pom.xml').read_text(encoding='utf-8')).group(1)
 
 def _csp(proveedor):
@@ -547,7 +547,7 @@ class H(BaseHTTPRequestHandler):
         «nada», «fuera», «pausa» y «basura» (JSON inválido). «goo…» devuelve sugerencias de Google (con magicKey g:…); magicKey g:fallo
         simula que el detalle del lugar elegido falla; g:sust simula un backend que sustituye el lugar por otro de ArcGIS."""
         low = q.lower()
-        estados = {'tiempo': 'TIMEOUT', 'redca': 'RED', 'cuota': 'CUOTA', 'clave': 'CLAVE', 'nada': 'SIN_COINCIDENCIAS', 'fuera': 'FUERA_DE_CIUDAD', 'pausa': 'PAUSADO'}
+        estados = {'tiempo': 'TIMEOUT', 'redca': 'RED', 'cuota': 'CUOTA', 'clave': 'CLAVE', 'sinconfig': 'NO_CONFIGURADO', 'nada': 'SIN_COINCIDENCIAS', 'fuera': 'FUERA_DE_CIUDAD', 'pausa': 'PAUSADO'}
         if low.startswith('basura'):
             return self._enviar(200, 'esto no es json', 'application/json', {'Cache-Control': 'no-store'})
         if sugerencias:
@@ -558,7 +558,7 @@ class H(BaseHTTPRequestHandler):
             if not re.match(r'^[A-Za-zÁÉÍÓÚáéíóúñÑ]', q):
                 return self._json({'arcgisConfigurado': True, 'direccionesLocales': True, 'sugerencias': [], 'estado': 'SIN_COINCIDENCIAS', 'proveedor': 'ninguno', 'intentos': []})
             if low.startswith('goo'):
-                items = [{'texto': q + ' (Google)', 'detalle': 'Google Maps', 'magicKey': 'g:ok' + str(sum(map(ord, q)) % 10**6), 'lat': None, 'lng': None, 'fuente': 'Google Maps', 'precision': None, 'id': None}]
+                items = [{'texto': q + ' (Google)', 'principal': q + ' (Google)', 'secundario': 'Villavicencio, Meta, Colombia', 'detalle': 'Villavicencio, Meta, Colombia', 'magicKey': 'g:ok' + str(sum(map(ord, q)) % 10**6), 'lat': None, 'lng': None, 'fuente': 'Google Maps', 'precision': None, 'id': None}]
                 if low.startswith('goofallo'):
                     items[0]['magicKey'] = 'g:fallo1'
                 if low.startswith('goosust'):

@@ -401,6 +401,14 @@
             return responder(id, true);
         }
 
+        /** «Sigo en el bus» (recuadro «Tu bajada está aquí»): la persona dice que NO se bajó. Se conserva la fase y el bus y se enfría la pregunta automática «¿ya te bajaste?» (como un «no»). */
+        function sigoEnBus() {
+            if (e.fase !== 'en_bus') return [];
+            const t = ultima ? ultima.t : Date.now();
+            e.cdBajada = t + c.COOL_BAJADA_MS; e.lentoDesde = e.quietoDesde = null;
+            return [{ tipo: 'bajada_aplazada', info: info() }];
+        }
+
         function sinSenal(ms) {
             if (e.fase === 'iniciando' || e.fase === 'llegaste' || e.fase === 'terminado') return [];
             if (ms >= 20000 && !e.sinSenal) { e.sinSenal = true; return [{ tipo: 'sin_senal', texto: 'Perdí tu ubicación. Sigo buscándola; cuando vuelva, continúo desde donde ibas.', info: info() }]; }
@@ -452,7 +460,7 @@
             e.pregunta = null;
         }
 
-        return { procesar, responder, confirmarSubida: () => confirmarManual('subida'), confirmarBajada: () => confirmarManual('bajada'), sinSenal, terminar, info, serializar, restaurar, filtro, cfg: c };
+        return { procesar, responder, confirmarSubida: () => confirmarManual('subida'), confirmarBajada: () => confirmarManual('bajada'), sigoEnBus, sinSenal, terminar, info, serializar, restaurar, filtro, cfg: c };
     }
 
     S.ViajeNucleo = { CFG, dist, prepararLinea, proyectar, dividirLinea, posicionMonotona, FiltroLecturas, crearViaje };

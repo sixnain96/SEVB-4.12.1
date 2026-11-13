@@ -53,6 +53,9 @@ body.home-sevb .brand h1, body.home-sevb .brand p { white-space: nowrap; }
 .account-user strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-avatar { flex: none; width: 40px; min-width: 40px; }
 .account-buttons button { white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+/* 4.15.1: en 320 px «Ajustes de la cuenta» no cabe en una línea y empujaba el bloque 8 px fuera del menú (desplazamiento horizontal): las columnas se pueden encoger y el texto baja de línea. */
+.account-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 360px) { .account-buttons button { white-space: normal; line-height: 1.2; } }
 .modal-card { scrollbar-width: thin; }
 .google-btn { width: 100%; overflow: hidden; }
 .google-nota { margin: 6px 0 0; padding: 10px 12px; border-radius: 12px; background: #fff7e0; border: 1px solid #ecd28a; color: #5a4a10; font-size: 12.5px; line-height: 1.4; }

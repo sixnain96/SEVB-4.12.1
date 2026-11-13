@@ -187,11 +187,15 @@
     }
     /** Pone (o quita) la foto sobre el avatar local. Cada llamada invalida las cargas anteriores de ese círculo: al cerrar sesión o cambiar de cuenta, una foto
      *  que llega tarde nunca se muestra en lugar de la actual. La foto se pide solo cuando el perfil se va a ver (menú o ajustes abiertos). */
+    const fotosFallidas = new Set();        // fotos de Google que ya fallaron en esta vista: no se vuelven a pedir
+    const regionalesRotos = new Set();      // imágenes regionales que no cargaron (caso excepcional): queda el chigüiro local
     function pintarAvatar(el, u) {
         if (!el) return;
-        const url = u ? fotoValida(u.foto) : null;
+        let url = u ? fotoValida(u.foto) : null;
+        if (url && fotosFallidas.has(url)) url = null;
         // Avatar regional estable (si hay imágenes en el manifiesto): se pinta de inmediato, antes de intentar la foto de Google.
-        const reg = u && S.Avatares ? S.Avatares.para(u.id != null ? 'id:' + u.id : u.correo) : null;
+        let reg = u && S.Avatares ? S.Avatares.para(u.id != null ? 'id:' + u.id : u.correo) : null;
+        if (reg && regionalesRotos.has(reg.archivo)) reg = null;
         const clave = (url ? u.correo + '|' + url : '') + (reg ? '#' + reg.archivo : '');
         if (el.dataset.clave === clave && (url ? el.querySelector('img') : !el.firstChild)) return;       // ya está así: no se vuelve a pedir
         el.dataset.clave = clave;
@@ -201,11 +205,16 @@
         el.classList.toggle('con-regional', !!reg);
         if (reg) el.style.setProperty('--avatar-regional', 'url("' + reg.url + '")'); else el.style.removeProperty('--avatar-regional');
         el.dataset.avatar = reg ? reg.archivo : '';
+        if (reg) {      // si el regional no carga (caso excepcional), vuelve el chigüiro local; nunca una imagen rota
+            const prueba = new Image();
+            prueba.onerror = () => { regionalesRotos.add(reg.archivo); if (el._turno === turno) { el.classList.remove('con-regional'); el.style.removeProperty('--avatar-regional'); el.dataset.avatar = ''; } };
+            prueba.src = reg.url;
+        }
         if (!url || navigator.onLine === false) return;
         const img = new Image();
         img.alt = ''; img.width = 40; img.height = 40; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
         img.onload = () => { if (el._turno === turno && el.contains(img)) el.classList.add('con-foto'); };
-        img.onerror = () => { if (el._turno === turno) { img.remove(); el.classList.remove('con-foto'); el.dataset.clave = (reg ? '#' + reg.archivo : ''); } };      // sin foto: se queda el avatar regional (o el chigüiro)
+        img.onerror = () => { fotosFallidas.add(url); if (el._turno === turno) { img.remove(); el.classList.remove('con-foto'); el.dataset.clave = (reg ? '#' + reg.archivo : ''); } };      // sin foto: se queda el avatar regional (o el chigüiro)
         el.append(img);
         img.src = url;
     }

@@ -52,7 +52,10 @@ public class GoogleDireccionesService {
     /** Campos de la búsqueda por texto (Enter / «Buscar»): el nombre visible hace falta porque aquí no hay sugerencia elegida. */
     static final String CAMPOS_TEXTO = "places.id,places.displayName,places.formattedAddress,places.location,places.types";
 
-    public record Sugerencia(String texto, String lugarId) {}
+/** {@code texto} es el texto completo de la predicción; {@code principal} y {@code secundario} son su nombre y su referencia (structuredFormat de Places) para mostrarlos en dos líneas. */
+    public record Sugerencia(String texto, String lugarId, String principal, String secundario) {
+        public Sugerencia(String texto, String lugarId) { this(texto, lugarId, null, null); }
+    }
 
     private final String clave;
     private final String base;
@@ -78,11 +81,16 @@ public class GoogleDireccionesService {
         this.sobreMapaDeGoogle = mapa == null || mapa.esGoogle();
         if (!this.clave.isBlank() && !this.sobreMapaDeGoogle)
             org.slf4j.LoggerFactory.getLogger(GoogleDireccionesService.class).info("Direcciones de Google (Places) apagadas: MAP_PROVIDER no es «google» y sus resultados deben mostrarse sobre un mapa de Google.");
+        if (this.clave.isBlank())
+            org.slf4j.LoggerFactory.getLogger(GoogleDireccionesService.class).info("Búsqueda de lugares con Google sin configurar: falta GOOGLE_MAPS_API_KEY (la búsqueda del pasajero dirá que no está configurada).");
         if (!this.clave.isBlank() && !this.base.startsWith("https://") && !this.base.startsWith("http://localhost:") && !this.base.startsWith("http://127.0.0.1:"))
             throw new IllegalArgumentException("GOOGLE_MAPS_URL debe ser HTTPS.");
     }
 
     public boolean activo() { return !clave.isBlank() && sobreMapaDeGoogle; }
+    /** Solo si hay clave (nunca su valor) y si el mapa es de Google: sirven al diagnóstico de configuración. */
+    public boolean tieneClave() { return !clave.isBlank(); }
+    public boolean sobreMapaDeGoogle() { return sobreMapaDeGoogle; }
 
     /** Devuelve el token de sesión si tiene la forma esperada; si no, null (el servidor NUNCA inventa uno compartido entre personas). */
     public static String sesionValida(String sesion) {
@@ -111,8 +119,16 @@ public class GoogleDireccionesService {
         for (JsonNode s : raiz.path("suggestions")) {
             JsonNode p = s.path("placePrediction");
             String id = p.path("placeId").asText("").strip(), t = p.path("text").path("text").asText("").strip();
-            if (!t.isBlank() && t.length() <= 200 && ID_LUGAR.matcher(id).matches() && salida.stream().noneMatch(x -> x.texto().equals(t)))
-                salida.add(new Sugerencia(t, id));
+            if (!t.isBlank() && t.length() <= 200 && ID_LUGAR.matcher(id).matches() && salida.stream().noneMatch(x -> x.texto().equals(t))) {
+                String principal = p.path("structuredFormat").path("mainText").path("text").asText("").strip();
+                String secundario = p.path("structuredFormat").path("secondaryText").path("text").asText("").strip();
+                if (principal.isBlank() || principal.length() > 120) {      // sin formato estructurado: el primer segmento es el nombre y el resto la referencia
+                    String[] partes = t.split(",", 2);
+                    principal = partes[0].strip();
+                    secundario = partes.length > 1 ? partes[1].strip() : "";
+                }
+                salida.add(new Sugerencia(t, id, principal, secundario.length() > 160 ? secundario.substring(0, 160) : secundario));
+            }
             if (salida.size() >= 6) break;
         }
         return List.copyOf(salida);

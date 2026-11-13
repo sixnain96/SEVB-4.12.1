@@ -57,8 +57,23 @@ def paso(p):
     return p.evaluate('Spevb.Guiado.paso()')
 
 
+def contexto_guiado(p):
+    """Foto del estado cuando una espera se agota (instrumentación de prueba): sin direcciones reales, solo estados, longitudes y mensajes de la interfaz."""
+    try:
+        return p.evaluate("""() => { const i = document.getElementById('tripDestination'), o = document.getElementById('tripOrigin'), pt = Spevb.Planner.puntos();
+          return { paso: Spevb.Guiado.paso(), estados: Spevb.Planner.estados && { origen: Spevb.Planner.estados().origen, destino: Spevb.Planner.estados().destino }, campoDestino: i.value.length, campoOrigen: o.value.length,
+            hayDestino: !!pt.destino, hayOrigen: !!pt.origen, nombreIgualCampo: !!(pt.destino && pt.destino.nombre && i.value.trim() === String(pt.destino.nombre).trim()),
+            estadoMensaje: (document.getElementById('tripStatus') || {}).textContent, mensajeGuiado: (document.getElementById('guiadoMensaje') || {}).textContent, botonBuscarDeshabilitado: !!(document.getElementById('searchDestination') || {}).disabled,
+            coincidencias: document.querySelectorAll('.endpoint-block .suggestion, .endpoint-block [role=option]').length }; }""")
+    except Exception as e:  # noqa: BLE001
+        return {'error': str(e)[:120]}
+
+
 def esperar_paso(p, nombre, t=12000):
-    B.esperar(p, f"Spevb.Guiado.paso() === '{nombre}'", t)
+    try:
+        B.esperar(p, f"Spevb.Guiado.paso() === '{nombre}'", t)
+    except AssertionError as e:
+        raise AssertionError(f'{e} | estado: {contexto_guiado(p)}') from None
     p.wait_for_timeout(250)
 
 
@@ -72,11 +87,18 @@ def puntos(p):
 
 def pulsar(p, sel, minimo=44):
     """Un toque REAL: solo se desplaza el panel (como haría un dedo) y se comprueba que el botón (y no otra cosa: tarjeta, panel, teclado) recibe el toque."""
+    # Condición explícita de interfaz (no una espera fija): el botón debe llevar varios cuadros SIN moverse. El panel del paso se reacomoda con una transición
+    # (spevb-panel-medio) y un toque calculado sobre una posición que se está moviendo cae en otro elemento: era la causa del fallo intermitente de «retroceder entre pasos».
+    p.evaluate("""([sel, necesarios, minimo]) => new Promise((resolver) => { const t0 = performance.now(); let ultimo = '', quietos = 0;
+        const medir = () => { const e = document.querySelector(sel); if (!e) return performance.now() - t0 > 4000 ? resolver(false) : requestAnimationFrame(medir);
+            const b = e.getBoundingClientRect(), k = [b.x, b.y, b.width, b.height].map(Math.round).join(); if (k === ultimo) quietos++; else { quietos = 0; ultimo = k; }
+            if ((quietos >= necesarios && e.offsetHeight >= minimo && e.offsetWidth >= minimo) || performance.now() - t0 > 6000) resolver(true); else requestAnimationFrame(medir); };
+        medir(); })""", [sel, 45 if sel in ('#gBuscarDestino', '#gBuscarOrigen') else 4, minimo])      # tras escribir, la lista de sugerencias aparece tras el debounce y empuja los botones
     r = p.evaluate("""(sel) => { const e = document.querySelector(sel); if (!e) return null; const cuerpo = document.querySelector('.sheet-body');
         let b = e.getBoundingClientRect();
         if (cuerpo) { const c = cuerpo.getBoundingClientRect(); if (b.bottom > Math.min(c.bottom, innerHeight) - 8) cuerpo.scrollTop += b.bottom - Math.min(c.bottom, innerHeight) + 16; if (b.top < c.top) cuerpo.scrollTop -= c.top - b.top + 8; b = e.getBoundingClientRect(); }
         const x = b.left + b.width / 2, y = b.top + b.height / 2, t = document.elementFromPoint(x, y);
-        return { x, y, golpea: !!t && (t === e || e.contains(t)), alto: b.height, ancho: b.width, quien: t ? (t.id || t.className || t.tagName) : null, dentro: b.top >= 0 && b.bottom <= innerHeight }; }""", sel)
+        return { x, y, golpea: !!t && (t === e || e.contains(t)), alto: e.offsetHeight, ancho: e.offsetWidth, quien: t ? (t.id || t.className || t.tagName) : null, dentro: b.top >= 0 && b.bottom <= innerHeight }; }""", sel)
     assert r, f'no existe {sel}'
     assert r['golpea'] and r['dentro'], f'{sel} no recibe el toque (encima: {r["quien"]}): {r}'
     assert r['alto'] >= minimo and r['ancho'] >= minimo, f'{sel} es muy pequeño para tocarlo: {r}'
@@ -92,15 +114,27 @@ def visible(p, sel):
     return visibles(p, sel) > 0
 
 
+def escribir_y_asentar(p, campo, texto):
+    """Escribe y espera una CONDICIÓN de interfaz (no un tiempo fijo): la lista de sugerencias de ese campo ya apareció (o no habrá: 2,5 s) y se cierra con Escape. Sin esto, la lista
+    aparece después del debounce y reacomoda los botones justo cuando se va a tocar «Buscar» (fallo intermitente de «retroceder entre pasos»)."""
+    p.fill(campo, texto)
+    try:
+        B.esperar(p, f"document.querySelector('{campo}').getAttribute('aria-expanded') === 'true'", 2500)
+    except AssertionError:
+        pass
+    p.keyboard.press('Escape')
+    B.esperar(p, f"document.querySelector('{campo}').getAttribute('aria-expanded') !== 'true'", 2000)
+
+
 def elegir_destino(p, texto=DEST):
-    p.fill('#tripDestination', texto)
+    escribir_y_asentar(p, '#tripDestination', texto)
     pulsar(p, '#gBuscarDestino')
     esperar_paso(p, 'confirmar_destino')
 
 
 def elegir_origen_escribiendo(p, texto=ORIG):
     pulsar(p, '#gEscribirOrigen')
-    p.fill('#tripOrigin', texto)
+    escribir_y_asentar(p, '#tripOrigin', texto)
     pulsar(p, '#gBuscarOrigen')
     esperar_paso(p, 'confirmar_origen')
 
@@ -606,6 +640,33 @@ def la_maquina_de_estados_rechaza_saltos_invalidos(nav):
     assert r['pasos'] == ['destino', 'confirmar_destino', 'origen', 'confirmar_origen', 'resumen', 'calculando', 'recomendacion', 'viaje'], r['pasos']
     s.limpio('maquina')
     s.cerrar()
+
+
+@prueba
+def la_ayuda_del_flujo_guiado_habla_de_los_botones_reales_de_cada_paso_y_la_del_viaje_conoce_lo_nuevo(nav):
+    s = V.sesion(nav, guiado=True, viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True, device_scale_factor=2)
+    p = s.abrir()
+    B.esperar(p, "!!(Spevb.Guiado && Spevb.Planner.puntos)", 20000)
+
+    def ayuda():
+        p.evaluate("document.getElementById('helpButton').click()"); p.wait_for_timeout(500)
+        t = p.evaluate("document.getElementById('ayudaTitulo').textContent + ' || ' + [...document.querySelectorAll('#ayudaLista li')].map(l => l.textContent).join(' | ')")
+        p.evaluate("document.getElementById('ayudaCerrar').click()"); p.wait_for_timeout(300)
+        return t
+
+    t = ayuda()
+    assert 'Buscar destino' in t and 'Elegir en el mapa' in t and '¿De dónde sales?' not in t and 'Buscar rutas' not in t, f'paso destino: {t}'
+    assert visible(p, '#gBuscarDestino'), 'el botón que nombra la ayuda existe en pantalla'
+    hasta_recomendacion(p)
+    t = ayuda()
+    assert 'Empezar este viaje' in t and 'Ver otras opciones' in t and 'Buscar rutas' not in t, f'paso recomendación: {t}'
+    assert visible(p, '#gEmpezar')
+    V.destino_lejos(p)
+    pulsar(p, '#gEmpezar')
+    B.esperar(p, "Spevb.Viaje.activo() && window.__geo.escuchas === 1", 8000)
+    t = ayuda()
+    assert 'Tu bajada está aquí' in t and 'círculo azul' in t and 'Ya me bajé' in t and 'un viaje a la vez' in t, f'durante el viaje: {t}'
+    s.limpio('ayuda guiada'); s.cerrar()
 
 
 def correr(filtro=None):

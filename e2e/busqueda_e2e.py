@@ -281,7 +281,7 @@ def seleccionar_y_cambiar_enseguida_al_otro_campo_no_reabre_el_primero(nav):
 @prueba
 def cada_estado_de_error_dice_algo_distinto_y_no_es_no_hay_direcciones(nav):
     s, p = sesion(nav)
-    esperado = {'tiempo extra': 'tard', 'redca': 'conexi', 'cuota': 'límite', 'clave': 'configur', 'pausa': 'pausa', 'fuera de la ciudad': 'fuera de Villavicencio',
+    esperado = {'tiempo extra': 'tard', 'redca': 'no pudo responder', 'cuota': 'límite', 'clave': 'configur', 'pausa': 'pausa', 'fuera de la ciudad': 'fuera del área disponible',
                 'nada que ver': 'No encontr', 'basura json': 'no pude leer'}
     textos = {}
     for consulta, fragmento in esperado.items():
@@ -387,6 +387,210 @@ def el_final_de_una_busqueda_antigua_no_cambia_el_boton_de_la_nueva(nav):
     ret.soltar(); p.wait_for_timeout(900)
     assert not p.is_disabled('#searchOrigin')
     s.limpio('finally'); s.cerrar()
+
+
+# ------------------------------------------------------------------------------------------------ 4.15.3 · búsqueda 100 % Google, rápida y honesta
+INSTRUMENTAR = """
+window.__f = []; window.__teclas = []; const _fetch = window.fetch.bind(window);
+window.fetch = (u, o) => { const url = String(u && u.url || u); if (url.includes('/api/lugares')) window.__f.push({ url, t: performance.now(), signal: o && o.signal || null }); return _fetch(u, o); };
+document.addEventListener('input', () => window.__teclas.push(performance.now()), true);
+"""
+
+
+def sesion_instrumentada(nav, **opts):
+    s = B.Sesion(nav, **opts)
+    s.ctx.add_init_script(INSTRUMENTAR)
+    p = s.abrir()
+    limpiar_log()
+    return s, p
+
+
+def sug(p):
+    return p.evaluate("window.__f.filter(f => f.url.includes('/api/lugares/sugerencias')).map(f => ({ q: decodeURIComponent(new URL(f.url, location.href).searchParams.get('q')), t: f.t, abortada: !!(f.signal && f.signal.aborted) }))")
+
+
+@prueba
+def las_sugerencias_salen_solas_tras_un_retardo_corto_y_una_sola_consulta_por_pausa(nav):
+    s, p = sesion_instrumentada(nav)
+    p.click('#tripOrigin')
+    p.keyboard.type('goo carrera 22', delay=35)
+    esperar_lista(p, 'origin', 4000)
+    c = sug(p)
+    assert len(c) == 1 and c[0]['q'] == 'goo carrera 22', f'una consulta por pausa, no una por letra: {c}'
+    espera = c[0]['t'] - p.evaluate('window.__teclas[window.__teclas.length - 1]')
+    assert 170 <= espera <= 330, f'retardo tras la última tecla ≈ 220 ms: {espera:.0f}'
+    p.fill('#tripDestination', 'go'); p.wait_for_timeout(700)
+    assert not [x for x in sug(p) if x['q'] == 'go'], 'con menos de tres caracteres no se consulta'
+    s.limpio('debounce'); s.cerrar()
+
+
+@prueba
+def escribir_mas_cancela_la_consulta_anterior_con_abortcontroller_y_la_vieja_no_reemplaza_a_la_nueva(nav):
+    s, p = sesion_instrumentada(nav)
+    r = Retenidas(s.ctx, '**/api/lugares/sugerencias*')
+    p.click('#tripOrigin')
+    p.keyboard.type('goo carr', delay=30); p.wait_for_timeout(500)
+    p.keyboard.type('era 22', delay=30); p.wait_for_timeout(500)
+    c = sug(p)
+    assert len(c) == 2 and c[0]['abortada'] and not c[1]['abortada'], f'la consulta vieja se abortó al escribir más: {c}'
+    r.liberar(1); p.wait_for_timeout(500)
+    esperar_lista(p, 'origin', 3000)
+    nuevo = lista(p, 'origin').first.inner_text()
+    r.soltar(); p.wait_for_timeout(400)
+    assert lista(p, 'origin').first.inner_text() == nuevo and 'carrera 22' in nuevo, 'la respuesta vieja nunca reemplaza a la nueva'
+    s.limpio('abort'); s.cerrar()
+
+
+@prueba
+def cada_sugerencia_muestra_nombre_principal_y_referencia_y_es_navegable_con_teclado(nav):
+    s, p = sesion_instrumentada(nav)
+    p.fill('#tripOrigin', 'goo unicentro'); esperar_lista(p, 'origin')
+    o = p.evaluate("(() => { const b = document.querySelector('#originResults .autosuggest-option'); return { principal: b.querySelector('strong').textContent, secundario: b.querySelector('small').textContent, aria: b.getAttribute('aria-label'), rol: b.getAttribute('role') }; })()")
+    assert o['principal'] == 'goo unicentro (Google)' and o['secundario'] == 'Villavicencio, Meta, Colombia' and o['rol'] == 'option', o
+    assert o['aria'] == 'goo unicentro (Google), Villavicencio, Meta, Colombia', 'el lector de pantalla oye nombre y referencia'
+    p.focus('#tripOrigin')
+    p.keyboard.press('ArrowDown')
+    ad = p.evaluate("(() => { const i = document.getElementById('tripOrigin'); const id = i.getAttribute('aria-activedescendant'); return { id, existe: !!document.getElementById(id), sel: document.getElementById(id).getAttribute('aria-selected'), expandido: i.getAttribute('aria-expanded') }; })()")
+    assert ad['id'] == 'origin-suggestion-0' and ad['existe'] and ad['sel'] == 'true' and ad['expandido'] == 'true', ad
+    p.keyboard.press('Escape'); p.wait_for_timeout(200)
+    assert lista(p, 'origin').count() == 0 and aria(p, 'origin') == 'false' and p.evaluate("!document.getElementById('tripOrigin').hasAttribute('aria-activedescendant')"), 'Escape cierra la lista'
+    p.fill('#tripOrigin', 'goo unicentro'); esperar_lista(p, 'origin')
+    p.keyboard.press('ArrowDown'); p.keyboard.press('Enter')
+    B.esperar(p, "!!Spevb.Planner.puntos().origen", 6000)
+    reg = [r for r in consultas('lugares') if r['magicKey']]
+    assert reg and reg[-1]['magicKey'].startswith('g:ok'), f'Enter sobre la opción activa resuelve su identificador de Google: {reg}'
+    s.limpio('teclado'); s.cerrar()
+
+
+@prueba
+def la_sesion_de_places_se_renueva_al_borrar_y_al_abandonar_el_campo(nav):
+    s, p = sesion_instrumentada(nav)
+    sesion_de = lambda texto: [r for r in consultas('sugerencias') if r['q'] == texto][-1]['sesion']      # noqa: E731
+    p.fill('#tripOrigin', 'goo uno'); esperar_lista(p, 'origin'); s1 = sesion_de('goo uno')
+    p.fill('#tripOrigin', ''); p.wait_for_timeout(300)      # borrar todo el texto equivale a la X
+    p.fill('#tripOrigin', 'goo dos'); esperar_lista(p, 'origin'); s2 = sesion_de('goo dos')
+    assert s1 and s2 and s1 != s2, 'borrar cierra la sesión y la siguiente búsqueda usa otra'
+    p.focus('#tripDestination'); p.wait_for_timeout(500)
+    p.focus('#tripOrigin'); p.keyboard.press('End'); p.keyboard.type('s'); esperar_lista(p, 'origin'); s3 = sesion_de('goo doss')
+    assert s3 and s3 != s2, 'abandonar el campo descarta la sesión'
+    s.limpio('sesiones'); s.cerrar()
+
+
+@prueba
+def sin_google_configurado_y_sin_conexion_el_mensaje_es_honesto_y_no_hay_respaldo(nav):
+    s, p = sesion_instrumentada(nav)
+    p.fill('#tripOrigin', 'sinconfig prueba')
+    B.esperar(p, "document.querySelector('#originResults .search-error') !== null", 6000)
+    t = p.inner_text('#originResults .search-error')
+    assert t.startswith('La búsqueda de Google no está configurada'), t
+    assert p.evaluate("document.querySelector('#originResults .search-error').dataset.estado") == 'NO_CONFIGURADO' and p.locator('#originResults [role="status"]').count() >= 1
+    antes = len(sug(p))
+    p.evaluate("Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false })")
+    p.fill('#tripDestination', 'goo sin red'); p.wait_for_timeout(900)
+    t2 = p.inner_text('#destinationResults .search-error')
+    assert t2.startswith('No hay conexión para buscar lugares'), t2
+    assert len(sug(p)) == antes, 'sin conexión no se pide nada'
+    assert p.locator('#destinationResults .search-retry').count() == 1, 'se ofrece reintentar'
+    p.evaluate("Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true })")
+    p.click('#destinationResults .search-retry'); esperar_lista(p, 'destination')
+    s.limpio('mensajes honestos'); s.cerrar()
+
+
+@prueba
+def guiado_y_avanzado_comparten_la_misma_logica_y_hacen_una_sola_consulta(nav):
+    resultados = {}
+    for modo in ('avanzado', 'guiado'):
+        if modo == 'avanzado':
+            s, p = sesion_instrumentada(nav)
+        else:
+            s = B.Sesion(nav, guiado=True, viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
+            s.ctx.add_init_script(INSTRUMENTAR)
+            p = s.ctx.pages[0]
+            p.goto(B.URL, wait_until='domcontentloaded')
+            B.esperar(p, "!!(window.Spevb && Spevb.Guiado && Spevb.Planner.puntos)", 20000)
+            p.wait_for_timeout(1000)
+            limpiar_log()
+        p.fill('#tripDestination', 'goo carrera 22'); esperar_lista(p, 'destination', 5000)
+        c = sug(p)
+        sesiones = [r['sesion'] for r in consultas('sugerencias')]
+        resultados[modo] = (len(c), c[0]['q'], bool(sesiones and sesiones[0]), lista(p, 'destination').first.locator('strong').inner_text())
+        externos = [r for r in registro() if r['ruta'] not in ('sugerencias', 'lugares')]
+        assert not externos, f'{modo}: la consulta del pasajero solo toca la API propia de lugares: {externos}'
+        s.limpio('paridad ' + modo); s.cerrar()
+    assert resultados['avanzado'] == resultados['guiado'] and resultados['guiado'][0] == 1, f'misma conducta y una sola consulta: {resultados}'
+
+
+@prueba
+def la_cache_en_memoria_evita_repetir_la_misma_consulta_de_la_misma_sesion_y_no_guarda_nada(nav):
+    s, p = sesion_instrumentada(nav)
+    p.fill('#tripOrigin', 'goo carrera 22'); esperar_lista(p, 'origin')
+    p.fill('#tripOrigin', 'goo carrera 2'); p.wait_for_timeout(700)
+    p.fill('#tripOrigin', 'goo carrera 22'); esperar_lista(p, 'origin'); p.wait_for_timeout(500)
+    c = [x for x in sug(p) if x['q'] == 'goo carrera 22']
+    assert len(c) == 1, f'volver a escribir el mismo texto en la misma sesión no repite la consulta: {c}'
+    assert p.evaluate('Spevb.BusquedaMetricas.ultima().cache') is True
+    guardado = p.evaluate("JSON.stringify(Object.assign({}, localStorage, sessionStorage))")
+    assert 'goo carrera' not in guardado.lower(), 'las predicciones no se guardan en el navegador'
+    # al elegir, la caché de esa sesión desaparece
+    lista(p, 'origin').first.click(); B.esperar(p, "!!Spevb.Planner.puntos().origen", 6000)
+    assert p.evaluate('Spevb.BusquedaMetricas.cache()') == 0, 'la caché murió con su sesión'
+    s.limpio('cache'); s.cerrar()
+
+
+@prueba
+def se_mide_el_tiempo_hasta_la_lista_y_con_conexion_lenta_se_avisa_sin_bloquear_la_escritura(nav):
+    s, p = sesion_instrumentada(nav)
+    p.fill('#tripOrigin', 'goo carrera 22'); esperar_lista(p, 'origin')
+    m = p.evaluate('Spevb.BusquedaMetricas.ultima()')
+    assert m and m['campo'] == 'origin' and 150 <= m['ms'] <= 1500, f'última tecla → lista visible: {m}'
+    r = Retenidas(s.ctx, '**/api/lugares/sugerencias*')
+    p.fill('#tripDestination', 'goo calle 10'); p.wait_for_timeout(1200)
+    assert p.is_visible('#destinationResults .search-buscando') and p.inner_text('#destinationResults .search-buscando') == 'Buscando lugares…', 'con la respuesta lenta se dice que se está buscando'
+    assert p.is_enabled('#tripDestination')
+    p.click('#tripDestination'); p.keyboard.press('End'); p.keyboard.type(' 5', delay=20)
+    assert p.input_value('#tripDestination') == 'goo calle 10 5', 'la escritura no se bloquea'
+    r.soltar(); esperar_lista(p, 'destination', 5000)
+    assert p.locator('#destinationResults .search-buscando').count() == 0, 'el aviso desaparece con la lista'
+    s.limpio('lenta'); s.cerrar()
+
+
+@prueba
+def si_la_busqueda_falla_siguen_a_mano_buscar_usar_mi_ubicacion_y_elegir_en_el_mapa(nav):
+    s = B.Sesion(nav, permissions=['geolocation'], geolocation={'latitude': 4.15, 'longitude': -73.63287, 'accuracy': 15})
+    p = s.abrir(); limpiar_log()
+    p.fill('#tripOrigin', 'redca algo')
+    B.esperar(p, "document.querySelector('#originResults .search-error') !== null", 6000)
+    t = p.inner_text('#originResults .search-error')
+    assert t.startswith('Google no pudo responder. Intenta de nuevo'), t
+    assert [b.inner_text() for b in p.locator('#originResults .search-alt').all()] == ['Usar mi ubicación', 'Elegir en el mapa'], 'en el origen: ubicación y mapa'
+    assert p.is_enabled('#searchOrigin') and p.is_visible('#searchOrigin'), 'la búsqueda manual sigue disponible'
+    p.click('#originResults .search-alt[data-accion="mapa"]')
+    assert p.get_attribute('#pickOrigin', 'aria-pressed') == 'true', '«Elegir en el mapa» activa la selección'
+    p.click('#pickOrigin')
+    p.fill('#tripOrigin', 'redca otra')
+    B.esperar(p, "document.querySelector('#originResults .search-alt[data-accion=\"gps\"]') !== null", 6000)
+    p.click('#originResults .search-alt[data-accion="gps"]')
+    B.esperar(p, "!!Spevb.Planner.puntos().origen", 8000)
+    assert p.evaluate("Spevb.Planner.puntos().origen.fuente") != 'Google Maps', 'el punto de «Usar mi ubicación» no se presenta como de Google'
+    p.fill('#tripDestination', 'redca destino')
+    B.esperar(p, "document.querySelector('#destinationResults .search-error') !== null", 6000)
+    assert [b.inner_text() for b in p.locator('#destinationResults .search-alt').all()] == ['Elegir en el mapa'], 'en el destino: el mapa'
+    s.limpio('alternativas'); s.cerrar()
+
+
+@prueba
+def los_cinco_mensajes_honestos_dicen_exactamente_lo_acordado(nav):
+    s, p = sesion_instrumentada(nav)
+    esperado = {'sinconfig x': 'La búsqueda de Google no está configurada', 'cuota x': 'Google no pudo responder. Intenta de nuevo',
+                'nada x': 'Google no encontró ese lugar', 'fuera x': 'Ese lugar queda fuera del área disponible', 'tiempo x': 'Google no pudo responder. Intenta de nuevo'}
+    for consulta, inicio in esperado.items():
+        p.fill('#tripOrigin', consulta)
+        B.esperar(p, "document.querySelector('#originResults .search-error') !== null", 6000)
+        assert p.inner_text('#originResults .search-error').startswith(inicio), (consulta, p.inner_text('#originResults .search-error'))
+    p.evaluate("Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false })")
+    p.fill('#tripOrigin', 'goo sin red'); p.wait_for_timeout(700)
+    assert p.inner_text('#originResults .search-error').startswith('No hay conexión para buscar lugares')
+    s.limpio('mensajes'); s.cerrar()
 
 
 def correr(filtro=None):

@@ -18,7 +18,9 @@
 
     /** @param {{ mapa, plan, reducido?:()=>boolean, estado?:object }} o
      *  Estado serializable: { v: 1, avances: [m, …] } (un avance por etapa). */
+    let vivas = 0;      // rutas consumibles sin destruir (diagnóstico: nunca debe haber más de una)
     function crear(o) {
+        vivas++;
         const m = o.mapa, plan = o.plan, reducido = o.reducido || (() => false);
         const cfgCamina = { ...N.CFG, DESVIO_BUS_M: N.CFG.DESVIO_CAMINA_M };
         const nb = plan.buses.length;
@@ -188,7 +190,7 @@
         }
         function destruir() {
             if (destruida) return;
-            destruida = true;
+            destruida = true; vivas--;
             if (raf) { try { cancelAnimationFrame(raf); } catch { /* nada */ } raf = 0; }
             etapas.forEach((e) => { e.anim = null; e.lineas = []; });
             conector = null; estela = null; pulso = null;
@@ -199,5 +201,5 @@
         return { actualizar, serializar, restaurar, estado, destruir, grupo };
     }
 
-    S.ViajeRuta = { crear };
+    S.ViajeRuta = { crear, vivas: () => vivas };
 })();

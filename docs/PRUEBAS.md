@@ -50,6 +50,10 @@ Conteo de navegador: 20 + 13 + 16 + 21 + 25 + 4 + 17 + 11 + 16 + 10 = **153**.
 
 ## Continuidad del viaje 4.14 (`e2e/continuidad414_e2e.py`)
 
+
+### Tutorial (bienvenida, ayudas rápidas y práctica sobre el flujo guiado)
+`python e2e/aprender_e2e.py` (frontend real, API y Google simulados; **sin** teléfono ni lector de pantalla reales). Demuestra: bienvenida de 8 escenas que empieza por el destino; práctica de 8 pasos sobre los botones reales del paso a paso (no inicia viajes, no usa GPS, no toca la cuenta y devuelve modo, puntos y resultados); tamaños 320 × 568, 360 × 640, 390 × 844 y horizontal bajo; botones ≥ 44 px y a la vista; sin «A y B» como flujo principal; movimiento reducido y solo teclado; roles/regiones/nombres accesibles; limpieza de animaciones, temporizadores y observadores al cerrar; ayudas que coinciden con los botones verdaderos; teclado virtual (emulado por altura) y cambios de orientación. Detalle y límites: `docs/TUTORIAL.md`. Capturas: `docs/capturas-tutorial/`.
+
 `python e2e/continuidad414_e2e.py` (19 casos; **Google, red y GPS simulados**): reanudar, recálculo seguro, regreso de pantalla bloqueada, salud y recuperación del mapa. Lo que demuestran y lo que **no** (Google real, teléfono real, WebKit): `docs/CONTINUIDAD-VIAJE.md`. Última regresión completa (Chromium, 3 carriles): 17 suites sin fallos; `estados_e2e` se adaptó porque elegir una opción ya no espera al detalle de su ruta, y `mejoras414`/`aprender` abren las secciones plegadas del menú.
 
 ## Flujo del pasajero 4.14 (`e2e/pasajero414_e2e.py`)
@@ -67,3 +71,11 @@ Conteo de navegador: 20 + 13 + 16 + 21 + 25 + 4 + 17 + 11 + 16 + 10 = **153**.
 | Todo junto | `python e2e/run_e2e.py` | Las suites anteriores usan el planificador con A y B (predeterminado); solo `guiado_e2e.py` y `capturas_guiado.py` piden el modo guiado |
 
 Las pruebas con una respuesta 4xx/5xx **provocada a propósito** descartan solo el mensaje genérico «Failed to load resource» de la consola; cualquier otro error de JavaScript o promesa rechazada sigue fallando.
+
+## Salud del mapa (`e2e/salud_mapa_e2e.py`), marcador y alertas de bajada (`e2e/marcador_alertas_e2e.py`)
+
+`salud_mapa_e2e.py` (10 casos): sin banner al escribir, con resultados ni al volver de segundo plano; dentro del viaje el aviso va en la tarjeta con «Recuperar mapa»; recuperar bien lo quita; fallar conserva el viaje y limita los intentos; terminar no deja timers; reanudar degradado; la alerta de bajada manda. La degradación se simula (`Spevb.MapaSalud.problema()` y un doble de `map.recuperar()`). `marcador_alertas_e2e.py` (14 casos): círculo, bus con código, transbordo, movimiento reducido, un solo SVG, tres niveles una sola vez, «Ya me bajé», «Sigo en el bus», foco y Escape, menú abierto, sin `navigator.vibrate`, permiso solo con un toque, notificación con la página oculta y limpieza al terminar; genera `docs/capturas-viaje/*.png`. Vibración, notificaciones y GPS son simulados: **no** prueban un teléfono real ni iPhone.
+
+## Búsqueda solo Google (4.15.3)
+
+`e2e/busqueda_e2e.py` (25 casos; Google simulado por el stub, que ahora devuelve `principal`/`secundario` y el estado `NO_CONFIGURADO`): una consulta por pausa con ≈ 220 ms de retardo, consulta anterior abortada y respuesta vieja descartada, nombre principal y referencia (con `aria-label`), `aria-activedescendant`, Escape y Enter, renovación del token al borrar y al abandonar, y los mensajes de «no configurada» y «sin conexión». En Java: `LugarServiceSoloGoogleTest` (sin Google configurado no se usa ningún otro proveedor) y `GoogleDireccionesServiceTest` (structuredFormat). No prueba el Google real ni su facturación.

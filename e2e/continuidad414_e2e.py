@@ -288,12 +288,19 @@ def con_google(nav, base, f):
         g.cerrar()
 
 
+def con_google_en_viaje(nav, base, f):
+    """4.15.2: los avisos de salud del mapa solo existen DENTRO de un viaje: se empieza uno (con el SDK de Google simulado) y se degrada el mapa después."""
+    def cuerpo(g, p):
+        V.planear(p); V.destino_lejos(p); V.iniciar(p)
+        f(g, p)
+    con_google(nav, base, cuerpo)
+
+
 @prueba
 def si_el_fondo_no_termina_de_cargar_aparece_mapa_incompleto_y_recuperar_mapa_lo_arregla(nav):
     base = MA.lanzar_stub(18098)
 
     def cuerpo(g, p):
-        V.planear(p) if False else None
         p.evaluate("__gfake.tiles = 'sin'; Spevb.maps.map.setView([4.15, -73.63], 15, { animate: false })")
         B.esperar(p, "!!document.querySelector('.estado-pildora.mapa-incompleto')", 20000)
         t = p.inner_text('.estado-pildora.mapa-incompleto .estado-texto')
@@ -303,7 +310,8 @@ def si_el_fondo_no_termina_de_cargar_aparece_mapa_incompleto_y_recuperar_mapa_lo
         p.click('.estado-pildora.mapa-incompleto .estado-accion')
         B.esperar(p, "!document.querySelector('.estado-pildora.mapa-incompleto')", 12000)
         assert p.evaluate('Spevb.MapaSalud.estado().problema') is None
-    con_google(nav, base, cuerpo)
+        assert p.evaluate('Spevb.Viaje.activo()'), 'recuperar el mapa no tocó el viaje'
+    con_google_en_viaje(nav, base, cuerpo)
 
 
 @prueba
@@ -321,7 +329,8 @@ def la_recuperacion_automatica_tiene_reintentos_limitados_y_no_hace_bucles(nav):
         p.wait_for_timeout(8000)
         assert p.evaluate('Spevb.MapaSalud.registro().filter(r => r.m === "intento").length') == 3 and p.evaluate('__gfake.mapas') == 2, 'no hay más intentos: sin bucles'
         assert 'No pude recuperar el mapa' in p.inner_text('.estado-pildora.mapa-incompleto .estado-texto')
-    con_google(nav, base, cuerpo)
+        assert p.evaluate('Spevb.Viaje.activo()') and p.evaluate('window.__geo.escuchas') == 1, 'la recuperación fallida no reinició ni borró el viaje'
+    con_google_en_viaje(nav, base, cuerpo)
 
 
 @prueba
@@ -369,7 +378,7 @@ def la_perdida_del_contexto_webgl_se_detecta_como_mapa_incompleto(nav):
         p.evaluate("Spevb.maps.map.el.dispatchEvent(new Event('webglcontextlost'))")
         B.esperar(p, "!!document.querySelector('.estado-pildora.mapa-incompleto')", 5000)
         assert p.evaluate('Spevb.MapaSalud.estado().problema') == 'webgl'
-    con_google(nav, base, cuerpo)
+    con_google_en_viaje(nav, base, cuerpo)
 
 
 @prueba

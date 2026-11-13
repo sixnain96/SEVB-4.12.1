@@ -72,6 +72,10 @@ public class LugarController {
         return cuerpo;
     }
 
+    /** Diagnóstico de configuración de la búsqueda (estados y nombres de variables; nunca valores secretos). */
+    @GetMapping("/lugares/diagnostico")
+    public Map<String, Object> diagnostico() { return lugares.diagnosticoBusqueda(); }
+
     public record ConfirmacionRequest(String consulta, double lat, double lng) {}
     public record EleccionRequest(long id) {}
 

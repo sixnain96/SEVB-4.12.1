@@ -42,4 +42,4 @@ Objetivos táctiles de ≥ 48 px (la prueba exige ≥ 44), pregunta de 22–28 p
 ## Limitaciones
 - Probado con Chromium/Edge emulado y GPS simulado; falta probar en teléfono, en WebKit y con personas reales (`docs/PRUEBAS-USABILIDAD-GUIADA.md`).
 - «Lugares recientes/favoritos» en el primer paso reutiliza el bloque «Tu viaje de siempre» del proyecto (solo aparece si ya existen datos reales).
-- La bienvenida de primera visita del proyecto sigue siendo la existente (no se añadió un segundo tutorial).
+- La bienvenida de primera visita y la práctica (`guia.js`) enseñan este flujo desde 4.15.1 (destino primero, 8 escenas y una práctica de 8 pasos sobre sus botones reales): ver `docs/TUTORIAL.md`. No es un segundo tutorial: es el mismo, alineado con el paso a paso.

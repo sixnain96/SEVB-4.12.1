@@ -39,8 +39,19 @@
         const h = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
         return h(8) + '-' + h(4) + '-4' + h(3) + '-a' + h(3) + '-' + h(12);
     };
+    // Caché SOLO en memoria y SOLO de la misma sesión de Places y el mismo texto, durante pocos segundos (escribir y borrar una letra no repite la consulta); nada se guarda en el
+    // navegador y se descarta al elegir, borrar o abandonar el campo. Respuestas con fallo nunca se guardan.
+    const CACHE_TTL_MS = 8000, CACHE_MAX = 12, cacheSug = new Map();
+    const medidasBusqueda = [], teclaDe = { origin: 0, destination: 0 };      // tiempo desde la última tecla hasta la lista visible (solo diagnóstico local; no se envía a ningún sitio)
+    const podarCache = () => { const t = performance.now(); for (const [k, v] of cacheSug) if (t - v.t > CACHE_TTL_MS) cacheSug.delete(k); while (cacheSug.size > CACHE_MAX) cacheSug.delete(cacheSug.keys().next().value); };
+    Spevb.BusquedaMetricas = { ultima: () => (medidasBusqueda.length ? medidasBusqueda[medidasBusqueda.length - 1] : null), todas: () => medidasBusqueda.slice(), cache: () => cacheSug.size };
+    const DEBOUNCE_MS = 220;      // espera corta tras la última tecla antes de pedir sugerencias (180–250 ms): rápido sin una consulta por letra
     const sesionDe = (mode) => (campo[mode].sesion ||= nuevoUuid());
-    const cerrarSesion = (mode) => { campo[mode].sesion = null; };
+    const cerrarSesion = (mode) => {
+        const sesion = campo[mode].sesion;
+        if (sesion) for (const k of [...cacheSug.keys()]) if (k.startsWith(sesion + '|')) cacheSug.delete(k);      // la caché muere con su sesión
+        campo[mode].sesion = null;
+    };
     const panelOculto = () => document.body.classList.contains('panel-oculto');
 
     // Opción elegida en pantalla (para «Avisarme al bajar», compartir y reportar). Otros módulos la leen con Spevb.Planner.
@@ -533,16 +544,20 @@
 
     // Mensajes por estado de la búsqueda (contrato B.2): «sin coincidencias» no es lo mismo que un tiempo agotado, una cuota o una clave inválida.
     const MENSAJES_BUSQUEDA = {
-        TIMEOUT: 'La búsqueda tardó demasiado. Inténtalo de nuevo o usa «Elegir en el mapa».',
-        RED: 'No hay conexión con el servidor de direcciones. Revisa tu señal e inténtalo de nuevo.',
-        CUOTA: 'El servicio de direcciones llegó a su límite de uso por ahora. Usa «Elegir en el mapa» o inténtalo más tarde.',
-        CLAVE: 'La búsqueda de direcciones no está bien configurada. Avisa a quien administra la aplicación y, mientras tanto, usa «Elegir en el mapa».',
-        SIN_COINCIDENCIAS: 'No encontré sugerencias. Pulsa «Buscar dirección» para consultar también el catastro o usa «Elegir en el mapa».',
-        FUERA_DE_CIUDAD: 'Ese lugar queda fuera de Villavicencio, que es el área de SEVB. Revisa la dirección.',
-        RESPUESTA_INVALIDA: 'El servidor respondió algo que no pude leer. Inténtalo de nuevo.',
-        PAUSADO: 'El servicio de direcciones está en pausa unos segundos por fallos seguidos. Vuelve a intentar enseguida o usa «Elegir en el mapa».',
+        NO_CONFIGURADO: 'La búsqueda de Google no está configurada. Avisa a quien administra la aplicación y, mientras tanto, usa «Elegir en el mapa».',
+        SIN_CONEXION: 'No hay conexión para buscar lugares. Revisa tu señal e inténtalo de nuevo, o usa «Elegir en el mapa».',
+        // Cuota o proveedor temporalmente caído: la misma frase base, con un detalle que distingue cada caso.
+        TIMEOUT: 'Google no pudo responder. Intenta de nuevo. Tardó demasiado.',
+        RED: 'Google no pudo responder. Intenta de nuevo. No pudimos consultarlo en este momento.',
+        CUOTA: 'Google no pudo responder. Intenta de nuevo. Llegó a su límite de uso por ahora.',
+        PAUSADO: 'Google no pudo responder. Intenta de nuevo. Está en pausa unos segundos por fallos seguidos.',
+        RESPUESTA_INVALIDA: 'Google no pudo responder. Intenta de nuevo. No pude leer su respuesta.',
+        CLAVE: 'La búsqueda de Google no está bien configurada. Avisa a quien administra la aplicación y, mientras tanto, usa «Elegir en el mapa».',
+        SIN_COINCIDENCIAS: 'Google no encontró ese lugar. Prueba con otra dirección o usa «Elegir en el mapa».',
+        FUERA_DE_CIUDAD: 'Ese lugar queda fuera del área disponible. Revisa la dirección.',
     };
-    const estadoDeError = (error) => (error?.offline ? 'RED' : error?.timeout ? 'TIMEOUT' : error?.status === 429 ? 'CUOTA'
+    const sinConexion = () => navigator.onLine === false;
+    const estadoDeError = (error) => (error?.offline || sinConexion() ? 'SIN_CONEXION' : error?.timeout ? 'TIMEOUT' : error?.status === 429 ? 'CUOTA'
         : (error?.status === 401 || error?.status === 403) ? 'CLAVE' : 'RESPUESTA_INVALIDA');
     /** Aviso en la caja de resultados del campo (anunciado a lectores de pantalla), con botones opcionales «Reintentar» y «Elegir otra». */
     function avisoBusqueda(mode, estado, { texto = null, reintentar = null, otra = null, rol = 'status' } = {}) {
@@ -560,6 +575,18 @@
             const b = document.createElement('button');
             b.type = 'button';
             b.className = 'text-button search-retry';
+            b.dataset.accion = accion;
+            b.textContent = etiqueta;
+            b.onclick = fn;
+            box.append(b);
+        });
+        // Alternativas que SIEMPRE siguen disponibles cuando la búsqueda falla (el GPS y el mapa no dependen de Google Places).
+        const alternativas = [['mapa', 'Elegir en el mapa', () => { box.replaceChildren(); $(mode === 'origin' ? 'pickOrigin' : 'pickDestination').click(); }]];
+        if (mode === 'origin') alternativas.unshift(['gps', 'Usar mi ubicación', () => { box.replaceChildren(); $('useMyLocation').click(); }]);
+        alternativas.forEach(([accion, etiqueta, fn]) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'text-button search-alt';
             b.dataset.accion = accion;
             b.textContent = etiqueta;
             b.onclick = fn;
@@ -791,20 +818,33 @@
     async function suggest(mode, query, current) {
         if (query.length < 3 || campo[mode].componiendo || panelOculto()) return;
         suggestRequests[mode]?.abort();
+        if (sinConexion()) { setCampo(mode, 'error'); avisoBusqueda(mode, 'SIN_CONEXION', { reintentar: () => suggest(mode, query, lookups[mode]) }); return; }      // sin red no se intenta: se dice con claridad
         const request = new AbortController();
         suggestRequests[mode] = request;
         setCampo(mode, 'consultando');
         // Una respuesta solo vale si sigue siendo la de ESTE campo, ESTE texto y ninguna confirmación, borrado, intercambio ni panel oculto la superó.
         const vigente = () => current === lookups[mode] && endpointInput(mode).value.trim() === query && campo[mode].estado === 'consultando' && !panelOculto();
+        const claveCache = sesionDe(mode) + '|' + query.toLowerCase();
+        podarCache();
+        const guardada = cacheSug.get(claveCache);
+        // Con conexión lenta se dice que se está buscando (sin bloquear la escritura: el campo sigue libre) si la respuesta tarda más de 700 ms.
+        const lento = guardada ? 0 : setTimeout(() => {
+            const caja = $(mode + 'Results');
+            if (!vigente() || caja.childElementCount) return;
+            const aviso = document.createElement('p');
+            aviso.className = 'search-hint search-buscando'; aviso.setAttribute('role', 'status'); aviso.textContent = 'Buscando lugares…';
+            caja.append(aviso);
+        }, 700);
         try {
             let data;
             try {
-                data = await Spevb.api('/api/lugares/sugerencias?q=' + encodeURIComponent(query) + '&sesion=' + encodeURIComponent(sesionDe(mode)), { signal: request.signal });
+                data = guardada ? guardada.data : await Spevb.api('/api/lugares/sugerencias?q=' + encodeURIComponent(query) + '&sesion=' + encodeURIComponent(sesionDe(mode)), { signal: request.signal });
+                if (!guardada && data && Array.isArray(data.sugerencias) && data.sugerencias.length && data.estado === 'OK') cacheSug.set(claveCache, { t: performance.now(), data });
             } catch (error) {
                 if (error?.name === 'AbortError' || !vigente()) return;
                 setCampo(mode, 'error');
                 const e = estadoDeError(error);
-                avisoBusqueda(mode, e, { reintentar: ['RED', 'TIMEOUT', 'RESPUESTA_INVALIDA', 'PAUSADO'].includes(e) ? () => suggest(mode, query, lookups[mode]) : null });      // reintento manual (nunca automático ni en bucle)
+                avisoBusqueda(mode, e, { reintentar: ['SIN_CONEXION', 'RED', 'TIMEOUT', 'RESPUESTA_INVALIDA', 'PAUSADO'].includes(e) ? () => suggest(mode, query, lookups[mode]) : null });      // reintento manual (nunca automático ni en bucle)
                 return;
             }
             if (!vigente()) return;
@@ -822,10 +862,11 @@
                 // Servidores anteriores sin proveedores externos ni base local: el botón de búsqueda manual sigue disponible, sin mensajes.
                 if (!data.estado && !data.arcgisConfigurado && !data.direccionesLocales) { setCampo(mode, 'editando'); return; }
                 setCampo(mode, estado === 'SIN_COINCIDENCIAS' ? 'editando' : 'error');
-                avisoBusqueda(mode, estado, { reintentar: ['RED', 'TIMEOUT', 'PAUSADO'].includes(estado) ? () => suggest(mode, query, lookups[mode]) : null });
+                avisoBusqueda(mode, estado, { reintentar: ['SIN_CONEXION', 'RED', 'TIMEOUT', 'PAUSADO'].includes(estado) ? () => suggest(mode, query, lookups[mode]) : null });
                 return;
             }
             suggestedOptions[mode] = suggestions;
+            medidasBusqueda.push({ campo: mode, ms: Math.round(performance.now() - teclaDe[mode]), cache: !!guardada }); if (medidasBusqueda.length > 30) medidasBusqueda.shift();
             setCampo(mode, 'mostrando');
             box.classList.add('suggestion-open');
             endpointInput(mode).setAttribute('aria-expanded', 'true');
@@ -837,14 +878,16 @@
                 button.setAttribute('role', 'option');
                 button.setAttribute('aria-selected', 'false');
                 const label = document.createElement('strong');
-                label.textContent = item.texto;
+                label.textContent = item.principal || item.texto;      // nombre principal (Google: structuredFormat) y, debajo, la referencia
                 const meta = document.createElement('small');
-                meta.textContent = item.lat != null ? (item.detalle || '') : (item.detalle || 'ArcGIS') + ' · seleccionar y ubicar en el mapa';
+                meta.textContent = item.principal ? (item.secundario || '') : item.lat != null ? (item.detalle || '') : (item.detalle || 'ArcGIS') + ' · seleccionar y ubicar en el mapa';
+                if (item.principal) button.setAttribute('aria-label', item.principal + (item.secundario ? ', ' + item.secundario : ''));
                 button.append(label, meta);
                 activarUnaVez(button, mode, () => lookup(mode, item));
                 box.append(button);
             });
         } finally {
+            clearTimeout(lento);
             if (suggestRequests[mode] === request) suggestRequests[mode] = null;
         }
     }
@@ -876,7 +919,7 @@
             resetSuggestions(m);
         };
         const listBox = $(mode + 'Results');
-        ['mousedown', 'pointerdown'].forEach((ev) => listBox.addEventListener(ev, (e) => { if (e.target.closest('.autosuggest-option, .search-retry')) e.preventDefault(); }));
+        ['mousedown', 'pointerdown'].forEach((ev) => listBox.addEventListener(ev, (e) => { if (e.target.closest('.autosuggest-option, .search-retry, .search-alt')) e.preventDefault(); }));
         input.addEventListener('focus', () => closeList(other));
         input.addEventListener('blur', () => setTimeout(() => {
             if (document.activeElement === input || listBox.contains(document.activeElement) || tocandoLista[mode] || campo[mode].estado === 'resolviendo') return;      // no con un dedo encima ni mientras se resuelve la elección
@@ -918,6 +961,7 @@
             if (mode === 'origin') { gpsUse.gen++; gpsUse.activo = false; }
             resetSuggestions(mode);
             lastTyped[mode] = texto;
+            teclaDe[mode] = performance.now();
             const current = ++lookups[mode];
             if (mode === 'origin') {
                 origin = null;
@@ -932,7 +976,7 @@
             setCampo(mode, 'editando');
             sesionDe(mode);
             status('Busca la dirección o usa «Elegir en mapa» para confirmar el punto exacto.');
-            if (texto.length >= 3 && !campo[mode].componiendo) suggestTimers[mode] = setTimeout(() => suggest(mode, texto, current), 450);
+            if (texto.length >= 3 && !campo[mode].componiendo) suggestTimers[mode] = setTimeout(() => suggest(mode, texto, current), DEBOUNCE_MS);
         };
         input.addEventListener('compositionstart', () => { campo[mode].componiendo = true; });
         input.addEventListener('compositionend', () => { campo[mode].componiendo = false; alEditar(); });

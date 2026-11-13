@@ -8,11 +8,11 @@
        - MAPA   = paquete «Guardar mapa» (fijo, lo descarga la persona desde el menú).
        - TESELAS = lo que se fue viendo (se poda al llegar al máximo).
    · El cálculo de viajes (/api/viajes, /api/caminata, direcciones) nunca se intercepta: lo guarda la página como «recientes». */
-/* «-mapa2» (CACHE_APP): la capa de mapa con adaptadores (Leaflet o Google) reemplazó a los scripts anteriores. Al activarse este worker se borran las cachés de app de
+/* «-mapa3» (CACHE_APP; 4.15.1 añadió los seis avatares regionales al SHELL): la capa de mapa con adaptadores (Leaflet o Google) reemplazó a los scripts anteriores. Al activarse este worker se borran las cachés de app de
    versiones previas (solo esas: el mapa guardado, las teselas y las copias de rutas conservan sus nombres y no se tocan), así ningún worker viejo
    sigue sirviendo scripts incompatibles. Volver a Leaflet NO requiere cambiar esto: el proveedor se lee de /api/config/mapa en cada carga. */
 const VERSION = "spevb-v@project.version@";
-const CACHE_APP = VERSION + "-mapa2";
+const CACHE_APP = VERSION + "-mapa3";
 const MAPA = "spevb-mapa-v1";
 const TESELAS = "spevb-teselas-v1";
 const DATOS = "spevb-datos-v1";
@@ -29,7 +29,7 @@ const SHELL = ["/", "/css/motion.css", "/css/styles.css", "/css/home.css", "/css
     "/js/mapa/geo.js", "/js/mapa/nucleo.js",
     "/js/motion.js", "/js/common.js", "/js/modales.js", "/js/carga.js", "/js/superficies.js", "/js/mapa-salud.js", "/js/inicio.js", "/js/iconos.js", "/js/rutas-nombres.js", "/js/offline.js", "/js/extras.js", "/js/paraderos-publicos.js", "/js/puentes-publicos.js", "/js/ajustes.js", "/js/confort.js", "/js/avatares.js", "/js/cuenta.js", "/js/espacio.js", "/js/atajos.js", "/js/logros.js", "/js/siempre.js", "/js/guia.js", "/js/siguiente.js", "/js/gps.js", "/js/viaje-nucleo.js", "/js/viaje-ruta.js", "/js/viaje.js", "/js/compartir.js", "/js/bus.js", "/js/app.js", "/js/planner.js", "/js/flujo-guiado.js", "/js/ui.js", "/js/sheet.js", "/js/panel-ocultable.js", "/js/seguir-bus.js", "/js/pwa.js",
     "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png",
-    "/favicon.ico", "/icons/favicon-32.png", "/img/marca/sevb-icono-app-128.png", "/img/marca/sevb-cabeza-96.png", "/img/marca/sevb-mascota.png", "/img/marca/sevb-chiguiro-192.png", "/img/marca/sevb-chiguiro-360.png",
+    "/favicon.ico", "/icons/favicon-32.png", "/img/marca/sevb-icono-app-128.png", "/img/marca/sevb-cabeza-96.png", "/img/marca/sevb-mascota.png", "/img/marca/sevb-chiguiro-192.png", "/img/marca/sevb-chiguiro-360.png", "/img/avatares/chiguiro.png", "/img/avatares/danta.png", "/img/avatares/venado.png", "/img/avatares/guacamaya.png", "/img/avatares/moriche.png", "/img/avatares/saman.png",
     "/img/bus/bus_32_base.webp", "/img/bus/bus_32_mask.webp"];
 
 /* Archivos del proveedor de mapa elegido (se lee de /api/config/mapa): solo se guardan los del proveedor en uso, así en modo Google no se descargan
@@ -222,3 +222,9 @@ async function podar(cache, maximo) {
     const sobran = claves.length - maximo;
     for (let i = 0; i < sobran; i++) await cache.delete(claves[i]);     // las más antiguas primero (orden de inserción)
 }
+
+/* Notificación de «Prepárate para bajar» / «Tu bajada está aquí» (solo si la persona las activó): al tocarla se vuelve a la aplicación abierta. */
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((lista) => (lista.length ? lista[0].focus() : self.clients.openWindow("/"))));
+});

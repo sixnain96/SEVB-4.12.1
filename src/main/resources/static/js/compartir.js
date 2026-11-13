@@ -104,13 +104,15 @@
     async function crear() {
         if (est) return;
         if (!S.Viaje.activo()) { S.toast('Primero inicia un viaje para poder compartirlo.', { tipo: 'info', ms: 5000 }); return cerrar(); }
-        const ruta = rutaDelViaje();
+        const ruta = rutaDelViaje(), idViaje = S.Viaje.id && S.Viaje.id();
         $('compCrear').disabled = true;
         try {
             const r = await api('POST', { ruta });
             if (r.status === 429) throw new Error('Creaste varios enlaces seguidos. Inténtalo más tarde.');
             if (!r.ok) throw new Error('No pude crear el enlace ahora. Tu viaje sigue normal; inténtalo de nuevo.');
             const d = await r.json();
+            // El viaje terminó (o es otro) mientras se creaba el enlace: no queda un enlace huérfano.
+            if (!S.Viaje.activo() || (S.Viaje.id && S.Viaje.id() !== idViaje)) { try { await api('DELETE', null, d.escritura); } catch { /* vence solo */ } return cerrar(); }
             est = { lectura: d.lectura, escritura: d.escritura, expira: d.expira * 1000 };
             guardar(); ultimoEnvio = 0; ultimaFase = null; ultimaOk = 0; fallos = 0;
             iniciarEnvios(); pintar(); enviar(true);
@@ -188,6 +190,19 @@
         try { await navigator.clipboard.writeText(enlace()); $('compEstado').textContent = 'Enlace copiado.'; }
         catch { input.focus(); input.select(); $('compEstado').textContent = 'Selecciona y copia el enlace.'; }
     });
-    S.Compartir = { activo: () => !!est, estado: () => (est ? { vence: est.expira, ultimaOk, fallos } : null) };
+    /** Libera TODO lo compartido (estado, temporizador de envíos, token de escritura guardado) y avisa al servidor. Idempotente: sin enlace no hace nada. Lo llama el cierre único del viaje. */
+    async function liberar() {
+        const activo = !!est, e = est || leer();
+        if (!e) return false;
+        est = null; pendiente = null; clearInterval(timer); timer = null; guardar();      // guardar() con est = null borra el token de escritura de este navegador
+        pintar();
+        if (e.escritura) { try { await api('DELETE', null, e.escritura); } catch { /* sin internet: el enlace vence solo */ } }
+        if (S.Modal.abierta(dlg)) cerrar();
+        if (activo) S.toast('Dejaste de compartir porque el viaje terminó o cambió de recorrido. Puedes volver a compartirlo.', { tipo: 'info', ms: 6000, clave: 'compartir' });
+        return true;
+    }
+    /** Detiene lo compartido SOLO en esta pestaña (temporizador y estado en memoria) sin avisar al servidor ni borrar el token guardado: se usa cuando el viaje pasó a otra pestaña, que es ahora su dueña. */
+    function soltarLocal() { est = null; pendiente = null; clearInterval(timer); timer = null; pintar(); }
+    S.Compartir = { liberar, soltarLocal, activo: () => !!est, estado: () => (est ? { vence: est.expira, ultimaOk, fallos } : null) };
     const g0 = leer(); if (g0 && !(g0.expira > Date.now())) { try { localStorage.removeItem(CLAVE); } catch { /* nada */ } }
 })();

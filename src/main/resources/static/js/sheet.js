@@ -49,7 +49,18 @@
     /* ZOOM DE PÁGINA ≠ TECLADO. Con un pellizco de página el visual viewport se encoge (scale > 1) aunque no haya teclado: leerlo como teclado levantaba el
        panel y recalculaba sus alturas con un alto falso (el panel quedaba pequeño y no se podía agrandar). Con zoom de página el panel usa la ventana normal. */
     const zoomDePagina = () => !!window.visualViewport && window.visualViewport.scale > 1.05;
-    const viewH = () => Math.round(zoomDePagina() ? window.innerHeight : (window.visualViewport?.height || window.innerHeight));
+    /* RENDIMIENTO (4.15.4): `viewH()` se llamaba decenas de veces por arrastre (en cada pointermove y en cada apply) y cada lectura de visualViewport obliga al navegador a recalcular el
+       estilo pendiente (el perfil de CPU lo mostró como la función propia más cara del arrastre). El alto solo cambia con estos eventos: se mide una vez y se invalida con ellos. */
+    let vhCache = null;
+    const medirViewH = () => Math.round(zoomDePagina() ? window.innerHeight : (window.visualViewport?.height || window.innerHeight));
+    const viewH = () => (vhCache === null ? (vhCache = medirViewH()) : vhCache);
+    const invalidarVH = () => { vhCache = null; };
+    window.addEventListener('resize', invalidarVH, { passive: true });
+    window.addEventListener('orientationchange', invalidarVH, { passive: true });
+    window.addEventListener('pageshow', invalidarVH, { passive: true });
+    document.addEventListener('visibilitychange', invalidarVH, { passive: true });
+    if (window.visualViewport) { window.visualViewport.addEventListener('resize', invalidarVH, { passive: true }); window.visualViewport.addEventListener('scroll', invalidarVH, { passive: true }); }
+    mobile.addEventListener('change', invalidarVH);
     const full = () => Math.round(viewH() * 0.94);
     const visible = (name) => name === 'peek' ? Math.min(268, Math.round(viewH() * 0.4))
         : name === 'half' ? Math.round(viewH() * 0.56) : full();
@@ -58,8 +69,15 @@
     let wcTimer = 0;
     const moving = () => { sheet.style.willChange = 'transform'; clearTimeout(wcTimer); wcTimer = setTimeout(() => { sheet.style.willChange = ''; }, 420); };
 
+    let ultimaFirma = '';
     function apply(name, animate = true) {
-        const leido = body ? body.scrollTop : 0;      // posición de lectura antes de medir de nuevo el panel
+        // Si nada de lo que determina el tamaño cambió (estado, alto visible, teclado, panel oculto, diseño), no se vuelve a leer el layout ni a escribir las variables CSS (lectura-escritura-lectura
+        // forzaba recálculos); la transformación SÍ se reescribe siempre (restablece la posición tras un arrastre cancelado).
+        const ocultoYa = document.body.classList.contains('panel-oculto');
+        const firma = name + '|' + full() + '|' + mobile.matches + '|' + ocultoYa + '|' + kbPx;
+        const igual = firma === ultimaFirma;
+        ultimaFirma = firma;
+        const leido = !igual && body ? body.scrollTop : 0;      // posición de lectura antes de medir de nuevo el panel
         state = name;
         sheet.dataset.state = name;
         sheet.style.transition = animate ? '' : 'none';
@@ -70,20 +88,24 @@
         //                      Con Google el contenedor del mapa termina justo encima (css/mapa.css), así sus créditos nunca quedan tapados.
         //   --sheet-visible = lo mismo pero con tope del 56 % (para botones y avisos flotantes); 0 si está oculto.
         //   --sheet-hidden  = lo que sobresale por debajo (relleno del cuerpo para que la lista llegue a la zona visible).
-        const oculto = document.body.classList.contains('panel-oculto');
+        const oculto = ocultoYa;
         if (mobile.matches) {
             sheet.style.transform = 'translateY(' + (full() - visible(name)) + 'px)';       // oculto: el CSS (!important) lo baja del todo; al mostrarlo vuelve a esta posición
-            root.style.setProperty('--sheet-visible', oculto ? '0px' : Math.min(visible(name), Math.round(viewH() * 0.56)) + 'px');
-            root.style.setProperty('--sheet-real', oculto ? '0px' : Math.min(window.innerHeight, visible(name) + kbPx) + 'px');
-            root.style.setProperty('--sheet-hidden', Math.max(0, full() - visible(name)) + 'px');
+            if (!igual) {
+                root.style.setProperty('--sheet-visible', oculto ? '0px' : Math.min(visible(name), Math.round(viewH() * 0.56)) + 'px');
+                root.style.setProperty('--sheet-real', oculto ? '0px' : Math.min(window.innerHeight, visible(name) + kbPx) + 'px');
+                root.style.setProperty('--sheet-hidden', Math.max(0, full() - visible(name)) + 'px');
+            }
         } else {
             sheet.style.transform = '';
             sheet.style.height = '';
-            root.style.setProperty('--sheet-visible', '0px');
-            root.style.setProperty('--sheet-real', '0px');
-            root.style.setProperty('--sheet-hidden', '0px');
+            if (!igual) {
+                root.style.setProperty('--sheet-visible', '0px');
+                root.style.setProperty('--sheet-real', '0px');
+                root.style.setProperty('--sheet-hidden', '0px');
+            }
         }
-        fijarScroll(leido);       // cambiar de tamaño (resize, barra del navegador, peek/half/full) no devuelve la lista al inicio
+        if (!igual) fijarScroll(leido);       // cambiar de tamaño (resize, barra del navegador, peek/half/full) no devuelve la lista al inicio
     }
     /* ESTADO DEL PANEL — tres cosas distintas que antes se mezclaban en una sola variable:
          manual    = lo que la PERSONA eligió (asa, arrastre, teclado en el asa, botones de la app como «Ver otras opciones»);

@@ -49,6 +49,63 @@ class LugarServiceSoloGoogleTest {
         verify(repo, never()).buscarCatalogo(anyString(), anyInt());
     }
 
+    @Test void sinGoogleConfiguradoLaBusquedaLoDiceYNoUsaOtrosProveedores() {
+        when(google.activo()).thenReturn(false);
+        var sug = s.sugerirDetallado("unicentro", "sesion-abc-123");
+        assertTrue(sug.sugerencias().isEmpty());
+        assertEquals(EstadoBusqueda.NO_CONFIGURADO, sug.estado(), "no es «sin coincidencias» ni un fallo transitorio");
+        var exp = s.buscarDetallado("unicentro", "", "sesion-abc-123");
+        assertTrue(exp.lugares().isEmpty());
+        assertEquals(EstadoBusqueda.NO_CONFIGURADO, exp.estado());
+        assertTrue(exp.avisos().stream().anyMatch(a -> a.startsWith("La búsqueda de Google no está configurada")), exp.avisos().toString());
+        var eleg = s.buscarDetallado("unicentro", "g:ChIJabcdefghij123", "sesion-abc-123");
+        assertEquals(EstadoBusqueda.NO_CONFIGURADO, eleg.estado());
+        assertTrue(eleg.eleccionFallida());
+        verifyNoInteractions(hib, loc, geo);
+        verify(repo, never()).buscarCatalogo(anyString(), anyInt());
+    }
+
+    @Test void lasSugerenciasDeGoogleTraenNombrePrincipalYReferenciaYSuIdentificador() {
+        when(google.sugerir(anyString(), any())).thenReturn(List.of(new GoogleDireccionesService.Sugerencia("Unicentro Villavicencio, Villavicencio, Meta", "ChIJabcdefghij123", "Unicentro Villavicencio", "Villavicencio, Meta")));
+        var r = s.sugerirDetallado("unicentro", "sesion-abc-123");
+        assertEquals(EstadoBusqueda.OK, r.estado());
+        var g = r.sugerencias().get(0);
+        assertEquals("Unicentro Villavicencio", g.principal());
+        assertEquals("Villavicencio, Meta", g.secundario());
+        assertEquals("g:ChIJabcdefghij123", g.magicKey(), "la elección viaja por el identificador de Google, no por el texto");
+    }
+
+    @Test void elegirUnaPrediccionResuelveSuPlaceIdYNoHaceUnaSegundaBusquedaDeTexto() {
+        when(google.resolver(anyString(), any(), any())).thenReturn(new ResultadoLugares(List.of(new LugarResponse(null, "Unicentro", "Cra. 33, Villavicencio", 4.1272, -73.6203, "Google Maps", false, "LUGAR")), 0));
+        var r = s.buscarDetallado("Unicentro Villavicencio", "g:ChIJabcdefghij123", "sesion-abc-123");
+        assertEquals(EstadoBusqueda.OK, r.estado());
+        verify(google).resolver(eq("ChIJabcdefghij123"), eq("Unicentro Villavicencio"), eq("sesion-abc-123"));
+        verify(google, never()).buscarTextoResultado(anyString());
+        verifyNoInteractions(hib, loc, geo);
+    }
+
+    @Test void siGoogleSeCaeLasSugerenciasNoActivanRespaldoNiMuestranOtroProveedor() {
+        when(google.sugerir(anyString(), any())).thenThrow(new ProveedorException(EstadoBusqueda.RED, "x"));
+        var r = s.sugerirDetallado("unicentro", "sesion-abc-123");
+        assertTrue(r.sugerencias().isEmpty());
+        assertEquals(EstadoBusqueda.RED, r.estado());
+        assertTrue(r.intentos().stream().allMatch(i -> i.proveedor().equals("google")), "solo se intentó Google: " + r.intentos());
+        verifyNoInteractions(hib, loc, geo);
+    }
+
+    @Test void elDiagnosticoDeConfiguracionNoRevelaValoresSecretos() {
+        when(google.tieneClave()).thenReturn(true); when(google.sobreMapaDeGoogle()).thenReturn(true);
+        var d = s.diagnosticoBusqueda();
+        assertEquals("OK", d.get("motivo"));
+        assertEquals(true, d.get("claveDelServidorConfigurada"));
+        assertEquals(List.of("google"), d.get("proveedoresDelPasajero"));
+        for (Object v : d.values()) assertTrue(v instanceof Boolean || v instanceof String || v instanceof List, "solo estados y nombres: " + v);
+        when(google.tieneClave()).thenReturn(false); when(google.activo()).thenReturn(false);
+        assertEquals("FALTA_GOOGLE_MAPS_API_KEY", s.diagnosticoBusqueda().get("motivo"));
+        when(google.tieneClave()).thenReturn(true); when(google.sobreMapaDeGoogle()).thenReturn(false);
+        assertEquals("MAPA_NO_ES_GOOGLE", s.diagnosticoBusqueda().get("motivo"));
+    }
+
     @Test void elPuntoDelMapaNoConsultaNominatim() {
         when(repo.masCercano(anyDouble(), anyDouble(), anyDouble())).thenReturn(Optional.empty());
         LugarResponse l = s.reverso(4.14, -73.63);

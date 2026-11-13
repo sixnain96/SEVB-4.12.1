@@ -132,6 +132,15 @@
     }
 
     // ------------------------------------------------------------------ contenido de cada paso
+    let ultimaFirma = null;
+    const pt = (x) => (x ? [x.nombre, x.lat, x.lng, x.direccion, x.barrio].join('~') : '');
+    /** Resume TODO lo que cambia el contenido del paso actual: si la firma es igual, los botones actuales siguen siendo correctos. */
+    function firmaVista(p) {
+        const sel = S.Planner.seleccion, opts = document.querySelectorAll('#tripResults .trip-option');
+        const real = document.querySelector('#tripResults .trip-option.selected .reco-motivo');
+        return JSON.stringify([paso, escribiendoOrigen, !!($('useMyLocation') && $('useMyLocation').disabled), pt(p.origen), pt(p.destino), sel && sel.viaje ? [sel.codigos, sel.resumen] : null,
+            opts.length, document.body.classList.contains('g-todas'), navigator.onLine !== false, real ? real.textContent.trim() : '']);
+    }
     function render() {
         if (modo !== 'guiado') return;
         document.body.dataset.paso = paso;
@@ -143,8 +152,13 @@
             li.classList.toggle('hecho', i < idx); li.classList.toggle('actual', i === idx);
             if (i === idx) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
         });
-        el.cuerpo.replaceChildren();
         const p = puntos();
+        // Si lo que se ve no cambió, NO se reconstruyen los botones: render() lo llaman muchos eventos (puntos elegidos, resultados, temporizadores del panel) y reemplazar el botón
+        // entre el «toque» y el «soltar» de un dedo hace que ese toque se pierda (4.15.x: causa del fallo intermitente de «retroceder entre pasos»).
+        const firma = firmaVista(p);
+        if (firma === ultimaFirma && el.cuerpo.firstChild) { ocultarTodo(paso === 'viaje'); if (paso !== 'viaje') panelMedio(); return; }
+        ultimaFirma = firma;
+        el.cuerpo.replaceChildren();
         const c = el.cuerpo;
         el.ayuda.hidden = false;
         ocultarTodo(paso === 'viaje');
@@ -368,7 +382,7 @@
     }
     function cambiarModo(nuevo) {
         if (modo === nuevo) return;
-        modo = nuevo; guardarModo(modo); interaccion = true;
+        modo = nuevo; guardarModo(modo); interaccion = true; ultimaFirma = null;
         aplicarModo();
         if (modo === 'guiado') { try { el.titulo.focus({ preventScroll: true }); } catch { /* nada */ } }
     }
@@ -392,7 +406,7 @@
         const tarjeta = $('viajeCard'); if (!tarjeta || $('viajeOtro')) return;
         const b = document.createElement('button');
         b.type = 'button'; b.id = 'viajeOtro'; b.className = 'viaje-otro'; b.textContent = 'Planear otro trayecto';
-        b.addEventListener('click', () => { try { S.Viaje.detener(); S.Planner.limpiar(); } catch { /* nada */ } b.remove(); paso = 'destino'; escribiendoOrigen = false; interaccion = true; render(); });
+        b.addEventListener('click', () => { try { if (!S.Viaje.cerrarLlegada()) return; S.Planner.limpiar(); } catch { /* nada */ } b.remove(); paso = 'destino'; escribiendoOrigen = false; interaccion = true; render(); });
         const pie = tarjeta.querySelector('.viaje-pie'); (pie || tarjeta).before(b);
     });
     window.addEventListener('spevb-viaje-modo', (e) => { if (!(e.detail && e.detail.activo)) { const o = $('viajeOtro'); if (o) o.remove(); } });

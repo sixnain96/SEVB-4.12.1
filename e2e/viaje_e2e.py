@@ -156,9 +156,11 @@ def viaje_completo_con_preguntas_alertas_y_llegada(nav):
     assert c['fase'] == 'en_bus' and c['titulo'] == 'Vas en el bus M01' and c['pregunta'] is None, c
     i = alimentar(p, ls, i, 'alerta:alerta')
     assert 'Te acercas' in card(p)['aviso']
-    i = alimentar(p, ls, i, 'alerta:urgente')
-    c = card(p)
-    assert c['nivel'] == 'urgente' and 'Baja cuando el bus se detenga' in c['aviso'], c
+    i = alimentar(p, ls, i, 'bajada')
+    al = p.evaluate('Spevb.Viaje.alertas()')
+    b = p.evaluate("(() => { const e = document.getElementById('viajeBajada'); return e.hidden ? null : { titulo: document.getElementById('viajeBajadaTitulo').textContent, texto: document.getElementById('viajeBajadaTexto').textContent, rol: e.getAttribute('role') }; })()")
+    assert '0:ahora' in al['avisadas'], al
+    assert (b and b['titulo'] == 'Tu bajada está aquí' and 'Baja cuando el bus se detenga' in b['texto'] and b['rol'] == 'alertdialog'), (b, card(p))      # 4.15.2: recuadro persistente (o, si en esa misma lectura ya parece que se bajó, la pregunta de bajada toma el relevo)
     vib = p.evaluate('window.__vibraciones')
     assert len(vib) >= 4 and any(len(x) == 5 for x in vib), f'vibró en cada aviso: {vib}'
     i = alimentar(p, ls, i, 'pregunta')
@@ -370,7 +372,7 @@ def un_viaje_interrumpido_se_puede_reanudar_o_descartar(nav):
     alimentar(p, ls, i, 'alerta:alerta')
     p.reload(); B.esperar(p, "!!(window.Spevb && Spevb.Viaje)", 15000); p.wait_for_timeout(600)
     c = card(p)
-    assert c['fase'] == 'reanudar' and c['titulo'] == 'Tienes un viaje en curso' and 'M01' in c['instruccion'] and p.inner_text('#viajeSi') == 'Reanudar', c
+    assert c['fase'] == 'reanudar' and c['titulo'] == 'Tienes un viaje en curso' and 'M01' in c['instruccion'] and p.inner_text('#viajeSi') == 'Reanudar viaje', c
     p.click('#viajeSi')
     p.wait_for_timeout(400)
     c = card(p)
@@ -615,8 +617,8 @@ def se_minimiza_a_una_barra_se_oculta_a_una_pastilla_y_las_preguntas_la_reabren(
     assert p.is_visible('#viajeCard') and p.is_hidden('#viajePastilla') and p.get_attribute('#viajeCard', 'data-modo') == 'completa' and c['pregunta'], c
     p.click('#viajeSi')
     p.click('#viajeMinimizar')                                                   # minimizada: la alerta urgente también la abre
-    alimentar(p, ls, i, 'alerta:urgente')
-    assert p.get_attribute('#viajeCard', 'data-modo') == 'completa' and 'Baja cuando el bus se detenga' in (card(p)['aviso'] or '')
+    alimentar(p, ls, i, 'bajada')
+    assert p.get_attribute('#viajeCard', 'data-modo') == 'completa' and ('0:ahora' in p.evaluate('Spevb.Viaje.alertas().avisadas')) and p.is_visible('#viajeBajada')
     s.limpio('minimizar y ocultar'); s.cerrar()
 
 
@@ -649,7 +651,7 @@ def iniciar_viaje_es_el_boton_principal_justo_bajo_buscar_rutas_y_queda_a_la_vis
         b2 = rect(p, '#startTrip')
         assert b2['y'] >= 0 and b2['b'] <= b2['vh'], f'{nombre}: se queda a la vista mientras se recorren los resultados: {b2}'
         iniciar(p)
-        assert p.is_disabled('#startTrip') and p.evaluate("document.getElementById('startTripInfo').textContent") == 'Sigue las indicaciones de la tarjeta del mapa', f'{nombre}: durante el viaje queda como «Viaje en curso»'
+        assert p.get_attribute('#startTrip', 'aria-disabled') == 'true' and (p.text_content('#startTrip') or '').strip() == 'Viaje en curso' and p.evaluate("document.getElementById('startTripInfo').textContent") == 'Sigue las indicaciones de la tarjeta del mapa', f'{nombre}: durante el viaje queda como «Viaje en curso»'
         p.evaluate("Spevb.Viaje.detener()"); p.wait_for_timeout(200)
         assert p.is_enabled('#startTrip') and p.is_visible('#startTripBar')
         p.click('#clearTripPoints'); p.wait_for_timeout(300)

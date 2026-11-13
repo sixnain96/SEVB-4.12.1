@@ -1,0 +1,210 @@
+[
+ {
+  "metrica": "Interfaz lista (frío), ms",
+  "antes": [
+   741.0,
+   641.0,
+   1366.0
+  ],
+  "despues": [
+   646.0,
+   649.0,
+   988.5
+  ],
+  "mediana_antes": 741.0,
+  "mediana_despues": 649.0,
+  "rondas_mejores": 2
+ },
+ {
+  "metrica": "FCP (frío), ms",
+  "antes": [
+   268.0,
+   248.0,
+   520.0
+  ],
+  "despues": [
+   284.0,
+   268.0,
+   504.0
+  ],
+  "mediana_antes": 268.0,
+  "mediana_despues": 284.0,
+  "rondas_mejores": 1
+ },
+ {
+  "metrica": "Tareas largas en la carga (frío), ms",
+  "antes": [
+   394.0,
+   395.0,
+   884.0
+  ],
+  "despues": [
+   378.0,
+   385.5,
+   643.0
+  ],
+  "mediana_antes": 395.0,
+  "mediana_despues": 385.5,
+  "rondas_mejores": 3
+ },
+ {
+  "metrica": "Interfaz lista (recarga), ms",
+  "antes": [
+   607.0,
+   551.0,
+   842.0
+  ],
+  "despues": [
+   527.5,
+   583.0,
+   782.0
+  ],
+  "mediana_antes": 607.0,
+  "mediana_despues": 583.0,
+  "rondas_mejores": 2
+ },
+ {
+  "metrica": "Tecla → sugerencia, ms",
+  "antes": [
+   241.9,
+   239.1,
+   238.7
+  ],
+  "despues": [
+   239.8,
+   242.1,
+   244.8
+  ],
+  "mediana_antes": 239.1,
+  "mediana_despues": 242.1,
+  "rondas_mejores": 1
+ },
+ {
+  "metrica": "Buscar → recomendación, ms",
+  "antes": [
+   192.3,
+   152.9,
+   532.6
+  ],
+  "despues": [
+   203.9,
+   183.2,
+   222.1
+  ],
+  "mediana_antes": 192.3,
+  "mediana_despues": 203.9,
+  "rondas_mejores": 1
+ },
+ {
+  "metrica": "Iniciar → tarjeta y marcador, ms",
+  "antes": [
+   317.1,
+   315.4,
+   429.1
+  ],
+  "despues": [
+   289.4,
+   233.2,
+   450.1
+  ],
+  "mediana_antes": 317.1,
+  "mediana_despues": 289.4,
+  "rondas_mejores": 2
+ },
+ {
+  "metrica": "Arrastrar panel: tareas largas, ms",
+  "antes": [
+   572.5,
+   590.5,
+   1183.5
+  ],
+  "despues": [
+   310.0,
+   214.5,
+   579.5
+  ],
+  "mediana_antes": 590.5,
+  "mediana_despues": 310.0,
+  "rondas_mejores": 3
+ },
+ {
+  "metrica": "Arrastrar panel: cuadro más lento, ms",
+  "antes": [
+   122.9,
+   127.1,
+   491.7
+  ],
+  "despues": [
+   131.1,
+   77.1,
+   121.0
+  ],
+  "mediana_antes": 127.1,
+  "mediana_despues": 121.0,
+  "rondas_mejores": 2
+ },
+ {
+  "metrica": "Arrastrar panel: cuadros >50 ms",
+  "antes": [
+   6.0,
+   6.0,
+   7.0
+  ],
+  "despues": [
+   5.0,
+   4.0,
+   8.0
+  ],
+  "mediana_antes": 6.0,
+  "mediana_despues": 5.0,
+  "rondas_mejores": 2
+ },
+ {
+  "metrica": "Marcador GPS 10 Hz: tareas largas, ms",
+  "antes": [
+   137.0,
+   287.5,
+   506.0
+  ],
+  "despues": [
+   441.5,
+   237.0,
+   453.5
+  ],
+  "mediana_antes": 287.5,
+  "mediana_despues": 441.5,
+  "rondas_mejores": 2
+ },
+ {
+  "metrica": "Marcador GPS 10 Hz: cuadro más lento, ms",
+  "antes": [
+   141.6,
+   141.8,
+   245.8
+  ],
+  "despues": [
+   320.9,
+   127.0,
+   193.8
+  ],
+  "mediana_antes": 141.8,
+  "mediana_despues": 193.8,
+  "rondas_mejores": 2
+ },
+ {
+  "metrica": "Marcador GPS 10 Hz: cuadros >50 ms",
+  "antes": [
+   1.0,
+   3.5,
+   7.5
+  ],
+  "despues": [
+   5.0,
+   3.5,
+   7.0
+  ],
+  "mediana_antes": 3.5,
+  "mediana_despues": 5.0,
+  "rondas_mejores": 1
+ }
+]

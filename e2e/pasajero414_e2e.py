@@ -165,7 +165,7 @@ def durante_el_viaje_un_toque_lleva_a_A_y_B_y_el_viaje_sigue_con_su_gps(nav):
         f = p.evaluate(JS_FORM)
         assert f['A']['dentro'] and f['B']['dentro'] and f['A']['recibe'] and f['foco'] == 'formAB' and not f['tecladoAbierto'], f'{nombre}: {f}'
         assert V.card(p)['fase'] == fase0 and p.evaluate('window.__geo.escuchas') == 1 and p.evaluate('Spevb.Viaje.activo()'), f'{nombre}: ver o editar A y B no reinicia el viaje ni duplica el GPS'
-        assert p.evaluate("document.getElementById('startTrip').disabled"), f'{nombre}: con un viaje en curso no se puede sustituir sin una acción explícita («Iniciar viaje» sigue bloqueado)'
+        assert p.get_attribute('#startTrip', 'aria-disabled') == 'true', f'{nombre}: con un viaje en curso no se puede sustituir sin una acción explícita («Iniciar viaje» sigue bloqueado)'
         # la persona edita B y busca otro plan: el viaje en curso sigue con SU plan
         titulo = p.evaluate("document.getElementById('viajeInstruccion').textContent")
         p.fill('#tripDestination', '4.1500, -73.6200'); p.keyboard.press('Enter'); p.wait_for_timeout(600)

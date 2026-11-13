@@ -117,7 +117,7 @@ La CSP la fija el servidor según el proveedor (`ContentSecurityPolicy.java`; el
 * En modo Google **no existe «Guardar mapa»** y el menú «Uso sin conexión» lo explica: los términos de Google prohíben almacenar sus teselas o su contenido fuera del uso normal (cláusula 3.2.3), por lo que SEVB no cachea los dominios de Google ni los sirve por proxy, y deja que el SDK gestione sus recursos.
 * Sí siguen sin internet: el código propio (caché versionada), los datos propios de rutas, el estado del viaje y la reanudación, el GPS y los avisos. Solo el dibujo del mapa necesita conexión. Perder internet no destruye el plan ni el viaje.
 * Si el SDK nunca llegó a cargarse, se muestra el aviso «No se pudo descargar el mapa» y el resto de la interfaz textual sigue disponible.
-* El service worker subió la versión de su caché de app (`-mapa2`): al activarse borra solo las cachés de app anteriores (no el mapa guardado, teselas, rutas ni favoritos), así ningún worker viejo sirve scripts incompatibles.
+* El service worker subió la versión de su caché de app (`-mapa3`): al activarse borra solo las cachés de app anteriores (no el mapa guardado, teselas, rutas ni favoritos), así ningún worker viejo sirve scripts incompatibles.
 
 ## 9. Direcciones de Google (Places) y atribución
 
@@ -170,3 +170,18 @@ Lo que sí está verificado (con el SDK simulado y con Leaflet real): una sola i
 
 - **Búsqueda del pasajero solo con Google.** `BUSQUEDA_SOLO_GOOGLE=true` (por defecto) apaga ArcGIS, la base propia/catastro y Nominatim en sugerencias, búsqueda explícita y punto del mapa, sin respaldo silencioso (la elección fallida muestra «Reintentar» y «En el mapa»). `false` restablece la cascada anterior Google → ArcGIS → local. `GEOCODER_URL` queda vacío y las importaciones automáticas de direcciones (`DIRECCIONES_IMPORT_AL_ARRANCAR`, `OSM_IMPORT_AL_ARRANCAR`) apagadas; el ruteo, PostGIS y las redes vial/peatonal no cambian.
 - **Recuperación del fondo del mapa.** `adaptador-google.js` emite `salud` y ofrece `recuperar('suave'|'reconstruir')`; `js/mapa-salud.js` lo presenta como «Recuperar mapa» con reintentos limitados. Detalle, límites y pasos de prueba en un teléfono real: `docs/CONTINUIDAD-VIAJE.md`.
+
+## Búsqueda del pasajero: solo Google (auditoría 4.15.3)
+
+Recorrido: `planner.js` (debounce 220 ms, `AbortController`, un token de sesión UUID por campo) → `GET /api/lugares/sugerencias?q=&sesion=` → `LugarService.sugerirDetallado` → `GoogleDireccionesService.sugerir` (Places API New, `places:autocomplete`, `includedRegionCodes=co`, `locationRestriction` = caja de `CityArea`) → la persona elige → `GET /api/lugares?q=&magicKey=g:<placeId>&sesion=` → `resolver` (detalle por identificador, campos Essentials, descarta lo que `CityArea.contains` rechaza) → coordenadas. Con `spevb.busqueda.solo-google=true` (predeterminado) ArcGIS, catastro, base local y Nominatim no participan y el punto tocado en el mapa no consulta a nadie. Estados que ve la persona: `NO_CONFIGURADO` («La búsqueda de Google no está configurada»), sin conexión del navegador («No hay conexión para buscar lugares»; no se envía la consulta), `RED`/`TIMEOUT`/`CUOTA`/`CLAVE`/`PAUSADO`/`FUERA_DE_CIUDAD`/`SIN_COINCIDENCIAS` cada uno con su texto. La clave solo viaja en la cabecera `X-Goog-Api-Key` desde Java; nunca en la URL, el HTML, los registros ni las respuestas. No se registra el texto de las búsquedas.
+
+### Variables y diagnóstico de la búsqueda del pasajero
+
+| Variable | Para qué | Si falta |
+| --- | --- | --- |
+| `GOOGLE_MAPS_API_KEY` | clave del SERVIDOR (Places API New); solo viaja en la cabecera `X-Goog-Api-Key` | «La búsqueda de Google no está configurada» |
+| `MAP_PROVIDER=google` (+ `GOOGLE_MAPS_BROWSER_API_KEY`, `GOOGLE_MAPS_MAP_ID`) | los resultados de Places solo se usan sobre un mapa de Google | con Leaflet la búsqueda se apaga y dice lo mismo |
+| `BUSQUEDA_SOLO_GOOGLE` (predeterminado `true`) | sin ArcGIS, catastro, base local ni Nominatim en la búsqueda del pasajero | con `false` vuelve la cascada anterior |
+| `GOOGLE_MAPS_URL` (opcional) | otra URL base HTTPS (pruebas) | `https://places.googleapis.com` |
+
+Diagnóstico sin secretos: `GET /api/lugares/diagnostico` devuelve `soloGoogle`, `googleActivo`, `claveDelServidorConfigurada`, `mapaEsGoogle`, `motivo` (`OK`, `FALTA_GOOGLE_MAPS_API_KEY`, `MAPA_NO_ES_GOOGLE`, `SIN_PROVEEDOR_GOOGLE`), los nombres de las variables y qué proveedores usa el pasajero; nunca el valor, la longitud ni parte de la clave. Al arrancar sin clave se registra una línea informativa sin valores. Caché: solo en memoria del navegador, misma sesión de Places y mismo texto, 8 s y máximo 12 entradas (compatible con las condiciones de Google: no se persiste nada); el servidor no cachea predicciones.

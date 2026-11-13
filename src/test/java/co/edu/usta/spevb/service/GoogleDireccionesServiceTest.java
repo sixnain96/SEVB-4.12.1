@@ -24,6 +24,7 @@ class GoogleDireccionesServiceTest {
     private final AtomicReference<String> cuerpoRecibido = new AtomicReference<>();
     private final AtomicReference<String> respuestaLugar = new AtomicReference<>();
     private final AtomicReference<String> mascaraCampos = new AtomicReference<>();
+    private final AtomicReference<String> respuestaAutocompletar = new AtomicReference<>();
     private int estado = 200;
 
     @BeforeEach void arrancar() throws Exception {
@@ -33,7 +34,8 @@ class GoogleDireccionesServiceTest {
             cabeceraClave.set(ex.getRequestHeaders().getFirst("X-Goog-Api-Key"));
             mascaraCampos.set(ex.getRequestHeaders().getFirst("X-Goog-FieldMask"));
             cuerpoRecibido.set(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            String json = ex.getRequestURI().getPath().endsWith(":autocomplete")
+            String json = ex.getRequestURI().getPath().endsWith(":autocomplete") && respuestaAutocompletar.get() != null ? respuestaAutocompletar.get()
+                    : ex.getRequestURI().getPath().endsWith(":autocomplete")
                     ? "{\"suggestions\":[{\"placePrediction\":{\"placeId\":\"ChIJabcdefghij123\",\"text\":{\"text\":\"Unicentro Villavicencio, Villavicencio, Meta\"}}},"
                     + "{\"placePrediction\":{\"placeId\":\"mal id con espacios\",\"text\":{\"text\":\"Descartada\"}}},"
                     + "{\"placePrediction\":{\"placeId\":\"ChIJabcdefghij123\",\"text\":{\"text\":\"Unicentro Villavicencio, Villavicencio, Meta\"}}}]}"
@@ -59,6 +61,42 @@ class GoogleDireccionesServiceTest {
         assertTrue(g.sugerir("Unicentro").isEmpty());
         assertTrue(g.buscar("ChIJabcdefghij123").isEmpty());
         assertTrue(pedidos.isEmpty(), "apagado no hace ninguna llamada");
+    }
+
+    @Test void ningunRegistroContieneLaClaveElTokenNiElTextoBuscado() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        var captura = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        captura.start();
+        logger.addAppender(captura);
+        try {
+            String clave = "CLAVE-SECRETA-NO-DEBE-SALIR-123", token = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0", texto = "Calle ultrasecreta 99 99";
+            var g = servicio(clave);
+            g.sugerir(texto, token);
+            respuestaLugar.set("{\"formattedAddress\":\"Cra. 33, Villavicencio\",\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[]}");
+            g.resolver("ChIJabcdefghij123", texto, token);
+            estado = 403;
+            try { g.sugerir(texto, token); } catch (RuntimeException ignorada) { /* el fallo también se revisa */ }
+            for (var e : captura.list) {
+                String m = e.getFormattedMessage() + (e.getThrowableProxy() != null ? e.getThrowableProxy().getMessage() : "");
+                assertFalse(m.contains(clave) || m.contains(token) || m.contains(texto), "registro con datos sensibles: " + m);
+            }
+        } finally {
+            logger.detachAppender(captura);
+        }
+    }
+
+    @Test void lasSugerenciasTraenNombrePrincipalYReferenciaSecundaria() {
+        var g = servicio("clave-de-prueba");
+        respuestaAutocompletar.set("{\"suggestions\":[{\"placePrediction\":{\"placeId\":\"ChIJabcdefghij123\",\"text\":{\"text\":\"Cra. 33 #38-10, Villavicencio, Meta, Colombia\"},"
+                + "\"structuredFormat\":{\"mainText\":{\"text\":\"Cra. 33 #38-10\"},\"secondaryText\":{\"text\":\"Villavicencio, Meta, Colombia\"}}}}]}");
+        var s = g.sugerir("Cra 33 38");
+        assertEquals("Cra. 33 #38-10", s.get(0).principal());
+        assertEquals("Villavicencio, Meta, Colombia", s.get(0).secundario());
+        // sin structuredFormat: el primer segmento es el nombre y el resto la referencia
+        respuestaAutocompletar.set("{\"suggestions\":[{\"placePrediction\":{\"placeId\":\"ChIJabcdefghij123\",\"text\":{\"text\":\"Unicentro, Villavicencio, Meta\"}}}]}");
+        var t = g.sugerir("Unicentro");
+        assertEquals("Unicentro", t.get(0).principal());
+        assertEquals("Villavicencio, Meta", t.get(0).secundario());
     }
 
     @Test void sugiereConLaClaveEnLaCabeceraNuncaEnLaUrlYDescartaLoInvalido() {

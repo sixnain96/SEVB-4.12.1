@@ -122,3 +122,22 @@ Envíame: modelo y versión del sistema, navegador, si el fallo se repitió, la 
 - **Seguimiento con la pantalla bloqueada**: requiere una app nativa (§6).
 - Los avisos de conexión y de mapa aparecen en la tarjeta del viaje; **fuera del viaje** se muestran en una barra pequeña arriba. No se midió su aspecto en todos los tamaños.
 - El menú sigue siendo largo para administradores (enlaces de administración, «Rutas cerca del origen» y la tarjeta de ruta).
+
+## Salud del mapa: solo dentro del viaje (4.15.2)
+
+`mapa-salud.js` registra siempre la salud del mapa, pero **muestra** «El mapa se ve incompleto…», «Recuperar mapa» y «Sin ubicación actual» únicamente cuando `document.body` tiene `viaje-activo` y `Spevb.Viaje.activo()` es verdadero, dentro de `#viajeEstados`. Fuera del viaje no se crea `#estadosPagina` (salvo para «Sin internet»), no hay reintentos ni temporizadores y volver de segundo plano no abre nada. Al empezar un viaje con el problema vigente se muestra y se retoma la recuperación limitada; al terminar se cancela. Si el mapa no puede iniciarse, lo cubre el error normal de carga inicial (no este mensaje). «Recuperar mapa»: idempotente, ≤ 3 intentos automáticos, toques en < 3 s ignorados, nunca toca el viaje. `Spevb.MapaSalud.estado()` expone `enViaje`, `temporizador` y `visibles` para pruebas y soporte.
+
+
+## Un solo viaje entre pestañas: concesión (lease) (cierre 4.15.x)
+
+**Problema que se corrigió.** Antes, si la pestaña propietaria no respondía por `BroadcastChannel`, otra pestaña borraba su bloqueo y su estado a los ~1,8 s aunque la concesión durara 20 s. Una pestaña congelada o suspendida podía reanudarse después y dejar **dos viajes vivos**. No responder no significa que murió.
+
+**Protocolo (`viaje.js`).** La propiedad es una concesión en `localStorage` (`spevb-viaje-bloqueo`): `{ tab, instancia, nonce, id, estado, t, vida }`. Vale mientras `Date.now() - t < vida` (20 s). La propietaria la renueva con un latido cada 5 s y, además, en cada lectura de GPS (por si el navegador estrangula los temporizadores de una pestaña en segundo plano).
+
+1. **Una concesión ajena vigente nunca se borra ni se sobrescribe.** Se puede *pedir* terminar (por `BroadcastChannel` **y** por un mensaje en `localStorage`, para que funcione sin `BroadcastChannel`), pero solo se actúa si la otra pestaña **confirma** soltándola. Las órdenes caducan: una pestaña congelada que despierta no ejecuta una orden vieja que nadie espera.
+2. **Tomar una vencida:** se lee; se espera una verificación breve; se vuelve a leer (sigue vencida y sin cambios); se escribe un `nonce` propio y se vuelve a leer para comprobar que la ganó esta pestaña. Con Web Locks (`navigator.locks`) esa lectura-escritura es además atómica entre pestañas; sin ellos la verificación posterior cubre la carrera.
+3. **Pérdida de la concesión:** al reanudarse (latido, evento `storage`, `pageshow`, visibilidad, `resume`, foco) la pestaña vieja comprueba si sigue siendo propietaria. Si no, detiene GPS, capa, ruta y temporizadores **sin borrar** el estado guardado, la concesión ni el enlace compartido de la pestaña nueva, y **no** la recupera. Solo la propietaria escribe el avance guardado.
+4. **Cierre real de la página** (`pagehide` de confianza y no `persisted`): suelta la concesión; el avance ya quedó guardado y otra pestaña (o la misma al recargar) ofrece **Reanudar viaje**. Si la página va a bfcache o el evento no es real, la concesión se conserva y vence sola.
+5. **Mensaje al usuario** cuando otra pestaña tiene un viaje vigente y no responde: «Ya hay un viaje activo en otra pestaña…»; el botón dice «Viaje abierto en otra pestaña» y, al vencer la concesión, la pestaña lo nota sola y ofrece reanudar el viaje guardado.
+
+**Pruebas** (`e2e/ciclo_viaje_e2e.py`, con duraciones cortas solo para pruebas vía `window.__spevbPruebas`): inicio simultáneo en dos pestañas (con y sin Web Locks); propietaria que responde y termina (con y sin `BroadcastChannel`); propietaria **congelada** (JavaScript detenido con el depurador del navegador; el reloj sigue) que conserva su concesión vigente, con y sin `BroadcastChannel`; concesión que vence de verdad y se toma reutilizando el estado guardado; pestaña vieja que se reanuda sin concesión; recarga de la propietaria; rondas terminar/empezar entre pestañas sin fugas; y que ninguna pestaña muestre un viaje activo sin ser propietaria. **Limitación:** la congelación se simula; **no** se probó una pestaña suspendida por un sistema operativo real ni un teléfono.

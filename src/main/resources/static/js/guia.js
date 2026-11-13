@@ -1,11 +1,11 @@
 'use strict';
-/* Aprender a usar SEVB (4.15): bienvenida de 5 escenas con ilustraciones animadas, ayuda en contexto (botón «?») con 9 estados y «ayudas rápidas», y práctica guiada
-   de 7 pasos sobre la app real.
-   · La bienvenida sale solo la primera vez y se puede ver otra vez desde el menú → Ayuda. Nadie está obligado a hacer la práctica.
-   · Las «ayudas rápidas» reutilizan las mismas escenas (una sola ilustración, sin navegación) para consultar algo puntual.
-   · La práctica usa los campos y botones reales. NO usa el GPS. Guarda lo que la persona tenía (A, B y si había resultados) y lo devuelve al terminar o salir.
-     Si el servicio de rutas no responde, enseña con un ejemplo ilustrado marcado como simulación (nunca lo presenta como un recorrido real).
-   · El coach (capa que ilumina lo que se enseña) se actualiza solo cuando algo cambia (eventos), no en cada cuadro de pantalla.
+/* Aprender a usar SEVB (4.15.1): bienvenida de 8 escenas con ilustraciones animadas que enseñan el FLUJO GUIADO real (destino primero → origen → buscar → recomendación → un solo viaje →
+   marcador → avisos de bajada → terminar), ayuda en contexto (botón «?») con ayudas rápidas y una práctica de 8 pasos sobre el paso a paso real.
+   · La bienvenida sale solo la primera vez y se puede ver otra vez desde el menú → Ayuda. Nadie está obligado a hacer la práctica. «Omitir» la cierra en cualquier escena.
+   · Las «ayudas rápidas» reutilizan las mismas escenas (una sola ilustración, sin navegación) para consultar algo puntual. El planificador con A y B solo se explica ahí, como opción.
+   · La práctica usa los botones reales del flujo guiado (#tripDestination, #gSiDestino, #gUsarGps, #gBuscar, #gEmpezar…). NO usa el GPS ni inicia un viaje. Guarda lo que la persona tenía
+     (puntos, resultados y el modo del planificador) y lo devuelve al terminar o salir. Si el servicio de rutas no responde, enseña con un ejemplo ilustrado marcado como simulación.
+   · Solo se anima la escena que se ve; al cerrar se detienen animaciones, temporizadores y observadores. El coach se actualiza solo cuando algo cambia (eventos), no en cada cuadro.
    Sin emojis y sin voz: todo el dibujo es propio (SVG, ver iconos.js) y la guía es el chigüiro del proyecto, que solo aparece donde aporta. */
 (() => {
     const S = window.Spevb;
@@ -29,9 +29,7 @@
     const devolverFoco = () => { const a = abridor; abridor = null; S.Modal.devolverFoco(a); };
 
     // ------------------------------------------------------------------ ilustraciones animadas (SVG propio, mismo trazo y paleta que el resto de SEVB)
-    const V = '#176650', ROJO = '#e53935', NARANJA = '#d9822b';
-    const PIN = (clase, letra, color) => '<g class="pin ' + clase + '"><g class="pin-cae"><path d="M0 0c-9-9-14-16-14-24a14 14 0 0 1 28 0c0 8-5 15-14 24z" fill="' + color + '" stroke="#fff" stroke-width="2.5"/>'
-        + '<circle cx="0" cy="-24" r="8" fill="#fff"/><text x="0" y="-20.2" text-anchor="middle" font-size="11" font-weight="800" fill="' + color + '">' + letra + '</text></g></g>';
+    const V = '#176650', ROJO = '#e53935', NARANJA = '#d9822b', AZUL = '#1a73e8';
     const CALLES = '<path class="calle" d="M-10 150C50 128 105 170 165 138S270 122 330 144"/><path class="calle" d="M-10 62 330 96"/><path class="calle" d="M118-10 150 210"/><path class="calle" d="M232-10 214 210"/>';
     const MANZANAS = [[14, 100, 62, 30], [100, 98, 52, 24], [172, 104, 48, 22], [250, 100, 56, 26], [14, 156, 64, 28], [128, 156, 70, 26], [224, 156, 82, 28]]
         .map((m) => '<rect class="manzana" x="' + m[0] + '" y="' + m[1] + '" width="' + m[2] + '" height="' + m[3] + '" rx="7"/>').join('');
@@ -43,79 +41,116 @@
         + '<circle cx="9" cy="20" r="3.4" fill="#14281f" stroke="#fff" stroke-width="1.6"/><circle cx="25" cy="20" r="3.4" fill="#14281f" stroke="#fff" stroke-width="1.6"/></g>';
     const MASCOTA = (id, cx, cy, r) => '<circle class="medallon" cx="' + cx + '" cy="' + cy + '" r="' + (r + 3) + '"/><clipPath id="' + id + '"><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '"/></clipPath>'
         + '<g clip-path="url(#' + id + ')"><image class="mascota" href="/img/marca/sevb-chiguiro-96.png" x="' + (cx - r) + '" y="' + (cy - r) + '" width="' + 2 * r + '" height="' + 2 * r + '"/></g>';
-    const TARJETA = (cls, y, chip, color, nombre, min, extra = '') => '<g class="tarjeta ' + cls + '" style="--y:' + y + 'px"><rect class="t-fondo" x="10" y="' + y + '" width="152" height="40" rx="12"/>'
-        + '<rect x="18" y="' + (y + 9) + '" width="30" height="22" rx="7" fill="' + color + '"/><text x="33" y="' + (y + 24) + '" text-anchor="middle" class="t-chip">' + chip + '</text>'
-        + '<text x="56" y="' + (y + 17) + '" class="t-nombre">' + nombre + '</text><text x="56" y="' + (y + 31) + '" class="t-min">' + min + '</text>' + extra + '</g>';
-    const NODOS = [[50, 52, 'caminar', 'Camina'], [160, 52, 'paradero', 'Paradero'], [270, 52, 'bus', 'Sube'], [270, 140, 'flecha', 'Viaja'], [160, 140, 'bajar', 'Bájate'], [50, 140, 'pin', 'Llegas']];
-    const RUTA_VIAJE = 'M50 52H270C300 52 300 140 270 140H50';
+    /** Botón de las escenas (mismo verde del botón principal) o botón secundario (borde verde, fondo blanco). */
+    const BOTON = (x, y, w, h, texto, clase = '') => '<g class="boton ' + clase + '"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + h / 2 + '"/><text x="' + (x + w / 2) + '" y="' + (y + h / 2 + 4.6) + '" text-anchor="middle">' + texto + '</text></g>';
+    /** El círculo azul de tu ubicación (el mismo que se ve en el mapa mientras caminas). */
+    const PUNTO_AZUL = (x, y, r = 11) => '<g class="azul" transform="translate(' + x + ' ' + y + ')"><circle class="halo" r="' + Math.round(r * 1.9) + '"/><circle class="disco" r="' + r + '"/></g>';
+    /** El marcador del bus con el código de la ruta, que reemplaza al círculo azul mientras vas en el bus. */
+    const BUS_MARCA = (x, y, codigo) => '<g class="bus-marca" transform="translate(' + x + ' ' + y + ')"><circle r="24" fill="' + ROJO + '" stroke="#fff" stroke-width="3"/><g class="ico" transform="translate(-11 -19)">' + icono('bus', 22) + '</g>'
+        + '<rect x="-19" y="6" width="38" height="16" rx="8" fill="#fff" stroke="' + ROJO + '" stroke-width="1.6"/><text x="0" y="18" text-anchor="middle" class="codigo">' + codigo + '</text></g>';
 
     const ESCENAS = [
         {
-            clave: 'que-es', titulo: 'Aquí sabes qué bus tomar',
-            texto: 'SEVB te dice qué ruta de bus tomar en Villavicencio, dónde subirte y dónde bajarte. Sin adivinar.',
-            svg: ABRE(1) + FONDO + '<path class="monte" d="M0 76 46 42 84 64 130 32 176 68 222 40 268 66 320 46V0H0z"/><circle class="sol" cx="286" cy="24" r="12"/>' + MANZANAS + CALLES
-                + '<path id="rutaE1" class="linea-ruta" pathLength="1" d="M26 170C78 170 92 126 150 126S238 160 294 110"/>'
-                + '<circle class="parada sube" cx="26" cy="170" r="6"/><circle class="parada baja" cx="294" cy="110" r="6"/>'
-                + '<g class="marca"><rect x="12" y="12" width="78" height="26" rx="13"/><g class="ico" transform="translate(18 15)">' + icono('bus', 20) + '</g><text x="60" y="29.5" text-anchor="middle">SEVB</text></g>'
-                + '<g class="bus-mov">' + BUS_ILUS + '<animateMotion dur="7s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines=".4 0 .3 1"><mpath href="#rutaE1"/></animateMotion></g>'
-                + '<g class="saludo">' + MASCOTA('recorteE1', 290, 170, 17) + '</g></svg>',
+            clave: 'destino', titulo: 'Primero, dime a dónde vas',
+            texto: 'Escribe el lugar al que quieres ir. Google te muestra sugerencias: toca la correcta y confirma.',
+            svg: ABRE(1) + FONDO + MANZANAS + CALLES
+                + '<g class="burbuja"><rect x="14" y="8" width="204" height="30" rx="15"/><text x="116" y="27.6" text-anchor="middle">¿A dónde quieres ir?</text></g>'
+                + '<g class="campo"><rect class="caja" x="14" y="46" width="292" height="34" rx="17"/><text class="valor" x="32" y="68">Terminal de transportes</text><rect class="tapa" x="30" y="52" width="260" height="22"/></g>'
+                + '<text class="rotulo" x="16" y="98">Sugerencias de Google</text>'
+                + '<g class="sug s1"><rect x="14" y="104" width="292" height="30" rx="10"/><text x="30" y="123.4">Terminal de transportes, Villavicencio</text><g class="visto"><circle cx="286" cy="119" r="9"/><path d="M281.5 119.4 285 123 291 115.4"/></g></g>'
+                + '<g class="sug s2"><rect x="14" y="138" width="292" height="26" rx="10"/><text x="30" y="155.4">Terminal de buses, otra ciudad</text></g>'
+                + BOTON(78, 168, 164, 28, 'Sí, continuar', 'b-si')
+                + '<g class="saludo">' + MASCOTA('recorteE1', 292, 20, 15) + '</g></svg>',
         },
         {
-            clave: 'buscar', titulo: 'Dime de dónde sales y a dónde vas',
-            texto: 'Escribe el lugar de donde sales (A) y a dónde llegas (B), o márcalos en el mapa. Después toca el botón verde «Buscar rutas».',
-            svg: ABRE(2) + FONDO + MANZANAS + CALLES
-                + '<g class="campo ca"><rect x="14" y="10" width="292" height="32" rx="16"/><circle cx="32" cy="26" r="10" fill="' + V + '"/><text x="32" y="30.2" text-anchor="middle" class="letra">A</text>'
-                + '<text x="50" y="30" class="valor">Serramonte</text><rect class="tapa" x="48" y="14" width="250" height="24"/></g>'
-                + '<g class="campo cb"><rect x="14" y="48" width="292" height="32" rx="16"/><circle cx="32" cy="64" r="10" fill="' + NARANJA + '"/><text x="32" y="68.2" text-anchor="middle" class="letra">B</text>'
-                + '<text x="50" y="68" class="valor">Terminal de transportes</text><rect class="tapa" x="48" y="52" width="250" height="24"/></g>'
-                + '<path class="trazo-ab" pathLength="1" d="M66 150C116 100 190 170 252 120"/>'
-                + '<g transform="translate(66 150)"><ellipse class="sombra" cx="0" cy="2" rx="11" ry="3.2"/>' + PIN('pin-a', 'A', V) + '</g>'
-                + '<g transform="translate(252 120)"><ellipse class="sombra" cx="0" cy="2" rx="11" ry="3.2"/>' + PIN('pin-b', 'B', NARANJA) + '</g>'
-                + '<g class="boton-buscar"><rect x="100" y="164" width="120" height="30" rx="15"/><text x="160" y="183.5" text-anchor="middle">Buscar rutas</text></g></svg>',
+            clave: 'origen', titulo: 'Ahora, dónde estás',
+            texto: 'Toca «Usar mi ubicación actual». Si prefieres, escribe una dirección o elígela en el mapa.',
+            svg: ABRE(2) + FONDO
+                + '<g class="boton b-gps"><rect x="14" y="12" width="292" height="46" rx="23"/><g class="ico" transform="translate(30 23)">' + icono('gps', 24) + '</g><text x="172" y="40.6" text-anchor="middle">Usar mi ubicación actual</text></g>'
+                + BOTON(14, 66, 142, 34, 'Escribir una dirección', 'sec b-esc') + BOTON(164, 66, 142, 34, 'Elegir en el mapa', 'sec b-map')
+                + '<rect class="mapita" x="14" y="110" width="292" height="80" rx="14"/><path class="calle" d="M14 168C80 140 150 176 220 146S280 140 306 150"/><path class="calle" d="M70 110 100 190"/><path class="calle" d="M210 110 196 190"/>'
+                + PUNTO_AZUL(160, 150, 10)
+                + '<g class="etiqueta et-aqui"><rect x="190" y="124" width="104" height="20" rx="10"/><text x="242" y="138" text-anchor="middle">Aquí estás tú</text></g></svg>',
         },
         {
-            clave: 'elegir', titulo: 'Compara y elige tu bus',
-            texto: 'Cada opción muestra el nombre de la ruta, los minutos y cuánto caminas. Toca una para verla en el mapa. Si hace falta cambiar de bus, verás «2 buses».',
+            clave: 'revisar', titulo: 'Revisa y busca',
+            texto: 'Mira desde dónde sales y a dónde vas. Si todo está bien, toca «Buscar cómo llegar».',
             svg: ABRE(3) + FONDO
-                + TARJETA('t1', 12, 'R08', '#1565c0', 'Ruta Kirpas', '24 min')
-                + TARJETA('t2', 58, 'R12', ROJO, 'Ruta Catama', '12 min · 3 cuadras')
-                + '<g class="tarjeta t3" style="--y:104px"><rect class="t-fondo" x="10" y="104" width="152" height="40" rx="12"/><rect x="18" y="113" width="22" height="22" rx="7" fill="#7b1fa2"/><rect x="44" y="113" width="22" height="22" rx="7" fill="#ef6c00"/>'
-                + '<path d="M40 124h4" stroke="#55645d" stroke-width="2"/><text x="74" y="121" class="t-nombre">2 buses</text><text x="74" y="135" class="t-min">Transbordo</text></g>'
-                + '<rect class="mapita" x="170" y="12" width="140" height="132" rx="14"/>'
-                + '<path class="gris" d="M184 130C200 96 226 120 244 84S292 40 300 26"/><path class="gris" d="M182 40C214 56 232 52 252 96S290 128 302 132"/>'
-                + '<path id="rutaE3" class="linea-ruta" pathLength="1" d="M184 114C212 112 224 76 250 70S288 52 298 30"/>'
-                + '<circle class="parada sube" cx="184" cy="114" r="6"/><circle class="parada baja" cx="298" cy="30" r="6"/>'
-                + '<g class="etiqueta et-sube"><rect x="176" y="122" width="60" height="18" rx="9"/><text x="206" y="134.5" text-anchor="middle">Sube aquí</text></g>'
-                + '<g class="etiqueta et-baja"><rect x="236" y="14" width="68" height="18" rx="9"/><text x="270" y="26.5" text-anchor="middle">Bájate aquí</text></g>'
-                + '<g class="pildora p-min"><rect x="14" y="156" width="92" height="30" rx="15"/><g class="ico" transform="translate(21 160)">' + icono('reloj', 22) + '</g><text x="68" y="175.5" text-anchor="middle">12 min</text></g>'
-                + '<g class="pildora p-camina"><rect x="114" y="156" width="190" height="30" rx="15"/><g class="ico" transform="translate(121 160)">' + icono('caminar', 22) + '</g><text x="216" y="175.5" text-anchor="middle">Caminas unas 3 cuadras</text></g></svg>',
+                + '<g class="lugar l1"><rect x="14" y="12" width="292" height="48" rx="14"/><text x="30" y="31" class="peq">Vas desde</text><text x="30" y="50" class="gran">Tu ubicación actual</text><g class="ico" transform="translate(268 22)">' + icono('gps', 24) + '</g></g>'
+                + '<path class="union" d="M160 62V80" /><circle class="punto-u" cx="160" cy="66" r="2.6"/><circle class="punto-u" cx="160" cy="72" r="2.6"/><circle class="punto-u" cx="160" cy="78" r="2.6"/>'
+                + '<g class="lugar l2"><rect x="14" y="82" width="292" height="48" rx="14"/><text x="30" y="101" class="peq">Hasta</text><text x="30" y="120" class="gran">Terminal de transportes</text><g class="ico" transform="translate(268 92)">' + icono('pin', 24) + '</g></g>'
+                + BOTON(40, 146, 240, 44, 'Buscar cómo llegar', 'b-buscar') + '</svg>',
         },
         {
-            clave: 'viaje', titulo: 'Te acompaño en el viaje',
-            texto: 'Toca «Iniciar viaje» y te aviso en cada paso: cuándo caminar, cuándo subir y cuándo bajarte. Tú solo sigue las indicaciones.',
-            svg: ABRE(4) + FONDO + '<path class="riel" d="' + RUTA_VIAJE + '"/><path id="rutaE4" class="riel-hecho" pathLength="1" d="' + RUTA_VIAJE + '"/>'
-                + NODOS.map((n, i) => '<g class="nodo n' + (i + 1) + '"><circle cx="' + n[0] + '" cy="' + n[1] + '" r="20"/>' + ic(n[2], n[0], n[1]) + '<text x="' + n[0] + '" y="' + (n[1] + (n[1] < 100 ? 38 : 38)) + '" text-anchor="middle">' + n[3] + '</text></g>').join('')
-                + '<circle class="viajero" r="7"><animateMotion dur="5.2s" begin="0.5s" repeatCount="1" fill="freeze" calcMode="linear"><mpath href="#rutaE4"/></animateMotion></circle></svg>',
+            clave: 'recomendacion', titulo: 'Esta es la recomendación',
+            texto: 'Verás los minutos, cuánto caminas y qué bus tomar. Si hay que cambiar de bus, dice «2 buses».',
+            svg: ABRE(4) + FONDO
+                + '<g class="reco r1"><rect class="t-fondo" x="12" y="10" width="296" height="92" rx="16"/><rect x="24" y="22" width="40" height="26" rx="8" fill="' + ROJO + '"/><text x="44" y="39.6" text-anchor="middle" class="t-chip">R12</text>'
+                + '<text x="74" y="40" class="t-nombre">Ruta Catama</text><text x="296" y="42" text-anchor="end" class="t-min">21 min</text>'
+                + '<g class="dato d1"><g class="ico" transform="translate(24 58)">' + icono('caminar', 20) + '</g><text x="50" y="73" class="t-dato">Caminas 300 m</text></g>'
+                + '<g class="dato d2"><g class="ico" transform="translate(170 58)">' + icono('bus', 20) + '</g><text x="196" y="73" class="t-dato">1 bus</text></g>'
+                + '<g class="insignia"><rect x="24" y="80" width="104" height="16" rx="8"/><text x="76" y="91.6" text-anchor="middle">Recomendada</text></g></g>'
+                + '<g class="reco r2"><rect class="t-fondo" x="12" y="112" width="296" height="78" rx="16"/><rect x="24" y="124" width="40" height="26" rx="8" fill="' + ROJO + '"/><text x="44" y="141.6" text-anchor="middle" class="t-chip">R12</text>'
+                + '<g class="ico" transform="translate(70 126)">' + icono('flecha', 22) + '</g><rect x="98" y="124" width="40" height="26" rx="8" fill="#7b1fa2"/><text x="118" y="141.6" text-anchor="middle" class="t-chip">R08</text>'
+                + '<text x="296" y="142" text-anchor="end" class="t-min">2 buses</text><text x="24" y="172" class="t-dato">Transbordo: bajas del primero y subes al segundo</text></g></svg>',
         },
         {
-            clave: 'practicar', titulo: 'Practica sin riesgo',
-            texto: 'Puedes hacer una práctica de dos minutos con un ejemplo: no usa tu ubicación ni gasta nada. O empieza a explorar cuando quieras.',
-            svg: ABRE(5) + FONDO + MANZANAS + '<g class="saludo">' + MASCOTA('recorteE5', 160, 62, 38) + '</g>'
-                + '<g class="insignia-ok"><circle cx="196" cy="94" r="13"/><path d="M190 94.5 194.6 99 202 89.5"/></g>'
-                + '<g class="op op1"><rect x="14" y="124" width="140" height="62" rx="16"/><g class="ico" transform="translate(24 134)">' + icono('birrete', 24) + '</g><text x="56" y="150" class="op-t">Práctica</text><text x="56" y="166" class="op-s">guiada · 2 min</text></g>'
-                + '<g class="op op2"><rect x="166" y="124" width="140" height="62" rx="16"/><g class="ico" transform="translate(176 134)">' + icono('brujula', 24) + '</g><text x="208" y="150" class="op-t">Explorar</text><text x="208" y="166" class="op-s">a tu ritmo</text></g></svg>',
+            clave: 'empezar', titulo: 'Empieza un solo viaje',
+            texto: 'Cuando estés en el paradero, toca «Empezar este viaje». Solo puede haber un viaje a la vez: termina este antes de empezar otro.',
+            svg: ABRE(5) + FONDO + MANZANAS
+                + '<g class="paradero-ilu">' + ic('paradero', 160, 30, 30) + '</g>'
+                + BOTON(30, 56, 260, 52, 'Empezar este viaje', 'b-empezar')
+                + '<g class="uno"><rect x="52" y="124" width="216" height="32" rx="16"/><g class="ico" transform="translate(64 130)">' + icono('candado', 20) + '</g><text x="172" y="144.4" text-anchor="middle">Un solo viaje a la vez</text></g>'
+                + '<text class="nota" x="160" y="178" text-anchor="middle">Para empezar otro, primero termina este.</text></svg>',
+        },
+        {
+            clave: 'marcador', titulo: 'Sigue tu marcador',
+            texto: 'Caminando eres un círculo azul. En el bus, te vuelves un bus con el código de la ruta. Al bajar, otra vez un círculo.',
+            svg: ABRE(6) + FONDO
+                + '<g class="paso p1">' + PUNTO_AZUL(58, 74, 13) + '<text x="58" y="124" text-anchor="middle" class="rot">Caminas</text></g>'
+                + '<g class="flecha f1">' + ic('flecha', 108, 74, 26) + '</g>'
+                + '<g class="paso p2">' + BUS_MARCA(160, 74, 'R12') + '<text x="160" y="124" text-anchor="middle" class="rot">Vas en el bus</text></g>'
+                + '<g class="flecha f2">' + ic('flecha', 212, 74, 26) + '</g>'
+                + '<g class="paso p3">' + PUNTO_AZUL(262, 74, 13) + '<text x="262" y="124" text-anchor="middle" class="rot">Bajas y caminas</text></g>'
+                + '<g class="leyenda"><circle cx="40" cy="168" r="7" fill="' + AZUL + '" stroke="#fff" stroke-width="2.4"/><text x="54" y="172" class="rot2">Círculo azul: eres tú</text>'
+                + '<circle cx="186" cy="168" r="7" fill="' + ROJO + '" stroke="#fff" stroke-width="2.4"/><text x="200" y="172" class="rot2">Bus con su código</text></g></svg>',
+        },
+        {
+            clave: 'bajada', titulo: 'Te aviso antes de bajar',
+            texto: 'Te aviso cuando estés cerca, cuando debas prepararte y cuando sea ahora. Con «Tu bajada está aquí», baja cuando el bus se detenga.',
+            svg: ABRE(7) + FONDO
+                + '<g class="nivel n1"><text x="16" y="29" class="rot">Cerca</text><rect class="pista" x="104" y="16" width="200" height="16" rx="8"/><rect class="barra" x="104" y="16" width="70" height="16" rx="8" fill="#6fa58f"/></g>'
+                + '<g class="nivel n2"><text x="16" y="59" class="rot">Prepárate</text><rect class="pista" x="104" y="46" width="200" height="16" rx="8"/><rect class="barra" x="104" y="46" width="136" height="16" rx="8" fill="' + NARANJA + '"/></g>'
+                + '<g class="nivel n3"><text x="16" y="89" class="rot">Ahora</text><rect class="pista" x="104" y="76" width="200" height="16" rx="8"/><rect class="barra" x="104" y="76" width="200" height="16" rx="8" fill="' + ROJO + '"/></g>'
+                + '<text class="nota" x="160" y="114" text-anchor="middle">Si tu teléfono lo permite, también vibra o te avisa.</text>'
+                + '<g class="tarjeta-baja"><rect x="14" y="124" width="292" height="64" rx="16"/><g class="ico" transform="translate(28 138)">' + icono('bajar', 28) + '</g><text x="68" y="148" class="t-nombre">Tu bajada está aquí</text><text x="68" y="168" class="t-dato">Baja cuando el bus se detenga</text></g></svg>',
+        },
+        {
+            clave: 'terminar', titulo: 'Termina tu viaje',
+            texto: 'Toca «Ya me bajé» y camina el último tramo. Al llegar, toca «Terminar viaje». Puedes practicar o empezar a explorar.',
+            svg: ABRE(8) + FONDO + MANZANAS
+                + BOTON(14, 16, 150, 40, 'Ya me bajé', 'sec b-baje')
+                + '<g class="flecha f1">' + ic('flecha', 188, 36, 24) + '</g>' + PUNTO_AZUL(246, 36, 11)
+                + '<path class="camino" pathLength="1" d="M246 50C240 84 200 96 170 120"/><g class="ico pin-fin" transform="translate(158 118)">' + icono('pin', 24) + '</g>'
+                + BOTON(50, 150, 220, 40, 'Terminar viaje', 'b-terminar')
+                + '<g class="saludo">' + MASCOTA('recorteE8', 36, 112, 22) + '</g></svg>',
         },
     ];
-    // Ayudas rápidas: cada tema reutiliza una escena (no hay una ilustración nueva por tema).
+    // Ayudas rápidas: cada tema reutiliza una escena (no hay una ilustración nueva por tema). La primera ayuda que se abre desde el planificador con A y B muestra la escena 0.
     const TEMAS = [
-        { t: 'Cómo buscar una ruta', escena: 1, titulo: 'Cómo buscar una ruta', texto: 'Escribe de dónde sales (A) y a dónde llegas (B), o toca «En el mapa» y márcalos con el dedo. Después toca «Buscar rutas».' },
-        { t: 'Cómo elegir entre varias opciones', escena: 2, titulo: 'Cómo elegir entre varias opciones', texto: 'Mira el nombre de la ruta, los minutos y cuánto caminas. Toca una opción para verla en el mapa y compara.' },
-        { t: 'Dónde subir y dónde bajar', escena: 2, titulo: 'Dónde subir y dónde bajar', texto: 'En el mapa, «Sube aquí» es el paradero donde subes y «Bájate aquí» donde bajas. Camina por la línea punteada hasta el primero.' },
-        { t: 'Cómo funcionan los transbordos', escena: 2, titulo: 'Cómo funcionan los transbordos', texto: 'Si no hay un bus directo, verás «2 buses»: bajas del primero en el punto marcado y subes al segundo. El tiempo ya incluye una espera aproximada.' },
-        { t: 'Cómo iniciar un viaje', escena: 3, titulo: 'Cómo iniciar un viaje', texto: 'Toca «Iniciar viaje» cuando estés en el paradero. Te aviso cuándo caminar, subir y bajar. La práctica no usa tu GPS.' },
-        { t: 'Cómo usar el mapa', escena: 0, titulo: 'Cómo usar el mapa', texto: 'Arrastra para moverte y junta o separa dos dedos para acercar. La línea roja es el bus y la punteada es lo que caminas.' },
-        { t: 'Si no aparece una ruta', escena: null, titulo: 'Si no aparece una ruta',
-            tips: ['Mueve A o B hacia una calle grande, cerca de donde pasan los buses.', 'Toca «En el mapa» y marca el punto con el dedo para estar seguro de dónde quedó.', 'Prueba con otro lugar cercano. Hay zonas con pocas rutas registradas.'] },
+        { t: 'Cómo elegir el destino', escena: 0, titulo: 'Cómo elegir el destino', texto: 'Escribe el lugar al que quieres ir y toca «Buscar destino». Google te muestra sugerencias: toca la correcta y confirma con «Sí, continuar». Si no la encuentras, toca «Elegir en el mapa».' },
+        { t: 'Cómo decir dónde estás', escena: 1, titulo: 'Cómo decir dónde estás', texto: 'Toca «Usar mi ubicación actual» si ya estás donde empiezas. También puedes tocar «Escribir una dirección» o «Elegir en el mapa» y marcar el punto con el dedo.' },
+        { t: 'Cómo buscar cómo llegar', escena: 2, titulo: 'Cómo buscar cómo llegar', texto: 'Revisa desde dónde sales y a dónde vas. Si algo no es correcto, toca «Cambiar origen» o «Cambiar destino»: no pierdes el otro lugar. Después toca «Buscar cómo llegar».' },
+        { t: 'Cómo leer la recomendación', escena: 3, titulo: 'Cómo leer la recomendación', texto: 'Mira el tiempo aproximado, cuánto caminas y qué bus tomar. El tiempo no incluye la espera del bus. «Ver otras opciones» muestra las demás rutas.' },
+        { t: 'Cómo funcionan los transbordos', escena: 3, titulo: 'Cómo funcionan los transbordos', texto: 'Si no hay un bus directo, verás «2 buses»: bajas del primero en el punto marcado y subes al segundo. El tiempo ya incluye ese cambio.' },
+        { t: 'Cómo empezar un viaje', escena: 4, titulo: 'Cómo empezar un viaje', texto: 'Toca «Empezar este viaje» cuando estés en el paradero. Solo puede haber un viaje a la vez: para empezar otro, primero termina este.' },
+        { t: 'Qué significa tu marcador', escena: 5, titulo: 'Qué significa tu marcador', texto: 'Eres un círculo azul mientras caminas. Cuando confirmas que subiste, te vuelves un bus con el código de la ruta. Al bajarte vuelves a ser un círculo azul.' },
+        { t: 'Cómo funcionan los avisos de bajada', escena: 6, titulo: 'Cómo funcionan los avisos de bajada', texto: 'Te aviso en tres momentos: cerca, prepárate y ahora. Aparece «Tu bajada está aquí» hasta que toques «Ya me bajé». La vibración y la notificación son opcionales y dependen de tu teléfono.' },
+        { t: 'Cómo terminar el viaje', escena: 7, titulo: 'Cómo terminar el viaje', texto: 'Toca «Ya me bajé» cuando bajes del bus y camina el último tramo. Al llegar, toca «Terminar viaje». También puedes terminarlo antes desde la tarjeta del viaje.' },
+        { t: 'Si no aparece una ruta', escena: null, titulo: 'Si no aparece una ruta', accion: '#tripDestination',
+            tips: ['Prueba con otro lugar cercano o más conocido.', 'Toca «Elegir en el mapa» y marca el punto con el dedo para ver dónde quedó.', 'Hay zonas con pocas rutas registradas: acércate a una calle grande.'] },
+        { t: 'El planificador con A y B (opcional)', escena: null, titulo: 'El planificador con A y B (opcional)', accion: '#menuPasoAPaso',
+            tips: ['Es una forma más rápida para quien ya conoce SEVB: escribes el origen y el destino en la misma pantalla.', 'Se cambia desde el menú ☰, con el botón «Usar el planificador con A y B» o «Planear paso a paso».', 'El paso a paso sigue siendo la mejor manera de empezar.'] },
     ];
 
     // ------------------------------------------------------------------ bienvenida y lecciones
@@ -192,7 +227,7 @@
 
     // ------------------------------------------------------------------ ayuda en contexto (9 estados)
     const puntosAhora = () => (S.Planner && S.Planner.puntos ? S.Planner.puntos() : {});
-    const DEMO_BUSCAR = { texto: 'Ver cómo se busca', tema: 0 }, DEMO_ELEGIR = { texto: 'Ver cómo se elige', tema: 1 }, DEMO_VIAJE = { texto: 'Ver cómo es el viaje', tema: 4 };
+    const DEMO_BUSCAR = { texto: 'Ver cómo se busca', tema: 0 }, DEMO_ELEGIR = { texto: 'Ver cómo se elige', tema: 3 }, DEMO_VIAJE = { texto: 'Ver cómo es el viaje', tema: 5 };
     const AYUDAS = {
         inicio: { titulo: 'Para empezar', tips: ['Escribe dónde estás en «¿De dónde sales?», o toca «Mi ubicación».', 'Escribe a dónde vas en «¿A dónde vas?».',
             'Si no encuentras la dirección, toca «En el mapa» y marca el punto con el dedo.', 'Después toca el botón verde «Buscar rutas».'], accion: '#tripOrigin', demo: DEMO_BUSCAR },
@@ -203,12 +238,29 @@
         resultados: { titulo: 'Tus opciones', tips: ['Cada opción dice qué ruta tomar, cuánto caminas y cuánto tardas, más o menos.', 'Toca una opción para verla en el mapa.',
             'El tiempo es aproximado y no incluye la espera del bus.'], accion: '#tripResults .trip-option summary', demo: DEMO_ELEGIR },
         ruta: { titulo: 'Ya elegiste una ruta', tips: ['La línea roja es el bus y la punteada es lo que caminas.', 'Sube en «Sube aquí» y bájate en «Bájate aquí».',
+            'Si quieres cambiar un lugar, toca «Editar A y B»: la ruta elegida se conserva hasta que cambies un punto.',
             'Cuando estés en el paradero, toca «Iniciar viaje» y te acompaño paso a paso.'], accion: '#startTrip', demo: DEMO_VIAJE },
         sinrutas: { titulo: 'No apareció una ruta', tips: ['Mueve A o B hacia una calle grande, cerca de donde pasan los buses.', 'Toca «En el mapa» y marca el punto con el dedo para ver dónde quedó.',
             'Prueba con otro lugar cercano: hay zonas con pocas rutas registradas.'], accion: '#tripOrigin', demo: null },
         error: { titulo: 'Algo no salió bien', tips: ['Revisa tu conexión a internet.', 'Los viajes que ya consultaste están en «Recientes», en el menú ☰.', 'Vuelve a tocar «Buscar rutas».'], accion: '#planTrip', demo: null },
-        viaje: { titulo: 'Durante tu viaje', tips: ['Sigue la tarjeta del mapa: te dice qué hacer ahora.', 'Si te pregunta «¿Vas en la ruta…?», toca «Sí» o «No».',
-            'Si te pierdes, toca «Más» y luego «Recalcular desde aquí».', 'Para terminar antes, toca «Terminar viaje».'], accion: null, demo: null },
+        viaje: { titulo: 'Durante tu viaje', tips: ['Sigue la tarjeta del mapa: te dice qué hacer ahora.', 'Tú eres un círculo azul; cuando subes al bus te conviertes en un bus con el código de la ruta.',
+            'Si te pregunta «¿Vas en la ruta…?», toca «Sí» o «No».',
+            'Al acercarte a tu bajada te aviso; cuando veas «Tu bajada está aquí», baja cuando el bus se detenga y toca «Ya me bajé» (o «Sigo en el bus»).',
+            'Solo puede haber un viaje a la vez: para empezar otro, termina este.',
+            'Si te pierdes, toca «Más» y luego «Recalcular desde aquí». Ahí también eliges las «Alertas de bajada».', 'Para terminar antes, toca «Terminar viaje».'], accion: null, demo: null },
+    };
+    // Ayuda del FLUJO GUIADO («Planear paso a paso»): habla de los botones reales de cada pantalla (no de «¿De dónde sales?» ni «Buscar rutas», que ahí no existen).
+    const AYUDAS_GUIADO = {
+        destino: { titulo: 'Para empezar', tips: ['Escribe el lugar al que quieres ir y toca «Buscar destino». Las sugerencias vienen de Google: toca la que corresponda.',
+            'Si no lo encuentras, toca «Elegir en el mapa» y marca el punto con el dedo.'], accion: '#gBuscarDestino' },
+        confirmar_destino: { titulo: 'Confirma el destino', tips: ['Mira el punto en el mapa.', 'Si es el lugar correcto toca «Sí, continuar»; si no, «Cambiar destino».'], accion: '#gSiDestino' },
+        origen: { titulo: 'Ahora, desde dónde sales', tips: ['Toca «Usar mi ubicación actual» si ya estás donde empiezas.', 'O toca «Escribir una dirección», o «Elegir en el mapa».',
+            '«Volver al destino» te deja corregir el lugar al que vas.'], accion: '#gUsarGps' },
+        confirmar_origen: { titulo: 'Confirma tu salida', tips: ['Si es el lugar correcto toca «Sí, continuar».', '«Cambiar lugar» te deja elegir otro.'], accion: '#gSiOrigen' },
+        resumen: { titulo: 'Revisa tu viaje', tips: ['Comprueba tu salida y tu destino.', 'Toca «Buscar cómo llegar».', '«Cambiar origen» o «Cambiar destino» corrigen uno sin perder el otro.'], accion: '#gBuscar' },
+        calculando: { titulo: 'Buscando tu ruta', tips: ['Estoy comparando tu salida y tu llegada con todas las rutas. Son unos segundos.', 'Puedes tocar «Cancelar» y tus lugares no se pierden.'], accion: null },
+        recomendacion: { titulo: 'Esta es la recomendación', tips: ['Te digo qué bus tomar, dónde subirte, dónde bajarte y cuánto caminas.',
+            'Cuando estés en el paradero toca «Empezar este viaje» y te acompaño paso a paso.', '«Ver otras opciones» muestra las demás rutas; «Cambiar desde o hasta» vuelve a la revisión.'], accion: '#gEmpezar' },
     };
     function estadoActual() {
         if (S.Viaje && S.Viaje.activo()) return 'viaje';
@@ -234,7 +286,7 @@
             const b = document.createElement('button'); b.type = 'button'; b.className = 'tema-chip'; b.dataset.tema = String(i);
             b.textContent = t.t;
             b.onclick = () => {
-                if (t.escena === null) { $('ayudaTitulo').textContent = t.titulo; llenarLista(t.tips); accionPendiente = '#tripOrigin'; demoPendiente = null; $('ayudaDemo').hidden = true; return; }
+                if (t.escena === null) { $('ayudaTitulo').textContent = t.titulo; llenarLista(t.tips); accionPendiente = t.accion || null; demoPendiente = null; $('ayudaDemo').hidden = true; return; }
                 cerrarAyuda({ devolver: false }); setTimeout(() => abrirLeccion(t), 200);
             };
             cont.append(b);
@@ -252,11 +304,12 @@
         temporizadorResalte = setTimeout(() => el.classList.remove('ayuda-resalta'), 3600);
     }
     function abrirAyuda() {
-        const a = AYUDAS[estadoActual()];
+        const guiado = !!(S.Guiado && S.Guiado.esGuiado && S.Guiado.esGuiado()) && !(S.Viaje && S.Viaje.activo()) && navigator.onLine !== false;
+        const a = (guiado && AYUDAS_GUIADO[S.Guiado.paso()]) || AYUDAS[estadoActual()];
         $('ayudaTitulo').textContent = a.titulo;
         llenarLista(a.tips);
         accionPendiente = typeof a.accion === 'function' ? a.accion() : a.accion;
-        demoPendiente = a.demo ? TEMAS[a.demo.tema] : null;
+        demoPendiente = a.demo ? TEMAS[a.demo.tema] : null;      // (la ayuda del flujo guiado no ofrece la demostración del flujo avanzado)
         $('ayudaDemo').hidden = !demoPendiente;
         if (demoPendiente) $('ayudaDemo').textContent = a.demo.texto;
         montarTemas();
@@ -279,20 +332,22 @@
     $('menuBienvenida').addEventListener('click', async () => { await cerrarMenu(); abrirBienvenida(); });
     $('menuPractica').addEventListener('click', async () => { await cerrarMenu(); practica(); });
 
-    // ------------------------------------------------------------------ práctica guiada (7 pasos sobre la app real)
+    // ------------------------------------------------------------------ práctica guiada (8 pasos sobre el FLUJO GUIADO real)
     // Dos puntos de ejemplo con ruta registrada. Si en la ciudad no hay ruta entre ellos (o el servicio no responde), la práctica sigue con un ejemplo ilustrado.
     const EJEMPLO = {
         a: { id: null, lat: 4.1165, lng: -73.6505, nombre: 'Serramonte (ejemplo)', direccion: null, fuente: 'Práctica', confirmado: true },
         b: { id: null, lat: 4.1330, lng: -73.6065, nombre: 'Cerca de la Terminal (ejemplo)', direccion: null, fuente: 'Práctica', confirmado: true },
     };
-    const TOTAL = 7;
+    const TOTAL = 8;
     let coach = null;
-    const LEYENDA = '<ul class="coach-leyenda"><li><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true"><path d="M3 6h30" stroke="' + ROJO + '" stroke-width="7" stroke-linecap="round"/></svg><span><b>Línea roja:</b> por aquí va el bus</span></li>'
-        + '<li><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true"><path d="M3 6h30" stroke="#2f3640" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 8"/></svg><span><b>Línea punteada:</b> lo que caminas</span></li>'
-        + '<li><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true"><circle cx="9" cy="6" r="5" fill="' + V + '"/><circle cx="27" cy="6" r="5" fill="' + NARANJA + '"/></svg><span><b>A verde, B naranja:</b> de dónde sales y a dónde llegas</span></li>'
-        + '<li><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true"><rect x="2" y="1" width="32" height="10" rx="5" fill="#fff" stroke="#b6c4bf"/></svg><span><b>«Sube aquí»</b> y <b>«Bájate aquí»</b>: los paraderos</span></li></ul>';
-    const MINI_VIAJE = '<div class="coach-mini" aria-label="Demostración de cómo se ve el viaje"><p class="mini-rotulo">Así se ve durante el viaje (demostración)</p><ol class="mini-viaje">'
-        + [['caminar', 'Camina al paradero'], ['bus', 'Sube al bus'], ['bajar', 'Bájate aquí'], ['pin', 'Llegaste']].map((x, i) => '<li style="--k:' + i + '"><span class="mv-ico">' + icono(x[0], 20) + '</span><span class="mv-txt">' + x[1] + '</span></li>').join('') + '</ol></div>';
+    const MINI_MARCADOR = '<div class="coach-mini" aria-label="Demostración de tu marcador"><p class="mini-rotulo">Así cambia tu marcador (demostración)</p><ol class="mini-marc">'
+        + '<li><span class="m-azul" aria-hidden="true"></span><span class="mv-txt">Caminas: círculo azul</span></li>'
+        + '<li><span class="m-bus" aria-hidden="true">R12</span><span class="mv-txt">En el bus: bus con su código</span></li>'
+        + '<li><span class="m-azul" aria-hidden="true"></span><span class="mv-txt">Bajas: otra vez círculo azul</span></li></ol></div>';
+    const MINI_AVISOS = '<div class="coach-mini" aria-label="Demostración de los avisos de bajada"><p class="mini-rotulo">Tres avisos (demostración)</p><ol class="mini-niveles">'
+        + '<li class="n1"><b>Cerca:</b> ya casi llegas a tu bajada.</li><li class="n2"><b>Prepárate:</b> ve hacia la puerta.</li><li class="n3"><b>Ahora:</b> baja cuando el bus se detenga.</li></ol>'
+        + '<p class="mini-tarjeta"><b>Tu bajada está aquí</b><span>Se queda en pantalla hasta que toques «Ya me bajé».</span></p>'
+        + '<p class="mini-nota">La vibración y la notificación son opcionales: dependen de tu teléfono y de los permisos que des. Si no las tienes, el aviso en pantalla siempre sale.</p></div>';
     const MINI_TRANSBORDO = '<div class="coach-mini"><p class="mini-rotulo">Transbordo: dos buses</p><div class="mini-tb"><span class="chip c1">R12</span><span class="flecha">' + icono('flecha', 18) + '</span><span class="chip c2">R08</span><span class="mini-nota">Bajas del primero y subes al segundo</span></div></div>';
 
     function crearCoach() {
@@ -331,6 +386,9 @@
         /** La tarjeta va del lado donde quepa sin tapar lo señalado (usa el área realmente visible: teclado, barras y zonas seguras). */
         function colocar(r) {
             const vTop = vv ? vv.offsetTop : 0, vAlto = vv ? vv.height : H(), margen = 10;
+            // Teclado abierto sobre el campo señalado (poca altura visible): la tarjeta pasa a una versión mínima para dejar a la vista el campo y sus sugerencias.
+            const enCampo = !!(objetivo && document.activeElement && (document.activeElement === objetivo || objetivo.contains(document.activeElement)) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName));
+            tarjeta.dataset.teclado = enCampo && vAlto < 460 ? '1' : '0';
             const tope = vTop + margen, fondo = vTop + vAlto - margen;
             tarjeta.style.maxHeight = Math.max(160, fondo - tope) + 'px';
             const alto = Math.min(tarjeta.offsetHeight, fondo - tope);
@@ -342,6 +400,22 @@
                 else if (quepeAbajo) pos = 'abajo';
                 else pos = libreArriba > libreAbajo ? 'arriba' : 'abajo';
             }
+            // Celular girado (pantalla ancha y baja): si no cabe ni arriba ni abajo, la tarjeta se coloca al LADO de lo señalado, donde hay más espacio libre.
+            let lado = null;
+            if (r && W() >= 560) {
+                const libreArriba = r.top - tope, libreAbajo = fondo - r.bottom;
+                if (libreArriba < alto + 8 && libreAbajo < alto + 8) {
+                    const libreIzq = r.left - margen, libreDer = W() - r.right - margen, room = Math.max(libreIzq, libreDer);
+                    if (room >= 300) lado = { der: libreDer >= libreIzq, ancho: Math.min(460, room - 8) };
+                }
+            }
+            if (lado) {
+                tarjeta.dataset.pos = 'lado';
+                Object.assign(tarjeta.style, { bottom: 'auto', right: 'auto', width: lado.ancho + 'px', marginInline: '0', left: Math.round(lado.der ? W() - margen - lado.ancho : margen) + 'px' });
+                tarjeta.style.top = Math.round(Math.max(tope, Math.min(r.top, fondo - alto))) + 'px';
+                return;
+            }
+            Object.assign(tarjeta.style, { right: '', width: '', marginInline: '', left: '' });
             tarjeta.dataset.pos = pos;
             tarjeta.style.bottom = 'auto';
             tarjeta.style.top = Math.round(pos === 'arriba' ? tope : fondo - alto) + 'px';
@@ -350,7 +424,11 @@
             if (!vivo) return;
             const sel = c.dataset.sel, el = sel ? document.querySelector(sel) : null;
             if (el !== objetivo) { objetivo = el; if (ro) { ro.disconnect(); if (el) ro.observe(el); } desplazado = false; }
-            const r = el && visible(el) ? el.getBoundingClientRect() : null;
+            let r = el && visible(el) ? el.getBoundingClientRect() : null;
+            if (r && el.getAttribute && el.getAttribute('aria-controls')) {      // sugerencias abiertas bajo el campo: también deben quedar libres
+                const lista = document.getElementById(el.getAttribute('aria-controls'));
+                if (lista && !lista.hidden && lista.getClientRects().length) { const l = lista.getBoundingClientRect(); r = { top: Math.min(r.top, l.top), bottom: Math.max(r.bottom, l.bottom), left: Math.min(r.left, l.left), right: Math.max(r.right, l.right), width: Math.max(r.right, l.right) - Math.min(r.left, l.left), height: Math.max(r.bottom, l.bottom) - Math.min(r.top, l.top) }; }
+            }
             if (r && (r.width > 0 || r.height > 0)) {
                 const m = 6, x = Math.max(-m, r.left - m), y = Math.max(-m, r.top - m), w = Math.min(W() + 2 * m, r.width + 2 * m), h = Math.min(H() + 2 * m, r.height + 2 * m);
                 const clave = [x, y, w, h].map(Math.round).join(',') + c.dataset.dedo + c.dataset.escudo;
@@ -415,28 +493,30 @@
         d.id = 'coachDemo'; d.className = 'coach-demo'; d.setAttribute('aria-label', 'Ejemplo ilustrado (simulación)');
         d.innerHTML = '<p class="demo-sello">Ejemplo ilustrado · simulación</p>'
             + '<div class="demo-tarjeta"><span class="demo-chip">R12</span><span class="demo-main"><strong>Serramonte → Terminal</strong><small class="demo-camina">caminas unas 4 cuadras · bus 6,4 km</small></span><span class="demo-eta"><b>21</b><small>min</small></span></div>'
-            + '<ol class="demo-pasos"><li>Camina unas 3 cuadras hasta el paradero.</li><li>Sube a la ruta R12.</li><li>Bájate en «Terminal».</li><li>Camina una cuadra hasta B.</li></ol>'
+            + '<ol class="demo-pasos"><li>Camina unas 3 cuadras hasta el paradero.</li><li>Sube a la ruta R12.</li><li>Bájate en «Terminal».</li><li>Camina una cuadra hasta tu destino.</li></ol>'
             + '<div class="demo-transbordo"><span class="demo-chip dos">2 buses</span><small>Si hay que cambiar de bus, se ve así.</small></div>'
             + '<svg class="demo-mapa" viewBox="0 0 300 110" aria-hidden="true" focusable="false"><rect width="300" height="110" rx="14" fill="#e6efe8"/><path d="M-5 70 305 40M60-5 90 115M190-5 170 115" stroke="#fff" stroke-width="9" fill="none"/>'
             + '<path d="M30 92 55 92C100 92 110 52 160 52S238 30 270 22" stroke="#2f3640" stroke-width="4" stroke-dasharray="1 8" stroke-linecap="round" fill="none" opacity="0"/>'
             + '<path d="M52 88C96 86 112 50 160 50S236 34 270 24" stroke="' + ROJO + '" stroke-width="8" stroke-linecap="round" fill="none"/>'
             + '<path d="M22 100 52 88" stroke="#2f3640" stroke-width="4" stroke-dasharray="1 8" stroke-linecap="round" fill="none"/>'
             + '<circle cx="52" cy="88" r="6" fill="' + V + '" stroke="#fff" stroke-width="2.5"/><circle cx="270" cy="24" r="6" fill="#8e1b17" stroke="#fff" stroke-width="2.5"/>'
-            + '<circle cx="22" cy="100" r="8" fill="' + V + '"/><text x="22" y="104" text-anchor="middle" font-size="10" font-weight="800" fill="#fff">A</text><circle cx="286" cy="12" r="8" fill="' + NARANJA + '"/><text x="286" y="16" text-anchor="middle" font-size="10" font-weight="800" fill="#fff">B</text></svg>'
-            + '<div class="demo-iniciar" aria-hidden="true">Iniciar viaje</div>';
+            + '<circle cx="22" cy="100" r="8" fill="' + AZUL + '" stroke="#fff" stroke-width="2.5"/><g transform="translate(278 4)"><path d="M8 0a8 8 0 0 0-8 8c0 6 8 14 8 14s8-8 8-14a8 8 0 0 0-8-8z" fill="' + NARANJA + '" stroke="#fff" stroke-width="1.5"/><circle cx="8" cy="8" r="3" fill="#fff"/></g></svg>'
+            + '<div class="demo-iniciar" aria-hidden="true">Empezar este viaje</div>';
         return d;
     }
 
-    /** opciones.ejemplo: otros puntos de ejemplo. opciones.pausa: milisegundos entre pasos automáticos; con 200 o menos (o con opciones.auto) la práctica se hace sola (pruebas). */
+    /** opciones.ejemplo: otros puntos de ejemplo. opciones.pausa: milisegundos entre pasos automáticos; con 200 o menos (o con opciones.auto) la práctica se hace sola (pruebas).
+     *  La práctica usa el FLUJO GUIADO real (mismos botones y mismos pasos): si la persona estaba en el planificador con A y B, pasa al paso a paso mientras practica y lo devuelve al salir. */
     async function practica(opciones = {}) {
         if (coach) return;
         if (S.Viaje && S.Viaje.activo()) return S.toast('Ya tienes un viaje en curso: termínalo antes de practicar.', { tipo: 'info', ms: 4000 });
+        if (!S.Guiado || !$('menuPasoAPaso') || !S.Planner) return S.toast('La práctica no está disponible en este momento.', { tipo: 'info', ms: 4000 });
         await cerrarMenu();
         for (const id of ['ayudaModal', 'bienvenida']) { const m = $(id); if (m && !m.hidden) S.Modal.cerrar(m, { devolver: false }); }
-        const ej = opciones.ejemplo || EJEMPLO, P = S.Planner, pausa = opciones.pausa ?? 700;
+        const ej = opciones.ejemplo || EJEMPLO, P = S.Planner, G = S.Guiado, pausa = opciones.pausa ?? 700;
         const auto = opciones.auto === true || pausa <= 200, tecleo = !auto && !reducido() ? 38 : 0;
-        // Lo que la persona tenía antes: se devuelve al terminar o al salir.
-        const previo = { puntos: P.puntos(), resultados: !!document.querySelector('#tripResults .trip-option') };
+        // Lo que la persona tenía antes: se devuelve al terminar o al salir (puntos, resultados y el modo del planificador).
+        const previo = { puntos: P.puntos(), resultados: !!document.querySelector('#tripResults .trip-option'), modo: G.modo(), paso: G.paso() };
         recordarAbridor();
         document.body.dataset.sinRegistro = '1';                // la búsqueda de práctica no cuenta como historial ni como hábito
         coach = crearCoach();
@@ -461,8 +541,21 @@
             e.preventDefault(); lista[sig].focus({ preventScroll: true });
         };
         document.addEventListener('keydown', onEsc, true); document.addEventListener('keydown', onTab, true);
-        const verPanel = (evento = 'spevb-ir-inicio') => window.dispatchEvent(new CustomEvent(evento));
+        const verPanel = () => window.dispatchEvent(new CustomEvent('spevb-panel-medio'));      // el panel a media altura (no usa «spevb-ir-inicio»: ese evento reinicia el flujo guiado)
+        const verMapa = () => window.dispatchEvent(new CustomEvent('spevb-focus-map'));
         const hayOpciones = () => !!document.querySelector('#tripResults .trip-option');
+        const tocar = (id) => { const b = $(id); if (b && !b.disabled) b.click(); };
+        /** Lleva el flujo guiado real al paso pedido por transiciones permitidas (nunca pasa por «calculando» ni «viaje»). */
+        const irGuiado = (objetivo) => {
+            if (G.paso() === objetivo) return true;
+            const T = G.TRANSICIONES, cola = [[G.paso()]], vistos = new Set([G.paso()]);
+            while (cola.length) {
+                const ruta = cola.shift(), ult = ruta[ruta.length - 1];
+                if (ult === objetivo) { ruta.slice(1).forEach((n) => G.ir(n)); return G.paso() === objetivo; }
+                (T[ult] || []).forEach((n) => { if (!vistos.has(n) && (n === objetivo || !['calculando', 'viaje'].includes(n))) { vistos.add(n); cola.push([...ruta, n]); } });
+            }
+            return false;
+        };
         let okTimer = 0;
         const confirmar = (texto) => {
             const ok = q('.coach-ok'); ok.hidden = false; q('.ok-txt').textContent = texto;
@@ -480,7 +573,7 @@
             q('.coach-extra').innerHTML = extra;
             q('.coach-simulacion').hidden = !demo;
             botonSig.hidden = !boton; if (boton) botonSig.textContent = boton;
-            botonAtras.hidden = !atras || n === 1 && !sub;
+            botonAtras.hidden = !atras;
             botonAlt.hidden = !alt; if (alt) botonAlt.textContent = alt;
             seg.rafla(900);
             if (foco) setTimeout(() => { if (!salir && coach) { const b = [botonSig, botonAlt].find(visible); (b || tarjeta).focus({ preventScroll: true }); } }, 80);
@@ -495,109 +588,183 @@
         const escribir = async (campo, punto, modoPunto) => {
             const input = $(campo);
             if (input && tecleo > 0) { input.classList.add('coach-escribiendo'); for (let i = 1; i <= punto.nombre.length && !salir; i++) { input.value = punto.nombre.slice(0, i); await dormir(tecleo); } input.classList.remove('coach-escribiendo'); }
-            if (!salir) P.poner(modoPunto, punto);
+            if (!salir) P.poner(modoPunto, punto);      // elegir el punto avanza el flujo guiado real (igual que tocar una sugerencia)
         };
-        /** Pasos 1 y 2: la persona pone el punto ella misma o pide el ejemplo con un botón; se confirma y se sigue. */
-        async function pasoPunto(n, clave, campo, modoPunto, punto, texto, etiqueta) {
-            verPanel(); await dormir(reducido() || auto ? 0 : 380);
-            const hecho = () => !!P.puntos()[clave];
-            if (auto && !hecho()) { coach.dataset.sel = '#' + campo; await dormir(Math.min(pausa, 300)); await escribir(campo, punto, modoPunto); await dormir(Math.min(pausa, 300)); return 'sig'; }
-            const r = await mostrar({ n, texto: hecho() ? 'Ya tienes ' + etiqueta + '. Sigue con el paso siguiente.' : texto, sel: '#' + campo, boton: hecho() ? 'Siguiente' : 'Poner un ejemplo', cond: hecho, foco: !hecho() });
-            if (r === 'sig' && !hecho()) { coach.dataset.sel = '#' + campo; botonSig.hidden = true; await escribir(campo, punto, modoPunto); }
-            if (r === 'sig' || r === 'cond') { if (!salir && hecho()) { confirmar(etiqueta[0].toUpperCase() + etiqueta.slice(1) + ' puesto'); await dormir(auto ? 150 : 900); } return 'sig'; }
-            return r;
+
+        // ---- Paso 1 · Destino primero (1 de 2: escribir y elegir · 2 de 2: confirmar)
+        async function paso1(desdeAtras) {
+            let sub = P.puntos().destino && desdeAtras ? 2 : 1;
+            while (!salir) {
+                if (sub === 1) {
+                    irGuiado('destino'); verPanel(); await dormir(reducido() || auto ? 0 : 380);
+                    const hecho = () => !!P.puntos().destino;
+                    if (auto && !hecho()) { coach.dataset.sel = '#tripDestination'; await dormir(Math.min(pausa, 300)); await escribir('tripDestination', ej.b, 'destination'); await dormir(Math.min(pausa, 300)); sub = 2; continue; }
+                    const r = await mostrar({ n: 1, sub: '1 de 2', atras: false, sel: '#tripDestination',
+                        texto: hecho() ? 'Ya tienes tu destino. Sigue con el paso siguiente.' : 'Primero, a dónde vas. Escribe aquí el lugar y toca «Buscar destino». Google te muestra sugerencias: toca la correcta. Para seguir sin escribir, toca «Poner un ejemplo».',
+                        boton: hecho() ? 'Siguiente' : 'Poner un ejemplo', cond: hecho, foco: !hecho() });
+                    if (r === 'salir') return r;
+                    if (r === 'sig' && !hecho()) { botonSig.hidden = true; await escribir('tripDestination', ej.b, 'destination'); }
+                    if (salir) return 'salir';
+                    if (hecho()) { confirmar('Destino puesto'); await dormir(auto ? 150 : 900); }
+                    sub = 2;
+                } else {
+                    irGuiado('confirmar_destino'); verPanel(); await dormir(reducido() || auto ? 0 : 200);
+                    const r = await mostrar({ n: 1, sub: '2 de 2', sel: '#gSiDestino', texto: 'Confirma el lugar. Mira el punto en el mapa: si es el correcto, toca «Sí, continuar».', boton: 'Siguiente', dedo: true,
+                        cond: () => G.paso() !== 'confirmar_destino', atras: true });
+                    if (r === 'salir') return r;
+                    if (r === 'atras') { irGuiado('destino'); sub = 1; continue; }
+                    if (G.paso() === 'confirmar_destino') tocar('gSiDestino');
+                    return 'sig';
+                }
+            }
+            return 'salir';
         }
-        const paso1 = () => pasoPunto(1, 'origen', 'tripOrigin', 'origin', ej.a, 'Aquí va el lugar de donde sales: es el punto A, en verde. Puedes escribir una dirección o tocar «Poner un ejemplo».', 'tu origen');
-        const paso2 = () => pasoPunto(2, 'destino', 'tripDestination', 'destination', ej.b, 'Aquí va a dónde quieres llegar: es el punto B, en naranja. El origen es de donde sales; el destino, a donde llegas.', 'tu destino');
-        async function paso3() {
-            verPanel(); await dormir(reducido() || auto ? 0 : 420);
-            if (hayOpciones()) { demo = false; return mostrar({ n: 3, texto: 'Ya buscaste y aparecieron opciones. Sigue para aprender a leerlas.', sel: '#tripResults', boton: 'Siguiente', foco: false }); }
+        // ---- Paso 2 · Ahora, dónde estás (1: usar mi ubicación · 2: escribir una dirección · 3: elegir en el mapa · 4: poner un ejemplo · 5: confirmar)
+        async function paso2(desdeAtras) {
+            let sub = P.puntos().origen && desdeAtras ? 5 : 1;
+            while (!salir) {
+                if (sub === 1) {
+                    irGuiado('origen'); verPanel(); await dormir(reducido() || auto ? 0 : 300);
+                    const r = await mostrar({ n: 2, sub: '1 de 5', sel: '#gUsarGps', escudo: true, boton: 'Siguiente',
+                        texto: 'Ahora, desde dónde sales. Lo normal es tocar «Usar mi ubicación actual». En esta práctica no la vamos a usar, así que no la toques.' });
+                    if (r === 'atras' || r === 'salir') return r;
+                    sub = 2;
+                } else if (sub === 2) {
+                    irGuiado('origen');
+                    const r = await mostrar({ n: 2, sub: '2 de 5', sel: '#gEscribirOrigen', escudo: true, boton: 'Siguiente', texto: 'Otra manera: «Escribir una dirección». Escribes el lugar y Google te muestra sugerencias, igual que con el destino.' });
+                    if (r === 'salir') return r;
+                    sub = r === 'atras' ? 1 : 3;
+                } else if (sub === 3) {
+                    const r = await mostrar({ n: 2, sub: '3 de 5', sel: '#gMapaOrigen', escudo: true, boton: 'Siguiente', texto: 'Y otra más: «Elegir en el mapa». Tocas el mapa con el dedo en el lugar desde el que sales.' });
+                    if (r === 'salir') return r;
+                    sub = r === 'atras' ? 2 : 4;
+                } else if (sub === 4) {
+                    const hecho = () => !!P.puntos().origen;
+                    if (hecho()) { sub = 5; continue; }
+                    if (auto) { coach.dataset.sel = '#gUsarGps'; await dormir(Math.min(pausa, 300)); await escribir('tripOrigin', ej.a, 'origin'); await dormir(Math.min(pausa, 300)); sub = 5; continue; }
+                    const r = await mostrar({ n: 2, sub: '4 de 5', sel: '#gUsarGps', escudo: true, boton: 'Poner un ejemplo', texto: 'Para seguir, usaremos un lugar de ejemplo como punto de salida. Toca «Poner un ejemplo».' });
+                    if (r === 'salir') return r;
+                    if (r === 'atras') { sub = 3; continue; }
+                    botonSig.hidden = true; await escribir('tripOrigin', ej.a, 'origin');
+                    if (salir) return 'salir';
+                    confirmar('Salida puesta'); await dormir(900); sub = 5;
+                } else {
+                    irGuiado('confirmar_origen'); await dormir(reducido() || auto ? 0 : 200);
+                    const r = await mostrar({ n: 2, sub: '5 de 5', sel: '#gSiOrigen', dedo: true, boton: 'Siguiente', texto: 'Confirma tu salida. Mira el punto en el mapa: si es correcto, toca «Sí, continuar».', cond: () => G.paso() !== 'confirmar_origen' });
+                    if (r === 'salir') return r;
+                    if (r === 'atras') { irGuiado('origen'); sub = P.puntos().origen ? 3 : 4; continue; }
+                    if (G.paso() === 'confirmar_origen') tocar('gSiOrigen');
+                    return 'sig';
+                }
+            }
+            return 'salir';
+        }
+        // ---- Paso 3 · Revisa y busca (1: revisar · 2: buscar cómo llegar)
+        async function paso3(desdeAtras) {
+            irGuiado('resumen'); verPanel(); await dormir(reducido() || auto ? 0 : 300);
+            let sub = hayOpciones() && !desdeAtras ? 2 : 1;
+            if (sub === 1) {
+                const r = await mostrar({ n: 3, sub: '1 de 2', sel: '#guiadoCuerpo .guiado-par', boton: 'Siguiente', texto: 'Revisa tu viaje: aquí ves desde dónde sales y a dónde vas. Si algo está mal, puedes cambiarlo sin perder el otro lugar.' });
+                if (r !== 'sig') return r;
+            }
+            if (hayOpciones()) { demo = false; return mostrar({ n: 3, sub: '2 de 2', sel: '#guiadoCuerpo', boton: 'Siguiente', foco: false, texto: 'Ya buscaste y SEVB encontró una recomendación. Sigue para aprender a leerla.' }); }
             const inicio = { t: 0 };
             const estado = () => {
                 if (hayOpciones()) return 'ok';
                 const st = $('tripStatus'), msg = st ? st.textContent.trim() : '';
                 if (/Todavía no hay una ruta/.test(($('tripResults') || {}).textContent || '')) return 'vacio';
                 if (st && st.classList.contains('error') && !/^Primero selecciona/.test(msg)) return 'fallo';
-                if (/^Comparando/.test(msg)) { if (!inicio.t) inicio.t = Date.now(); if (Date.now() - inicio.t > 14000) return 'lento'; return 'buscando'; }
+                if (G.paso() === 'calculando' || /^Comparando/.test(msg)) { if (!inicio.t) inicio.t = Date.now(); if (Date.now() - inicio.t > 14000) return 'lento'; return 'buscando'; }
                 return 'espera';
             };
             let ultimo = '';
-            const r = await mostrar({ n: 3, texto: 'Ahora toca el botón verde «Buscar rutas». Tócalo tú.', sel: '#planTrip', dedo: true, foco: false,
+            if (auto && !hayOpciones()) { coach.dataset.sel = '#gBuscar'; await dormir(Math.min(pausa, 200)); }
+            const r = await mostrar({ n: 3, sub: '2 de 2', sel: '#gBuscar', dedo: true, foco: false, texto: 'Ahora toca «Buscar cómo llegar». Tócalo tú.',
                 cond: () => {
                     const e = estado();
                     if (e !== ultimo) {
                         ultimo = e;
-                        if (e === 'buscando') { q('.coach-texto').textContent = 'Buscando tus rutas… un momento.'; coach.dataset.dedo = '0'; botonAlt.hidden = true; }
+                        if (e === 'buscando') { q('.coach-texto').textContent = 'Buscando tu ruta… un momento.'; coach.dataset.dedo = '0'; botonAlt.hidden = true; }
                         if (e === 'lento' || e === 'fallo' || e === 'vacio') { q('.coach-texto').textContent = e === 'vacio' ? 'Para este ejemplo no hay una ruta registrada.' : 'Ahora no pude traer rutas reales.'; botonAlt.hidden = false; botonAlt.textContent = 'Ver un ejemplo ilustrado'; }
                     }
                     return e === 'ok';
                 } });
             if (r === 'alt') { demo = true; return 'sig'; }
-            if (r === 'cond') { demo = false; confirmar('Ya hay rutas'); await dormir(auto ? 300 : 900); verPanel('spevb-ver-opciones'); await dormir(reducido() || auto ? 0 : 450); return 'sig'; }
+            if (r === 'cond') { demo = false; confirmar('Ya hay una recomendación'); await dormir(auto ? 300 : 900); return 'sig'; }
             return r;
         }
-        /** Paso 4: se explica una cosa por vez (nombre, tiempo, caminata, subir y bajar, transbordo). */
+        /** Paso 4 · Elige la recomendación: se explica una cosa por vez (razón, tiempo, caminata, buses y transbordo, ruta, otras opciones). */
         async function paso4(desdeAtras) {
             let subs;
             if (demo) {
                 document.getElementById('coachDemo')?.remove();
                 const d = panelDemo(); coach.append(d);
                 subs = [['Este es el nombre de la ruta. Es el que ves escrito en el letrero del bus.', '#coachDemo .demo-chip'], ['Aquí está el tiempo aproximado, en minutos. No incluye la espera del bus.', '#coachDemo .demo-eta'],
-                    ['Y aquí, cuánto caminas y cuánto vas en el bus.', '#coachDemo .demo-camina'], ['Aquí ves dónde subir, dónde bajar y cuánto caminas en cada tramo.', '#coachDemo .demo-pasos'], ['Si no hay un bus directo, verás «2 buses»: es un transbordo.', '#coachDemo .demo-transbordo', '']];
+                    ['Y aquí, cuánto caminas y cuánto vas en el bus.', '#coachDemo .demo-camina'], ['Aquí ves dónde subir, dónde bajar y cuánto caminas en cada tramo.', '#coachDemo .demo-pasos'], ['Si no hay un bus directo, verás «2 buses»: es un transbordo.', '#coachDemo .demo-transbordo']];
             } else {
-                const op = '#tripResults .trip-option', hayTransbordo = !!document.querySelector('#tripResults .transfer-option');
-                subs = [['Este es el nombre de la ruta. Es el que ves escrito en el letrero del bus.', op + ' .route-chip'], ['Aquí está el tiempo aproximado, en minutos. No incluye la espera del bus.', op + ' .opt-eta'],
-                    ['Y aquí, cuánto caminas y cuánto vas en el bus.', op + ' .opt-main small'], ['Aquí ves dónde subir y dónde bajar, paso por paso.', op + '[open] .result-metrics', 'abrir'],
-                    hayTransbordo ? ['Esta opción es un transbordo: «2 buses». Bajas del primero y subes al segundo.', '#tripResults .transfer-option'] : ['Si no hay un bus directo, verás «2 buses»: es un transbordo.', null, MINI_TRANSBORDO]];
+                irGuiado('recomendacion'); verPanel(); await dormir(reducido() || auto ? 0 : 350);
+                const d = '#guiadoCuerpo .guiado-datos li:nth-child(', hay = (s) => !!document.querySelector(s);
+                subs = [];
+                if (hay('#guiadoAyuda') && visible($('guiadoAyuda')) && $('guiadoAyuda').textContent.trim()) subs.push(['Aquí SEVB te dice por qué recomienda esta opción.', '#guiadoAyuda']);
+                if (hay(d + '1)')) subs.push(['Este es el tiempo aproximado, en minutos. No incluye la espera del bus.', d + '1)']);
+                if (hay(d + '2)')) subs.push(['Aquí ves cuánto caminas en total, hasta el paradero y desde donde bajas.', d + '2)']);
+                if (hay(d + '3)')) subs.push(['Estos son los buses que vas a usar. Si dice 2, es un transbordo: bajas del primero y subes al segundo.', d + '3)', MINI_TRANSBORDO]);
+                if (hay(d + '4)')) subs.push(['Este es el nombre de la ruta: el que ves escrito en el letrero del bus.', d + '4)']);
+                subs.push(hay('#gOtras') ? ['«Ver otras opciones» muestra las demás rutas. Con «Cambiar desde o hasta» vuelves a la revisión.', '#gOtras'] : ['Con «Cambiar desde o hasta» vuelves a la revisión sin perder tus lugares.', '#gCambiarPuntos']);
+                if (!subs.some((x) => x[2])) subs.splice(Math.min(subs.length, 3), 0, ['Si no hay un bus directo, verás «2 buses»: es un transbordo.', null, MINI_TRANSBORDO]);
             }
             let j = desdeAtras ? subs.length - 1 : 0, r = 'sig';
             while (!salir && j >= 0 && j < subs.length) {
-                const [texto, sel, accion] = subs[j];
-                if (accion === 'abrir') { const d = document.querySelector('#tripResults .trip-option'); if (d) d.open = true; await dormir(reducido() || auto ? 0 : 350); }
-                r = await mostrar({ n: 4, sub: (j + 1) + ' de ' + subs.length, texto, sel, boton: j === subs.length - 1 ? 'Siguiente paso' : 'Siguiente', extra: accion === MINI_TRANSBORDO || (typeof accion === 'string' && accion.startsWith('<')) ? accion : '', atras: true, foco: true });
-                if (r === 'atras') { if (j === 0) { return 'atras'; } j--; } else if (r === 'sig' || r === 'cond') j++; else return r;
+                const [texto, sel, extra] = subs[j];
+                r = await mostrar({ n: 4, sub: (j + 1) + ' de ' + subs.length, texto, sel, escudo: true, boton: j === subs.length - 1 ? 'Siguiente paso' : 'Siguiente', extra: extra || '', atras: true, foco: true });
+                if (r === 'atras') { if (j === 0) return 'atras'; j--; } else if (r === 'sig' || r === 'cond') j++; else return r;
             }
             return r === 'salir' ? 'salir' : 'sig';
         }
+        /** Paso 5 · Empieza un solo viaje: se señala el botón real pero NO se puede tocar (la práctica no inicia ningún viaje). */
         async function paso5() {
-            if (!demo) {
-                const sel = '#tripResults .trip-option summary';
-                if (!document.querySelector('.trip-option.selected')) {
-                    const r = await mostrar({ n: 5, sub: '1 de 2', texto: 'Toca una opción para ver su recorrido en el mapa.', sel, boton: 'Siguiente', dedo: true, cond: () => !!document.querySelector('.trip-option.selected') });
-                    if (r === 'atras' || r === 'salir') return r;
-                    if (r === 'cond') { confirmar('Ruta elegida'); await dormir(auto ? 200 : 900); }
-                    else if (r === 'sig' && !document.querySelector('.trip-option.selected')) { document.querySelector(sel)?.click(); await dormir(auto ? 200 : 500); }
-                }
-            }
-            verPanel('spevb-focus-map'); await dormir(reducido() || auto ? 0 : 600);
-            return mostrar({ n: 5, sub: demo ? '' : '2 de 2', texto: demo ? 'Así se ve el recorrido en el mapa. Mira los colores y los símbolos.' : 'Este es el recorrido en el mapa. Mira los colores y los símbolos.', sel: demo ? '#coachDemo .demo-mapa' : '#map', boton: 'Siguiente', extra: LEYENDA });
+            if (!demo) { irGuiado('recomendacion'); verPanel(); await dormir(reducido() || auto ? 0 : 300); }
+            const real = !demo && visible($('gEmpezar'));
+            return mostrar({ n: 5, sel: real ? '#gEmpezar' : '#coachDemo .demo-iniciar', escudo: true, boton: 'Siguiente',
+                texto: 'Cuando estés en el paradero, toca «Empezar este viaje». Solo puede haber un viaje a la vez: para empezar otro, primero termina este. Ahora no lo toques: la práctica no inicia ningún viaje ni usa tu ubicación.' });
         }
+        /** Paso 6 · Sigue tu marcador (solo explicación: no hay viaje real). */
         async function paso6() {
-            if (!demo && !document.querySelector('.trip-option.selected')) { document.querySelector('#tripResults .trip-option summary')?.click(); await dormir(auto ? 150 : 500); }
-            verPanel(); await dormir(reducido() || auto ? 0 : 420);
-            const real = !demo && visible($('startTrip'));
-            return mostrar({ n: 6, texto: 'Aquí empieza tu viaje: cuando estés en el paradero, toca «Iniciar viaje» y te aviso cuándo caminar, subir y bajar. Ahora no lo toques: la práctica no usa tu ubicación.',
-                sel: real ? '#startTrip' : '#coachDemo .demo-iniciar', escudo: true, boton: 'Siguiente', extra: MINI_VIAJE });
+            document.getElementById('coachDemo')?.remove();
+            verMapa(); await dormir(reducido() || auto ? 0 : 300);
+            return mostrar({ n: 6, boton: 'Siguiente', extra: MINI_MARCADOR,
+                texto: 'Durante el viaje, tú eres un círculo azul mientras caminas. Cuando confirmas que subiste al bus, el círculo se cambia por un bus con el código de la ruta. Al bajarte, vuelves a ser un círculo azul.' });
         }
+        /** Paso 7 · Prepárate para bajar. */
         async function paso7() {
-            return mostrar({ n: 7, texto: '¡Listo! Ya sabes poner tu salida y tu llegada, buscar, elegir un bus y empezar el viaje. ¿Hacemos uno de verdad?', sel: null, boton: 'Terminar práctica', alt: 'Hacer mi viaje real', foco: true });
+            return mostrar({ n: 7, boton: 'Siguiente', extra: MINI_AVISOS,
+                texto: 'Antes de tu bajada te aviso tres veces: cerca, prepárate y ahora. Cuando aparece «Tu bajada está aquí», baja cuando el bus se detenga y toca «Ya me bajé».' });
+        }
+        /** Paso 8 · Termina el viaje. */
+        async function paso8() {
+            return mostrar({ n: 8, boton: 'Terminar práctica', alt: 'Hacer mi viaje real', foco: true,
+                texto: 'Después de bajar, camina el último tramo. Cuando llegues, toca «Terminar viaje». ¡Listo! Ya sabes elegir tu destino, tu salida, buscar, leer la recomendación y seguir tu viaje. ¿Hacemos uno de verdad?' });
         }
         let completo = false, viajeReal = false;
         const restaurar = () => {
             try {
                 P.limpiar();
+                if (previo.modo !== G.modo()) { const e = $('menuPasoAPaso'); if (e) e.click(); }      // vuelve al planificador (o al paso a paso) en el que estaba
                 const { origen, destino } = previo.puntos;
                 if (origen) P.poner('origin', origen);
                 if (destino) P.poner('destination', destino);
+                if (previo.modo === 'guiado' && ['destino', 'confirmar_destino', 'origen', 'confirmar_origen', 'resumen'].includes(previo.paso)) setTimeout(() => { if (!document.body.classList.contains('practicando')) irGuiado(previo.paso); }, 50);
                 if (previo.resultados && origen && destino) setTimeout(() => { const b = $('planTrip'); if (b && !document.body.classList.contains('practicando')) b.click(); }, 300);
             } catch { /* sin planificador */ }
             setTimeout(() => { delete document.body.dataset.sinRegistro; }, previo.resultados ? 9000 : 400);
         };
         try {
+            if (G.modo() !== 'guiado') $('menuPasoAPaso').click();      // el mismo botón del menú: pasa al paso a paso real
             P.limpiar();
+            irGuiado('destino');
             await dormir(180);
             let i = 1, volver = false;
-            const pasos = [null, paso1, paso2, paso3, () => paso4(volver), paso5, paso6, paso7];
+            const pasos = [null, () => paso1(volver), () => paso2(volver), () => paso3(volver), () => paso4(volver), paso5, paso6, paso7, paso8];
             while (!salir && i <= TOTAL) {
                 const r = await pasos[i]();
                 if (salir || r === 'salir') break;
@@ -609,11 +776,12 @@
             const cancelado = salir && !completo;
             fin(); seg.detener(); clearTimeout(okTimer);
             document.removeEventListener('keydown', onEsc, true); document.removeEventListener('keydown', onTab, true);
+            document.getElementById('coachDemo')?.remove();
             coach.remove(); coach = null; document.body.classList.remove('practicando');
             restaurar();
             if (completo) { if (S.Logros && S.Logros.marcarPractica) S.Logros.marcarPractica(); celebrar(); }
             else S.toast(cancelado ? 'Saliste de la práctica. Tus puntos siguen como estaban.' : 'Cuando quieras, busca tu viaje de verdad.', { tipo: 'info', ms: 5000, clave: 'practica' });
-            if (viajeReal) { abridor = null; setTimeout(() => { verPanel(); $('tripOrigin')?.focus({ preventScroll: true }); }, 400); } else devolverFoco();
+            if (viajeReal) { abridor = null; setTimeout(() => { verPanel(); const c = $('tripDestination'); if (c) c.focus({ preventScroll: true }); }, 400); } else devolverFoco();
         }
     }
 

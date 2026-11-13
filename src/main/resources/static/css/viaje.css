@@ -852,3 +852,46 @@ body.viaje-activo .menu-brand { display: none; }
 #compartirModal .comp-peligro { color: #8a2b2b; border-color: #8a2b2b; }
 @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) .viaje-compartir-boton, html:not([data-theme="light"]) .viaje-compartiendo button { background: #17261f; color: #eef6f1; } html:not([data-theme="light"]) .viaje-compartiendo { background: #17261f; border-color: #2c4339; } html:not([data-theme="light"]) .viaje-compartiendo-txt, html:not([data-theme="light"]) .viaje-compartiendo-txt small { color: #eef6f1; } }
 #compartirModal [hidden] { display: none !important; }
+
+/* ===================== 4.15.1 · «Iniciar viaje» con un viaje en curso: sigue recibiendo el toque (abre «Ya tienes un viaje en curso»), sin dejar de verse ocupado ===================== */
+.start-trip-main[aria-disabled='true'] { background: #5d7a70; box-shadow: none; }
+.start-trip-main[aria-busy='true'] { cursor: progress; }
+.start-trip-bar:not([hidden]) .start-trip-main[aria-disabled='true']::after { display: none; }
+
+/* ===================== 4.15.2 · Marcador de la persona: círculo azul ↔ bus (solo transform y opacity, ≈ 220 ms) ===================== */
+.viaje-yo-wrapper { display: block; }
+.viaje-yo-caja { position: relative; width: 50px; height: 36px; }
+.viaje-yo-caja .viaje-yo { position: absolute; left: calc(50% - 14px); top: calc(50% - 14px); margin: 0; transition: transform .22s ease, opacity .22s ease; }
+.viaje-bus-marca { position: absolute; left: calc(50% - 22px); top: calc(50% - 15px); width: 44px; height: 30px; opacity: 0; transform: scale(.5); pointer-events: none; transition: transform .22s ease, opacity .22s ease; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .4)); }
+.viaje-bus-marca svg { display: block; }
+.viaje-bus-marca .bus-cuerpo { fill: var(--bus-c, #176650); stroke: #fff; stroke-width: 2; }
+.viaje-bus-marca .bus-ventanas { fill: #fff; }
+.viaje-bus-marca .bus-franja { fill: rgba(255, 255, 255, .6); }
+.viaje-bus-marca .bus-rueda { fill: #1b2430; stroke: #fff; stroke-width: 1.5; }
+.viaje-bus-cod { position: absolute; left: 7px; right: 7px; top: 6px; height: 10px; font: 800 9px/10px system-ui, sans-serif; letter-spacing: -.2px; text-align: center; color: #1b2430; overflow: hidden; }
+.viaje-bus-cod[hidden] { display: none; }
+.viaje-yo-caja[data-modo='bus'] .viaje-bus-marca { opacity: 1; transform: none; }
+.viaje-yo-caja[data-modo='bus'] .viaje-yo { opacity: 0; transform: scale(.4); animation: none; }
+@media (prefers-reduced-motion: reduce) { .viaje-yo-caja .viaje-yo, .viaje-bus-marca { transition: none; } }
+html[data-motion="reduce"] .viaje-yo-caja .viaje-yo, html[data-motion="reduce"] .viaje-bus-marca { transition: none; }
+
+/* ===================== 4.15.2 · Nivel 3: «Tu bajada está aquí» (recuadro persistente, prioritario y con botones grandes) ===================== */
+.viaje-bajada { display: grid; gap: 8px; padding: 12px; border-radius: 16px; background: #fff3d6; border: 3px solid #b3261e; color: #3b1a00; }
+.viaje-bajada[hidden] { display: none; }
+.viaje-bajada p { margin: 0; overflow-wrap: anywhere; }
+.viaje-bajada-titulo { font-size: 20px; font-weight: 900; line-height: 1.2; color: #8a1c14; }
+.viaje-bajada-texto { font-size: 17px; font-weight: 700; line-height: 1.3; }
+.viaje-bajada-parada { font-size: 15px; font-weight: 600; }
+.viaje-bajada-botones { display: grid; gap: 8px; }
+.viaje-card .viaje-bajada-ya { min-height: 60px; font-size: 20px; font-weight: 900; background: #0f4a38; color: #fff; border-color: #0f4a38; }
+.viaje-card .viaje-bajada-sigo { min-height: 48px; font-size: 16px; background: #fff; color: #0f4a38; }
+/* con el recuadro abierto la tarjeta se reduce a él y el mapa queda visible en el espacio restante */
+.viaje-card[data-bajada] :is(.viaje-cab, .viaje-ruta, .viaje-instruccion, .viaje-barra, .viaje-manual, .viaje-pie, .viaje-mas, .viaje-aviso, .viaje-pregunta, .estados-viaje) { display: none !important; }
+.viaje-card[data-bajada] .viaje-bajada { display: grid; }
+.viaje-card[data-bajada] { max-height: min(56dvh, 380px); }
+
+/* ===================== 4.15.2 · Preferencia «Alertas de bajada» ===================== */
+.viaje-alertas { grid-column: 1 / -1; display: grid; gap: 6px; padding-top: 6px; border-top: 1px solid #dfe6e2; }
+.viaje-alertas small { color: #3d4a44; font-size: 13px; line-height: 1.35; }
+.viaje-alertas button { min-height: 44px; }
+.viaje-alertas button[hidden] { display: none; }

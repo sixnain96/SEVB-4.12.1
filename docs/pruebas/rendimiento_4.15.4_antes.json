@@ -1,0 +1,423 @@
+{
+  "url": "http://127.0.0.1:18200/",
+  "cpu": 4.0,
+  "red": "rapida",
+  "n": 5,
+  "fecha": "2026-11-12 21:21:03",
+  "navegador": "157.0.4341.46",
+  "carga_frio": {
+    "dcl": {
+      "mediana": 398,
+      "min": 353,
+      "max": 569,
+      "n": 5
+    },
+    "load": {
+      "mediana": 470,
+      "min": 406,
+      "max": 652,
+      "n": 5
+    },
+    "fcp": {
+      "mediana": 256,
+      "min": 232,
+      "max": 560,
+      "n": 5
+    },
+    "lcp": {
+      "mediana": 256,
+      "min": 232,
+      "max": 560,
+      "n": 5
+    },
+    "listo": {
+      "mediana": 617,
+      "min": 576,
+      "max": 803,
+      "n": 5
+    },
+    "cls": {
+      "mediana": 0,
+      "min": 0,
+      "max": 0.0,
+      "n": 5
+    },
+    "largas": {
+      "mediana": 4,
+      "min": 3,
+      "max": 5,
+      "n": 5
+    },
+    "largas_ms": {
+      "mediana": 341,
+      "min": 304,
+      "max": 417,
+      "n": 5
+    },
+    "peor_larga": {
+      "mediana": 143,
+      "min": 136,
+      "max": 157,
+      "n": 5
+    },
+    "solicitudes": {
+      "mediana": 69,
+      "min": 69,
+      "max": 69,
+      "n": 5
+    },
+    "js_n": {
+      "mediana": 44,
+      "min": 44,
+      "max": 44,
+      "n": 5
+    },
+    "css_n": {
+      "mediana": 12,
+      "min": 12,
+      "max": 12,
+      "n": 5
+    },
+    "bytes_js_red": {
+      "mediana": 2317637,
+      "min": 2317637,
+      "max": 2317637,
+      "n": 5
+    },
+    "bytes_css_red": {
+      "mediana": 324123,
+      "min": 324123,
+      "max": 324123,
+      "n": 5
+    },
+    "bytes_js_dec": {
+      "mediana": 2304437,
+      "min": 2304437,
+      "max": 2304437,
+      "n": 5
+    },
+    "bytes_css_dec": {
+      "mediana": 320523,
+      "min": 320523,
+      "max": 320523,
+      "n": 5
+    },
+    "nodos": {
+      "mediana": 828,
+      "min": 828,
+      "max": 828,
+      "n": 5
+    }
+  },
+  "carga_recarga_con_cache": {
+    "dcl": {
+      "mediana": 396,
+      "min": 372,
+      "max": 499,
+      "n": 5
+    },
+    "load": {
+      "mediana": 430,
+      "min": 402,
+      "max": 539,
+      "n": 5
+    },
+    "fcp": {
+      "mediana": 224,
+      "min": 200,
+      "max": 256,
+      "n": 5
+    },
+    "lcp": {
+      "mediana": 248,
+      "min": 204,
+      "max": 320,
+      "n": 5
+    },
+    "listo": {
+      "mediana": 551,
+      "min": 536,
+      "max": 671,
+      "n": 5
+    },
+    "cls": {
+      "mediana": 0,
+      "min": 0,
+      "max": 0,
+      "n": 5
+    },
+    "largas": {
+      "mediana": 1,
+      "min": 0,
+      "max": 2,
+      "n": 5
+    },
+    "largas_ms": {
+      "mediana": 56,
+      "min": 0,
+      "max": 201,
+      "n": 5
+    },
+    "peor_larga": {
+      "mediana": 56,
+      "min": 0,
+      "max": 141,
+      "n": 5
+    },
+    "solicitudes": {
+      "mediana": 68,
+      "min": 68,
+      "max": 68,
+      "n": 5
+    },
+    "js_n": {
+      "mediana": 44,
+      "min": 44,
+      "max": 44,
+      "n": 5
+    },
+    "css_n": {
+      "mediana": 12,
+      "min": 12,
+      "max": 12,
+      "n": 5
+    },
+    "bytes_js_red": {
+      "mediana": 2317637,
+      "min": 2317637,
+      "max": 2317637,
+      "n": 5
+    },
+    "bytes_css_red": {
+      "mediana": 324123,
+      "min": 324123,
+      "max": 324123,
+      "n": 5
+    },
+    "bytes_js_dec": {
+      "mediana": 2304437,
+      "min": 2304437,
+      "max": 2304437,
+      "n": 5
+    },
+    "bytes_css_dec": {
+      "mediana": 320523,
+      "min": 320523,
+      "max": 320523,
+      "n": 5
+    },
+    "nodos": {
+      "mediana": 828,
+      "min": 828,
+      "max": 828,
+      "n": 5
+    }
+  },
+  "tecla_a_sugerencia_ms": {
+    "mediana": 242.8,
+    "min": 237.9,
+    "max": 281.1,
+    "n": 5
+  },
+  "buscar_a_recomendacion_ms": {
+    "mediana": 195.6,
+    "min": 189.9,
+    "max": 257.6,
+    "n": 5
+  },
+  "iniciar_a_tarjeta_y_marcador_ms": {
+    "mediana": 343.6,
+    "min": 292.6,
+    "max": 381.7,
+    "n": 5
+  },
+  "fluidez_arrastrar_panel": {
+    "cuadros": {
+      "mediana": 858,
+      "min": 674,
+      "max": 897,
+      "n": 5
+    },
+    "fps": {
+      "mediana": 181.3,
+      "min": 116.4,
+      "max": 190.5,
+      "n": 5
+    },
+    "dt_mediana": {
+      "mediana": 4.2,
+      "min": 4.2,
+      "max": 4.2,
+      "n": 5
+    },
+    "dt_p95": {
+      "mediana": 8.4,
+      "min": 8.4,
+      "max": 16.4,
+      "n": 5
+    },
+    "dt_max": {
+      "mediana": 225.1,
+      "min": 108.3,
+      "max": 479.3,
+      "n": 5
+    },
+    "lentos_mas_de_50ms": {
+      "mediana": 6,
+      "min": 6,
+      "max": 11,
+      "n": 5
+    },
+    "largas": {
+      "mediana": 6,
+      "min": 6,
+      "max": 11,
+      "n": 5
+    },
+    "largas_ms": {
+      "mediana": 684,
+      "min": 510,
+      "max": 1491,
+      "n": 5
+    }
+  },
+  "fluidez_marcador_gps_10hz": {
+    "cuadros": {
+      "mediana": 2431,
+      "min": 1914,
+      "max": 2668,
+      "n": 5
+    },
+    "fps": {
+      "mediana": 177.9,
+      "min": 127.6,
+      "max": 200.9,
+      "n": 5
+    },
+    "dt_mediana": {
+      "mediana": 4.2,
+      "min": 4.2,
+      "max": 4.2,
+      "n": 5
+    },
+    "dt_p95": {
+      "mediana": 12.5,
+      "min": 8.4,
+      "max": 16.8,
+      "n": 5
+    },
+    "dt_max": {
+      "mediana": 137.3,
+      "min": 124.9,
+      "max": 233.2,
+      "n": 5
+    },
+    "lentos_mas_de_50ms": {
+      "mediana": 3,
+      "min": 1,
+      "max": 14,
+      "n": 5
+    },
+    "largas": {
+      "mediana": 1,
+      "min": 1,
+      "max": 10,
+      "n": 5
+    },
+    "largas_ms": {
+      "mediana": 129,
+      "min": 116,
+      "max": 793,
+      "n": 5
+    }
+  },
+  "recursos_activos": {
+    "inicio_inactivo": {
+      "oyentes": 340,
+      "intervalos": 1,
+      "temporizadores": 1,
+      "observadores": 9,
+      "nodos": 828
+    },
+    "planificando": {
+      "oyentes": 433,
+      "intervalos": 1,
+      "temporizadores": 2,
+      "observadores": 9,
+      "nodos": 1318
+    },
+    "en_viaje": {
+      "oyentes": 440,
+      "intervalos": 4,
+      "temporizadores": 6,
+      "observadores": 9,
+      "nodos": 1252
+    },
+    "tras_terminar_el_primer_viaje": {
+      "oyentes": 437,
+      "intervalos": 1,
+      "temporizadores": 2,
+      "observadores": 9,
+      "nodos": 1241
+    },
+    "tras_5_viajes": {
+      "oyentes": 437,
+      "intervalos": 1,
+      "temporizadores": 1,
+      "observadores": 9,
+      "nodos": 1241
+    }
+  },
+  "memoria_por_viaje": [
+    {
+      "viaje": 1,
+      "heap_bytes": 5995556,
+      "oyentes": 437,
+      "intervalos": 1,
+      "temporizadores": 2,
+      "observadores": 9,
+      "nodos": 1241,
+      "escuchas_gps": 0
+    },
+    {
+      "viaje": 2,
+      "heap_bytes": 6070156,
+      "oyentes": 437,
+      "intervalos": 1,
+      "temporizadores": 1,
+      "observadores": 9,
+      "nodos": 1241,
+      "escuchas_gps": 0
+    },
+    {
+      "viaje": 3,
+      "heap_bytes": 6158480,
+      "oyentes": 437,
+      "intervalos": 1,
+      "temporizadores": 1,
+      "observadores": 9,
+      "nodos": 1241,
+      "escuchas_gps": 0
+    },
+    {
+      "viaje": 4,
+      "heap_bytes": 6204896,
+      "oyentes": 437,
+      "intervalos": 1,
+      "temporizadores": 1,
+      "observadores": 9,
+      "nodos": 1241,
+      "escuchas_gps": 0
+    },
+    {
+      "viaje": 5,
+      "heap_bytes": 6284436,
+      "oyentes": 437,
+      "intervalos": 1,
+      "temporizadores": 1,
+      "observadores": 9,
+      "nodos": 1241,
+      "escuchas_gps": 0
+    }
+  ]
+}

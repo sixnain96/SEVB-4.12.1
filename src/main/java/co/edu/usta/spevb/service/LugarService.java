@@ -89,6 +89,25 @@ public class LugarService {
     private volatile boolean soloGoogle = false;
     void soloGoogle(boolean v) { this.soloGoogle = v; }
     public boolean esSoloGoogle() { return soloGoogle; }
+
+    /**
+     * Diagnóstico de configuración de la búsqueda del pasajero: SOLO estados y nombres de variables, jamás sus valores (ni la clave, ni su longitud, ni parte de ella).
+     * {@code motivo}: OK, FALTA_GOOGLE_MAPS_API_KEY, MAPA_NO_ES_GOOGLE (Places solo se usa sobre un mapa de Google) o SIN_PROVEEDOR_GOOGLE.
+     */
+    public java.util.Map<String, Object> diagnosticoBusqueda() {
+        var g = google;
+        boolean clave = g != null && g.tieneClave(), mapa = g != null && g.sobreMapaDeGoogle(), activo = g != null && g.activo();
+        String motivo = g == null ? "SIN_PROVEEDOR_GOOGLE" : !clave ? "FALTA_GOOGLE_MAPS_API_KEY" : !mapa ? "MAPA_NO_ES_GOOGLE" : "OK";
+        var m = new java.util.LinkedHashMap<String, Object>();
+        m.put("soloGoogle", soloGoogle);
+        m.put("googleActivo", activo);
+        m.put("claveDelServidorConfigurada", clave);
+        m.put("mapaEsGoogle", mapa);
+        m.put("motivo", motivo);
+        m.put("variables", java.util.List.of("GOOGLE_MAPS_API_KEY", "MAP_PROVIDER", "BUSQUEDA_SOLO_GOOGLE"));
+        m.put("proveedoresDelPasajero", soloGoogle ? java.util.List.of("google") : java.util.List.of("google", "arcgis", "base local", "nominatim (solo búsqueda explícita)"));
+        return m;
+    }
     private boolean usaArcgis() { return !soloGoogle && hibrido.arcgisActivo(); }
     private boolean usaCatastro() { return !soloGoogle && hibrido.catastroActivo(); }
     private boolean usaLocales() { return !soloGoogle && locales.disponible(); }
@@ -186,6 +205,7 @@ public class LugarService {
             case RED -> p + " no respondió. Comprueba tu conexión; puedes buscar la dirección de otra forma.";
             case CUOTA -> p + " alcanzó su límite de consultas por ahora. Intenta de nuevo más tarde.";
             case CLAVE -> p + " no aceptó la clave o la configuración. Avisa a quien administra la aplicación.";
+            case NO_CONFIGURADO -> "La búsqueda de " + p + " no está configurada. Avisa a quien administra la aplicación.";
             case RESPUESTA_INVALIDA -> p + " devolvió una respuesta que no se pudo leer.";
             case PAUSADO -> p + " está en pausa unos segundos por fallos seguidos.";
             default -> "";
@@ -216,10 +236,13 @@ public class LugarService {
                 List<SugerenciaResponse> utiles = new ArrayList<>();
                 for (var g : r.valor == null ? List.<GoogleDireccionesService.Sugerencia>of() : r.valor)
                     if (sugerenciaUtilizable(query, g.texto()))
-                        utiles.add(new SugerenciaResponse(g.texto(), GoogleDireccionesService.FUENTE, GoogleDireccionesService.PREFIJO + g.lugarId(), null, null, null, GoogleDireccionesService.FUENTE, null));
+                        utiles.add(new SugerenciaResponse(g.texto(), g.secundario() != null && !g.secundario().isBlank() ? g.secundario() : GoogleDireccionesService.FUENTE,
+                                GoogleDireccionesService.PREFIJO + g.lugarId(), null, null, null, GoogleDireccionesService.FUENTE, null, g.principal(), g.secundario()));
                 if (!utiles.isEmpty()) return new ResultadoSugerencias(List.copyOf(utiles.subList(0, Math.min(MAX_SUGERENCIAS, utiles.size()))), EstadoBusqueda.OK, GOOGLE, List.copyOf(intentos));
                 marcar(intentos, GOOGLE, EstadoBusqueda.SIN_COINCIDENCIAS);
             }
+        } else if (soloGoogle) {
+            intentos.add(new Intento(GOOGLE, EstadoBusqueda.NO_CONFIGURADO));      // Google no está configurado: se dice, no se sustituye por otro proveedor
         }
         if (usaArcgis()) {
             var r = consultar(ARCGIS, cortaArcgis, timeoutProveedorSugerenciasMs, fin, false, () -> hibrido.sugerirArcgis(query), intentos);
@@ -289,9 +312,10 @@ public class LugarService {
         long fin = reloj.getAsLong() + presupuestoExplicitaMs;
         boolean activo = esGoogle ? googleActivo() : usaArcgis();
         if (!activo) {
-            intentos.add(new Intento(proveedor, EstadoBusqueda.CLAVE));
-            avisos.add(avisoDe(proveedor, EstadoBusqueda.CLAVE));
-            return fallida(avisos, intentos, EstadoBusqueda.CLAVE, proveedor);
+            EstadoBusqueda sin = esGoogle && soloGoogle ? EstadoBusqueda.NO_CONFIGURADO : EstadoBusqueda.CLAVE;
+            intentos.add(new Intento(proveedor, sin));
+            avisos.add(avisoDe(proveedor, sin));
+            return fallida(avisos, intentos, sin, proveedor);
         }
         Salida<ResultadoLugares> r = esGoogle
                 ? consultar(GOOGLE, cortaGoogle, timeoutProveedorExplicitaMs, fin, true,
@@ -352,6 +376,10 @@ public class LugarService {
                 String aviso = avisoDe(GOOGLE, r.estado);
                 if (!aviso.isEmpty()) avisos.add(aviso);
             }
+        }
+        else if (soloGoogle) {
+            intentos.add(new Intento(GOOGLE, EstadoBusqueda.NO_CONFIGURADO));
+            avisos.add(avisoDe(GOOGLE, EstadoBusqueda.NO_CONFIGURADO));
         }
         // 2) ArcGIS (solo si Google no resolvió)
         if (!resuelto && usaArcgis()) {

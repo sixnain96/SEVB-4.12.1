@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1640" height="1190" viewBox="0 0 1640 1190">
+<defs><marker id="pta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="1640" height="1190" fill="#FFFFFF"/>
+<rect x="0" y="0" width="1640" height="10" fill="#0F6E56"/>
+<text x="60" y="68" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="36" font-weight="700" fill="#04342C" text-anchor="start">SEVB · Arquitectura general</text>
+<text x="60" y="100" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="400" fill="#5F5E5A" text-anchor="start">Sistema de enrutamiento y visualización de buses de Villavicencio · versión 4.15.0</text>
+<rect x="60" y="134" width="350" height="84" rx="12" fill="#F1EFE8" stroke="#888780" stroke-width="2"/>
+<text x="235.0" y="169.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#2C2C2A" text-anchor="middle">Pasajero</text>
+<text x="235.0" y="199.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#5F5E5A" text-anchor="middle">Celular · aplicación web instalable</text>
+<rect x="445" y="134" width="350" height="84" rx="12" fill="#F1EFE8" stroke="#888780" stroke-width="2"/>
+<text x="620.0" y="169.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#2C2C2A" text-anchor="middle">Acompañante</text>
+<text x="620.0" y="199.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#5F5E5A" text-anchor="middle">Página seguir.html · solo lectura</text>
+<rect x="830" y="134" width="350" height="84" rx="12" fill="#F1EFE8" stroke="#888780" stroke-width="2"/>
+<text x="1005.0" y="169.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#2C2C2A" text-anchor="middle">Administrador</text>
+<text x="1005.0" y="199.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#5F5E5A" text-anchor="middle">editor.html · paraderos.html</text>
+<line x1="235" y1="218" x2="235" y2="262" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<line x1="620" y1="218" x2="620" y2="262" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<line x1="1005" y1="218" x2="1005" y2="262" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<rect x="60" y="264" width="1120" height="296" rx="18" fill="#FFFFFF" fill-opacity="0.55" stroke="#0F6E56" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="84" y="298" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="17" font-weight="600" fill="#0F6E56" text-anchor="start">NAVEGADOR · JavaScript sin framework</text>
+<rect x="72" y="312" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="199.5" y="342.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Planificador</text>
+<text x="199.5" y="372.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Origen A y destino B</text>
+<text x="199.5" y="394.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">planner.js · es el predeterminado</text>
+<rect x="352" y="312" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="479.5" y="342.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Paso a paso</text>
+<text x="479.5" y="372.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Una pregunta por pantalla</text>
+<text x="479.5" y="394.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">flujo-guiado.js · opcional</text>
+<rect x="632" y="312" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="759.5" y="342.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Modo viaje</text>
+<text x="759.5" y="372.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">GPS, fases y avisos</text>
+<text x="759.5" y="394.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">viaje-nucleo.js · viaje.js</text>
+<rect x="912" y="312" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="1039.5" y="342.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Ruta consumible</text>
+<text x="1039.5" y="372.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Lo recorrido desaparece</text>
+<text x="1039.5" y="394.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">viaje-ruta.js</text>
+<rect x="72" y="428" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="199.5" y="458.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Compartir mi viaje</text>
+<text x="199.5" y="488.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Enlace temporal y revocable</text>
+<text x="199.5" y="510.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">compartir.js</text>
+<rect x="352" y="428" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="479.5" y="458.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Cuenta y avatares</text>
+<text x="479.5" y="488.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Google, foto, avatar regional</text>
+<text x="479.5" y="510.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">cuenta.js · avatares.js</text>
+<rect x="632" y="428" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="759.5" y="458.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Capa de mapas</text>
+<text x="759.5" y="488.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Un solo contrato para</text>
+<text x="759.5" y="510.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Leaflet y Google Maps</text>
+<rect x="912" y="428" width="255" height="96" rx="12" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="1039.5" y="458.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#04342C" text-anchor="middle">Sin conexión</text>
+<text x="1039.5" y="488.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">Service worker y caché</text>
+<text x="1039.5" y="510.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#085041" text-anchor="middle">sw.js</text>
+<line x1="620" y1="560" x2="620" y2="618" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<text x="636" y="595" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="600" fill="#444441" text-anchor="start">HTTPS · JSON</text>
+<rect x="60" y="620" width="1120" height="266" rx="18" fill="#FFFFFF" fill-opacity="0.55" stroke="#534AB7" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="84" y="654" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="17" font-weight="600" fill="#534AB7" text-anchor="start">SERVIDOR EN AWS · Docker Compose</text>
+<rect x="80" y="690" width="170" height="120" rx="12" fill="#F1EFE8" stroke="#888780" stroke-width="2"/>
+<text x="165.0" y="732.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#2C2C2A" text-anchor="middle">Caddy</text>
+<text x="165.0" y="762.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#5F5E5A" text-anchor="middle">Certificado HTTPS</text>
+<text x="165.0" y="784.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#5F5E5A" text-anchor="middle">y reenvío</text>
+<line x1="250" y1="750" x2="290" y2="750" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<rect x="292" y="668" width="868" height="200" rx="18" fill="#FFFFFF" fill-opacity="0.55" stroke="#534AB7" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="316" y="702" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="17" font-weight="600" fill="#534AB7" text-anchor="start"></text>
+<text x="316" y="700" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="17" font-weight="600" fill="#534AB7" text-anchor="start">Aplicación Spring Boot · Java 21</text>
+<rect x="314" y="716" width="264" height="134" rx="12" fill="#EEEDFE" stroke="#534AB7" stroke-width="2"/>
+<text x="446.0" y="754.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#26215C" text-anchor="middle">Controladores REST</text>
+<text x="446.0" y="784.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">Ruta, Viaje, Lugar, Cuenta,</text>
+<text x="446.0" y="806.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">Compartir, Editor, Paraderos</text>
+<text x="446.0" y="828.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">bajo /api</text>
+<rect x="598" y="716" width="264" height="134" rx="12" fill="#EEEDFE" stroke="#534AB7" stroke-width="2"/>
+<text x="730.0" y="754.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#26215C" text-anchor="middle">Servicios</text>
+<text x="730.0" y="784.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">Recomendador y transbordos</text>
+<text x="730.0" y="806.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">Viajes, cuentas, compartir</text>
+<text x="730.0" y="828.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">direcciones y lugares</text>
+<rect x="882" y="716" width="262" height="134" rx="12" fill="#EEEDFE" stroke="#534AB7" stroke-width="2"/>
+<text x="1013.0" y="754.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#26215C" text-anchor="middle">Redes en memoria</text>
+<text x="1013.0" y="784.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">Peatonal: 85 870 nodos</text>
+<text x="1013.0" y="806.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">Vial de buses: 74 529</text>
+<text x="1013.0" y="828.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#3C3489" text-anchor="middle">se cargan al arrancar</text>
+<line x1="578" y1="783" x2="596" y2="783" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<line x1="862" y1="783" x2="880" y2="783" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<line x1="340" y1="886" x2="340" y2="944" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<line x1="900" y1="886" x2="900" y2="944" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<rect x="60" y="946" width="560" height="134" rx="12" fill="#FAEEDA" stroke="#BA7517" stroke-width="2"/>
+<text x="340.0" y="984.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#412402" text-anchor="middle">PostgreSQL con PostGIS</text>
+<text x="340.0" y="1014.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#633806" text-anchor="middle">Supabase · Session pooler · migraciones Flyway V1 a V13</text>
+<text x="340.0" y="1036.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#633806" text-anchor="middle">rutas, paraderos, lugares, usuarios,</text>
+<text x="340.0" y="1058.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#633806" text-anchor="middle">viajes_compartidos (solo hashes de tokens)</text>
+<rect x="640" y="946" width="540" height="134" rx="12" fill="#FAEEDA" stroke="#BA7517" stroke-width="2"/>
+<text x="910.0" y="984.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#412402" text-anchor="middle">Archivos en disco · /app/data</text>
+<text x="910.0" y="1014.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#633806" text-anchor="middle">red-peatonal.bin.gz</text>
+<text x="910.0" y="1036.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#633806" text-anchor="middle">red-vial-bus.json.gz</text>
+<text x="910.0" y="1058.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#633806" text-anchor="middle">las redes ya calculadas, para no recalcular al arrancar</text>
+<rect x="1260" y="330" width="320" height="150" rx="12" fill="#FAECE7" stroke="#D85A30" stroke-width="2"/>
+<text x="1420.0" y="376.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#4A1B0C" text-anchor="middle">Mapa en el navegador</text>
+<text x="1420.0" y="406.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#712B13" text-anchor="middle">Leaflet: OpenStreetMap, Esri,</text>
+<text x="1420.0" y="428.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#712B13" text-anchor="middle">OpenFreeMap</text>
+<text x="1420.0" y="450.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#712B13" text-anchor="middle">Google: Maps y botón de acceso</text>
+<line x1="1180" y1="405" x2="1258" y2="405" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<rect x="1260" y="706" width="320" height="150" rx="12" fill="#FAECE7" stroke="#D85A30" stroke-width="2"/>
+<text x="1420.0" y="763.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" fill="#4A1B0C" text-anchor="middle">Google en el servidor</text>
+<text x="1420.0" y="793.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#712B13" text-anchor="middle">Verifica el inicio de sesión</text>
+<text x="1420.0" y="815.0" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15.5" font-weight="400" fill="#712B13" text-anchor="middle">Direcciones y lugares</text>
+<line x1="1160" y1="781" x2="1258" y2="781" stroke="#5F5E5A" stroke-width="2.4" stroke-linecap="round" marker-end="url(#pta)"/>
+<rect x="60" y="1130" width="22" height="22" rx="5" fill="#F1EFE8" stroke="#888780" stroke-width="2"/>
+<text x="92" y="1147" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="400" fill="#444441" text-anchor="start">Personas y proxy</text>
+<rect x="240" y="1130" width="22" height="22" rx="5" fill="#E1F5EE" stroke="#0F6E56" stroke-width="2"/>
+<text x="272" y="1147" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="400" fill="#444441" text-anchor="start">Navegador</text>
+<rect x="390" y="1130" width="22" height="22" rx="5" fill="#EEEDFE" stroke="#534AB7" stroke-width="2"/>
+<text x="422" y="1147" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="400" fill="#444441" text-anchor="start">Servidor</text>
+<rect x="530" y="1130" width="22" height="22" rx="5" fill="#FAEEDA" stroke="#BA7517" stroke-width="2"/>
+<text x="562" y="1147" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="400" fill="#444441" text-anchor="start">Datos</text>
+<rect x="640" y="1130" width="22" height="22" rx="5" fill="#FAECE7" stroke="#D85A30" stroke-width="2"/>
+<text x="672" y="1147" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="400" fill="#444441" text-anchor="start">Servicios externos</text>
+<text x="1580" y="1147" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" font-weight="400" fill="#888780" text-anchor="end">Las flechas muestran quién le habla a quién</text>
+</svg>

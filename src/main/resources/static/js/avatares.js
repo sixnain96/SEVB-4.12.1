@@ -1,15 +1,22 @@
 'use strict';
 /* Avatares regionales de respaldo (Orinoquía).
    Orden de prioridad en «Mi cuenta» y «Ajustes»: 1) foto de Google si carga · 2) avatar regional estable · 3) chigüiro local.
-   MANIFIESTO es la ÚNICA lista que hay que editar para agregar o retirar una imagen (la carpeta es /img/avatares/). Mientras esté vacía
-   no se usa ninguna imagen regional y se ve el chigüiro de siempre. Requisitos de los archivos y nombres esperados: docs/AVATARES.md.
+   MANIFIESTO es la ÚNICA lista que hay que editar para agregar o retirar una imagen (la carpeta es /img/avatares/). Las seis imágenes reales (PNG de 128 px) ya
+   están integradas; si el manifiesto quedara vacío se vería el chigüiro de siempre. Requisitos de los archivos y nombres esperados: docs/AVATARES.md.
    La asignación es determinista: el mismo identificador de cuenta da siempre el mismo avatar, también en otro dispositivo. Si cambia la
    cantidad de imágenes, la asignación puede cambiar (documentado). El identificador nunca se envía a ningún servidor ni va en una URL. */
 (() => {
     const S = window.Spevb || (window.Spevb = {});
     const CARPETA = '/img/avatares/';
-    /** Cada elemento: { archivo: 'nombre.webp', nombre: 'Nombre visible', descripcion: 'texto breve' }. Vacío = solo chigüiro. */
-    const MANIFIESTO = [];
+    /** Cada elemento: { archivo: 'nombre.webp', nombre: 'Nombre visible', descripcion: 'texto breve' }. Vacío = solo el chigüiro local. */
+    const MANIFIESTO = [
+        { archivo: 'chiguiro.png', nombre: 'Chigüiro', descripcion: 'Chigüiro de la Orinoquía' },
+        { archivo: 'danta.png', nombre: 'Danta', descripcion: 'Danta de los bosques del Llano' },
+        { archivo: 'venado.png', nombre: 'Venado', descripcion: 'Venado de la sabana' },
+        { archivo: 'guacamaya.png', nombre: 'Guacamaya', descripcion: 'Guacamaya de la Orinoquía' },
+        { archivo: 'moriche.png', nombre: 'Palma de moriche', descripcion: 'Palma de moriche junto al agua' },
+        { archivo: 'saman.png', nombre: 'Samán', descripcion: 'Samán de los Llanos' }
+    ];
 
     /** Hash FNV-1a de 32 bits: sencillo, determinista y sin dependencias. */
     function hash(texto) {

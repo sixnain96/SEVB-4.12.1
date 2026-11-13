@@ -130,6 +130,7 @@
             const card = document.getElementById('viajeCard');
             if (parar === 'pregunta') return !document.getElementById('viajePregunta').hidden;
             if (parar === 'aviso') return !document.getElementById('viajeAviso').hidden;
+            if (parar === 'bajada') return !document.getElementById('viajeBajada').hidden;      // nivel 3: recuadro «Tu bajada está aquí» (4.15.2)
             if (parar.startsWith('fase:')) return card.dataset.fase === parar.slice(5);
             if (parar.startsWith('alerta:')) { const a = document.getElementById('viajeAviso'); return !a.hidden && a.dataset.nivel === parar.slice(7); }
             return false;

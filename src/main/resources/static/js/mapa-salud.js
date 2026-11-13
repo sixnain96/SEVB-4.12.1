@@ -9,7 +9,11 @@
    y, si hay una pregunta o aviso urgente, la fila pasa a una sola línea compacta.
    Recuperación: «Recuperar mapa» (manual, siempre disponible durante el viaje) y automática con reintentos LIMITADOS y espera progresiva (sin bucles):
      intento 1 = repintado suave · 2 = repintado suave tras espera · 3 = reconstruir el mapa conservando cámara, referencias y capas. Al volver internet se reintenta una vez.
-   Qué NO hace: no cambia de proveedor en silencio, no toca el viaje, el GPS ni las capas (las conserva el adaptador al reconstruir). */
+   Qué NO hace: no cambia de proveedor en silencio, no toca el viaje, el GPS ni las capas (las conserva el adaptador al reconstruir).
+   4.15.2 · SOLO DENTRO DEL VIAJE: «El mapa se ve incompleto…», «Recuperar mapa» y «Sin ubicación actual» hablan de un viaje (sus indicaciones y su ubicación): solo se muestran con `body.viaje-activo`
+   Y una sesión de viaje viva, siempre dentro de la tarjeta (#viajeEstados). Fuera del viaje la salud se REGISTRA (estado().problema) pero no hay barra flotante, ni banner, ni reintentos
+   ni temporizadores; al empezar un viaje con el problema vigente se muestra en la tarjeta y se retoma la recuperación limitada; al terminar se cancela todo. Solo el aviso de
+   «Sin internet» puede verse fuera del viaje (en una barra pequeña). */
 (() => {
     const S = window.Spevb || (window.Spevb = {});
     const ESPERAS_MS = [2000, 5000, 12000];       // espera progresiva antes de cada intento automático (máximo 3)
@@ -27,13 +31,17 @@
         gps: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
         mapa: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
     };
+    const SOLO_VIAJE = new Set(['mapa', 'ubicacion']);      // avisos que solo tienen sentido con un viaje en curso
+    const enViaje = () => document.body.classList.contains('viaje-activo') && !!(S.Viaje && S.Viaje.activo());
     const actuales = {};                           // tipo → { texto, accion: { etiqueta, alHacer } | null }
     let contenedores = [];
 
-    function ranura() {
-        // Durante el viaje van dentro de la tarjeta (nunca flotando encima de una advertencia); fuera del viaje, en una barra pequeña arriba.
+    function ranura(lista) {
+        // Durante el viaje van dentro de la tarjeta (nunca flotando encima de una advertencia). Fuera del viaje solo puede haber «Sin internet», en una barra pequeña que
+        // NO se crea si no hay nada que mostrar (los avisos del mapa y de la ubicación no existen fuera del viaje).
         const dentro = document.getElementById('viajeEstados');
-        if (dentro && document.body.classList.contains('viaje-activo')) return dentro;
+        if (dentro && enViaje()) return dentro;
+        if (!lista.length) return null;
         let barra = document.getElementById('estadosPagina');
         if (!barra) {
             barra = document.createElement('div');
@@ -43,9 +51,14 @@
         return barra;
     }
     function pintar() {
-        const destino = ranura();
-        for (const el of document.querySelectorAll('.estados-viaje')) if (el !== destino) el.replaceChildren();      // nunca en dos sitios a la vez
-        const lista = Object.keys(actuales).sort((a, b) => TIPOS[a].orden - TIPOS[b].orden);
+        const viaje = enViaje();
+        const lista = Object.keys(actuales).filter((t) => viaje || !SOLO_VIAJE.has(t)).sort((a, b) => TIPOS[a].orden - TIPOS[b].orden);
+        const destino = ranura(lista);
+        for (const el of document.querySelectorAll('.estados-viaje')) {      // nunca en dos sitios a la vez
+            if (el === destino) continue;
+            if (el.id === 'estadosPagina') el.remove(); else { el.replaceChildren(); el.hidden = true; }
+        }
+        if (!destino) { window.dispatchEvent(new CustomEvent('spevb-estados', { detail: {} })); return; }
         destino.hidden = !lista.length;
         const nodos = lista.map((tipo) => {
             const e = actuales[tipo], d = document.createElement('div');
@@ -72,7 +85,7 @@
     }
 
     // ---------------------------------------------------------------- recuperación del mapa
-    const e = { mapa: null, intentos: 0, recuperando: false, temporizador: null, problema: null, apagado: false, desconectar: null };
+    const e = { mapa: null, intentos: 0, recuperando: false, temporizador: null, problema: null, apagado: false, desconectar: null, ultimoManual: -1e9 };
     const mapaActual = () => (S.maps && S.maps.map) || null;
 
     function mensajeMapa() {
@@ -101,12 +114,13 @@
     }
     function programarSiguiente() {
         limpiarTemporizador();
+        if (!enViaje()) return;      // fuera del viaje la salud solo se registra: ni aviso, ni reintentos, ni temporizadores
         if (e.apagado || !e.problema || e.intentos >= ESPERAS_MS.length) return mostrarMapa();
         if (navigator.onLine === false) return mostrarMapa();      // sin internet no se insiste: se espera al evento «online»
         const espera = ESPERAS_MS[e.intentos];
         e.temporizador = setTimeout(async () => {
             e.temporizador = null;
-            if (e.apagado || !e.problema) return;
+            if (e.apagado || !e.problema || !enViaje()) return;
             const nivel = e.intentos + 1;
             const ok = await intentar(nivel);
             e.intentos += 1;
@@ -125,12 +139,15 @@
     }
     /** Acción manual «Recuperar mapa» (también desde «Más» en la tarjeta del viaje): reinicia el contador y prueba suave y, si hace falta, reconstruir. */
     async function recuperar({ manual = false } = {}) {
-        if (e.recuperando) return false;
+        if (e.recuperando || !enViaje()) return false;      // idempotente: no hay dos recuperaciones a la vez, y solo existe dentro de un viaje
+        if (manual && performance.now() - e.ultimoManual < 3000) return false;      // toques repetidos no apilan intentos
+        if (manual) e.ultimoManual = performance.now();
         limpiarTemporizador();
         e.problema = e.problema || (manual ? 'manual' : 'desconocido');
         let ok = await intentar(1);
-        if (!ok) ok = await intentar(3);
+        if (!ok && enViaje()) ok = await intentar(3);      // si el viaje terminó mientras se recuperaba, no se sigue con la reconstrucción
         if (ok) { resuelto(manual ? 'manual' : 'auto'); return true; }
+        if (!enViaje()) { e.intentos = 0; return false; }
         e.intentos = ESPERAS_MS.length; mostrarMapa(); return false;      // tras una recuperación manual fallida no hay más intentos automáticos hasta otra señal
     }
 
@@ -162,16 +179,21 @@
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) return;
         const m = mapaActual();
-        if (m && typeof m.recuperar === 'function' && document.body.classList.contains('viaje-activo') && !e.problema) { nota('regreso'); m.recuperar('suave').catch(() => {}); }
+        if (m && typeof m.recuperar === 'function' && enViaje() && !e.problema) { nota('regreso'); m.recuperar('suave').catch(() => {}); }
     });
     window.addEventListener('pageshow', (ev) => { if (ev.persisted) internet(); });
-    window.addEventListener('spevb-viaje-modo', () => pintar());      // la ranura cambia de sitio al empezar o terminar el viaje
+    // Al EMPEZAR un viaje con el problema vigente se muestra en la tarjeta y se retoma la recuperación limitada; al TERMINAR se cancelan los reintentos y todo aviso del viaje desaparece.
+    window.addEventListener('spevb-viaje-modo', (ev) => {
+        if (ev.detail && ev.detail.activo) { if (e.problema) { e.intentos = 0; programarSiguiente(); } }
+        else { limpiarTemporizador(); e.intentos = 0; e.recuperando = false; poner('ubicacion', null); nota('viaje-termina'); }
+        pintar();
+    });
     internet();
     const sondeo = setInterval(() => { buscarMapa(); if (e.mapa) clearInterval(sondeo); }, 700);
     setTimeout(() => clearInterval(sondeo), 60000);
 
     S.MapaSalud = {
-        poner, recuperar, problema, estado: () => ({ problema: e.problema, intentos: e.intentos, recuperando: e.recuperando, avisos: Object.fromEntries(Object.entries(actuales).map(([k, v]) => [k, v.texto])) }),
+        poner, recuperar, problema, estado: () => ({ problema: e.problema, intentos: e.intentos, recuperando: e.recuperando, enViaje: enViaje(), temporizador: !!e.temporizador, visibles: Object.keys(actuales).filter((t) => enViaje() || !SOLO_VIAJE.has(t)), avisos: Object.fromEntries(Object.entries(actuales).map(([k, v]) => [k, v.texto])) }),
         registro: () => REGISTRO.slice(), conectar, detener() { e.apagado = true; limpiarTemporizador(); },
     };
 })();

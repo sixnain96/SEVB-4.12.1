@@ -12,17 +12,247 @@
     const MAX_EDAD_MS = 3 * 3600 * 1000;
     let sesion = null;
 
+    // ------------------------------------------------------------------ CICLO DE VIDA ÚNICO (4.15.1)
+    // UNA sola fuente de verdad para «¿hay un viaje?»: `ciclo`. Valores: libre · preparando (el inicio está en marcha: bloqueo contra el doble toque) · activo · llegada (llegó pero la persona
+    // todavía no pulsó «Cerrar») · pendiente (hay un viaje guardado esperando «Reanudar viaje»). Además, un bloqueo compartido entre pestañas (localStorage + BroadcastChannel) impide que otra
+    // pestaña de este navegador empiece uno. TODOS los puntos de entrada pasan por `iniciar()`; TODA la limpieza por `finalizar()` (idempotente).
+    // ---- CONCESIÓN (lease) ENTRE PESTAÑAS · protocolo (4.15.1) -------------------------------------------------------------------------------------------------------------------
+    // Una sola pestaña de este navegador puede ser propietaria del viaje. La propiedad es una CONCESIÓN en localStorage: { tab, instancia, nonce, id, estado, t, vida }. Vale mientras
+    // Date.now() - t < vida; la pestaña propietaria la renueva con un latido. Reglas (invariantes):
+    //  1. Una concesión AJENA VIGENTE nunca se borra ni se sobrescribe, aunque esa pestaña tarde en responder: no responder NO significa que murió (puede estar congelada, en segundo
+    //     plano o suspendida por el sistema). Solo se toma el control si el propietario CONFIRMA que terminó (soltó la concesión) o si la concesión de verdad VENCIÓ.
+    //  2. Para tomar una vencida: se lee, se espera una verificación breve, se vuelve a leer (sigue vencida y sin cambios), se escribe un nonce propio y se vuelve a leer para comprobar
+    //     que la ganó esta pestaña. Con Web Locks (navigator.locks) esa lectura-escritura es además atómica entre pestañas; sin ellos, la verificación posterior cubre la carrera.
+    //  3. Quien pierda la concesión (porque estuvo suspendida y otra pestaña la tomó al vencer) lo descubre al reanudarse (latido, evento «storage», pageshow, visibilidad, resume): detiene sus
+    //     efectos SIN borrar el estado guardado ni la concesión de la pestaña nueva, y no la recupera.
+    //  4. Pedir terminar a otra pestaña usa BroadcastChannel Y un mensaje por localStorage (evento «storage»): sin BroadcastChannel sigue funcionando. Sin confirmación explícita no se actúa.
+    // Duraciones configurables SOLO para pruebas de navegador (window.__spevbPruebas, definido por un script de inicio de la prueba): vidaBloqueoMs, latidoMs, esperaTerminarMs, verificacionMs.
+    const CLAVE_BLOQUEO = 'spevb-viaje-bloqueo', CLAVE_ORDEN = 'spevb-viaje-orden', SECCION_ADQUIRIR = 'spevb-viaje-adquirir';
+    const PRUEBAS = (window.__spevbPruebas && typeof window.__spevbPruebas === 'object') ? window.__spevbPruebas : {};
+    const duracion = (v, def, min) => (Number.isFinite(Number(v)) && Number(v) >= min ? Number(v) : def);
+    const VIDA_BLOQUEO_MS = duracion(PRUEBAS.vidaBloqueoMs, 20000, 300), LATIDO_MS = duracion(PRUEBAS.latidoMs, 5000, 100);
+    const ESPERA_TERMINAR_MS = duracion(PRUEBAS.esperaTerminarMs, 2500, 200), VERIFICACION_MS = duracion(PRUEBAS.verificacionMs, 80, 10);
+    let ciclo = 'libre', intento = 0, latido = null, nonce = null, venceTimer = null, ultimoOrden = null;
+    const contadores = { creadas: 0, liberadas: 0, concesionesPerdidas: 0 };
+    const nuevoId = () => 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+    const miTab = (() => {
+        try { let t = sessionStorage.getItem('spevb-tab'); if (!t) { t = nuevoId(); sessionStorage.setItem('spevb-tab', t); } return t; } catch { return nuevoId(); }
+    })();
+    const instancia = nuevoId();      // identifica ESTA carga de la página (una recarga de la misma pestaña es otra instancia)
+    let canal = null;
+    try { if ('BroadcastChannel' in window) canal = new BroadcastChannel('spevb-viaje'); } catch { canal = null; }
+    const leerBloqueo = () => { try { const b = JSON.parse(localStorage.getItem(CLAVE_BLOQUEO)); return b && typeof b.tab === 'string' && typeof b.t === 'number' ? b : null; } catch { return null; } };
+    /** ¿La concesión sigue vigente? Se mide con el reloj y la vida que escribió su propietario (una hora absurda en el futuro no la hace eterna). */
+    const vigente = (b) => { if (!b) return false; const edad = Date.now() - b.t, vida = Number(b.vida) > 0 ? Number(b.vida) : VIDA_BLOQUEO_MS; return edad > -vida && edad < vida; };
+    /** Concesión vigente de OTRA pestaña/instancia. Una vencida no cuenta. Nunca se borra desde aquí. */
+    const bloqueoAjeno = () => { const b = leerBloqueo(); if (!b || (nonce && b.nonce === nonce)) return null; return vigente(b) ? b : null; };
+    /** ¿Esta página es hoy la propietaria? (lee la concesión: no se fía de una variable que pudo quedar vieja durante una suspensión) */
+    const poseo = () => { if (!nonce) return false; const b = leerBloqueo(); return !!b && b.nonce === nonce; };
+    function escribirBloqueo() { if (!nonce) return; try { localStorage.setItem(CLAVE_BLOQUEO, JSON.stringify({ tab: miTab, instancia, nonce, id: sesion ? sesion.id : null, estado: ciclo, t: Date.now(), vida: VIDA_BLOQUEO_MS })); } catch { /* sin almacenamiento */ } }
+    function iniciarLatido() { if (!latido) latido = setInterval(latidoTick, LATIDO_MS); }
+    function latidoTick() { if (!nonce) return; if (!verificarPosesion()) return; escribirBloqueo(); }
+    /** Latido extra desde el GPS: si el navegador estrangula los temporizadores de una pestaña en segundo plano, cada lectura de posición también renueva la concesión (como máximo cada 2 s). */
+    let ultimoLatido = 0;
+    function renovarSiToca() { if (!nonce || Date.now() - ultimoLatido < 2000) return; ultimoLatido = Date.now(); latidoTick(); }
+    /** Toma la concesión (o la renueva si ya es nuestra). Devuelve { ok } o { ok: false, b } con la concesión ajena que lo impide. Es lo ÚNICO que escribe una concesión nueva. */
+    async function adquirir() {
+        if (nonce) { if (poseo()) { escribirBloqueo(); iniciarLatido(); return { ok: true }; } nonce = null; }      // la nuestra se perdió mientras tanto
+        const seccion = async () => {
+            const b = leerBloqueo();
+            if (b && vigente(b)) return { ok: false, b };      // vigente y ajena: ni se borra ni se sobrescribe
+            if (b) {      // venció: se comprueba que SIGUE vencida y sin cambios antes de tomarla
+                const firma = JSON.stringify(b);
+                await pausa(VERIFICACION_MS);
+                const b2 = leerBloqueo();
+                if (b2 && (JSON.stringify(b2) !== firma || vigente(b2))) return { ok: false, b: b2 };
+            }
+            nonce = nuevoId(); escribirBloqueo();
+            return { ok: true };
+        };
+        let r;
+        try { r = (navigator.locks && navigator.locks.request) ? await navigator.locks.request(SECCION_ADQUIRIR, seccion) : await seccion(); } catch { r = await seccion(); }
+        if (!r.ok) return r;
+        await pausa(VERIFICACION_MS);      // verificación posterior: se vuelve a leer para confirmar que la ganó ESTA pestaña
+        if (!poseo()) { const b = leerBloqueo(); nonce = null; return { ok: false, b, perdida: true }; }
+        iniciarLatido();
+        return { ok: true };
+    }
+    /** Suelta la concesión SOLO si es nuestra (nunca la de otra pestaña). */
+    function soltarBloqueo() {
+        clearInterval(latido); latido = null;
+        const b = leerBloqueo();
+        if (nonce && b && b.nonce === nonce) { try { localStorage.removeItem(CLAVE_BLOQUEO); } catch { /* nada */ } }
+        nonce = null;
+    }
+    /** Al reanudarse (o ante cualquier señal), comprueba que sigue siendo propietaria. Si otra pestaña tomó la concesión al vencer, detiene los efectos y NO la recupera. */
+    function verificarPosesion() {
+        if (!nonce) return true;
+        const b = leerBloqueo();
+        if (b && b.nonce !== nonce) { perderConcesion(); return false; }
+        if (!b) escribirBloqueo();      // alguien limpió el almacenamiento: nadie más la tiene, se reafirma
+        return true;
+    }
+    function perderConcesion() {
+        contadores.concesionesPerdidas++;
+        clearInterval(latido); latido = null; nonce = null;
+        if (sesion) {
+            finalizar({ borrarEstado: false, perdido: true });
+            S.toast('Tu viaje se abrió en otra pestaña, así que esta dejó de seguirlo. Sigue en esa pestaña.', { tipo: 'info', ms: 9000, clave: 'viaje' });
+        } else if (ciclo === 'pendiente') {
+            descartarReanudar({ conservarGuardado: true }); ciclo = 'libre';
+        } else if (ciclo === 'preparando') { intento++; ciclo = 'libre'; }
+        pintarBotonInicio();
+    }
+    /** Cuando una concesión ajena vence, esta pestaña lo nota sola: el botón se actualiza y, si quedó un viaje guardado, se ofrece reanudarlo. */
+    function vigilarVencimiento() {
+        clearTimeout(venceTimer); venceTimer = null;
+        const b = bloqueoAjeno(); if (!b) return;
+        venceTimer = setTimeout(() => {
+            venceTimer = null; pintarBotonInicio();
+            if (bloqueoAjeno()) return vigilarVencimiento();
+            if (ciclo === 'libre' && !sesion && !reanudarAbierta) ofrecerReanudar();
+        }, Math.max(250, (Number(b.vida) || VIDA_BLOQUEO_MS) - (Date.now() - b.t) + 150));
+    }
+    /** Pide a OTRA pestaña que termine su viaje (por BroadcastChannel y por localStorage). Devuelve true SOLO si confirma soltando la concesión; sin respuesta devuelve false y no toca nada. */
+    async function pedirTerminarAjeno(b) {
+        const orden = { tipo: 'terminar', para: b.nonce || null, id: nuevoId(), de: miTab, t: Date.now() };
+        try { canal && canal.postMessage(orden); } catch { /* sin canal */ }
+        try { localStorage.setItem(CLAVE_ORDEN, JSON.stringify(orden)); } catch { /* sin almacenamiento */ }
+        const fin = Date.now() + ESPERA_TERMINAR_MS;
+        while (Date.now() < fin) {
+            const l = leerBloqueo();
+            if (!l || !vigente(l)) { try { localStorage.removeItem(CLAVE_ORDEN); } catch { /* nada */ } return true; }      // soltó la concesión (o ya había vencido)
+            if (l.nonce !== b.nonce) return false;      // otra pestaña la tomó: no era la que se pidió
+            await pausa(60);
+        }
+        try { localStorage.removeItem(CLAVE_ORDEN); } catch { /* nada */ }
+        return false;      // sin confirmación: la concesión vigente se respeta
+    }
+    /** Esta pestaña recibió la orden de terminar. Solo la obedece si va dirigida a su concesión actual. */
+    function atenderOrden(o) {
+        if (!o || o.tipo !== 'terminar' || o.id === ultimoOrden || !nonce || o.para !== nonce || !poseo()) return;
+        if (!(Date.now() - o.t <= ESPERA_TERMINAR_MS + 500)) return;      // una orden tardía (la pestaña estaba congelada y la otra ya dejó de esperar) NO se ejecuta: nadie la espera
+        ultimoOrden = o.id;
+        if (sesion) finalizar();
+        else if (ciclo === 'pendiente') descartarReanudar();
+        else return;
+        try { canal && canal.postMessage({ tipo: 'terminado', nonce: o.para, id: o.id }); } catch { /* sin canal */ }
+    }
+    /** El botón «Iniciar viaje» comunica su estado sin dejar de recibir toques (el toque abre la explicación): ocupado, en curso o abierto en otra pestaña. */
+    function pintarBotonInicio() {
+        const b = $('startTrip'); if (!b) return;
+        const span = b.querySelector('span'), ajeno = ciclo === 'libre' && !!bloqueoAjeno();
+        b.setAttribute('aria-busy', String(ciclo === 'preparando'));
+        b.setAttribute('aria-disabled', String(ciclo !== 'libre' || ajeno));
+        b.dataset.ciclo = ajeno ? 'ajeno' : ciclo;
+        if (span) span.textContent = ciclo === 'preparando' ? 'Preparando tu viaje…' : ciclo === 'libre' ? (ajeno ? 'Viaje abierto en otra pestaña' : 'Iniciar viaje') : 'Viaje en curso';
+    }
+    const liberarCompartir = () => { try { return S.Compartir && S.Compartir.liberar ? S.Compartir.liberar() : null; } catch { return null; } };
+
+    // ---- «Ya tienes un viaje en curso»: la única respuesta a un segundo intento. Nada se reemplaza en un toque.
+    let dlgC = null, confirmandoFin = false;
+    function situacion() { return ciclo === 'llegada' ? 'llegada' : ciclo === 'pendiente' ? 'pendiente' : (ciclo === 'libre' && bloqueoAjeno()) ? 'ajeno' : 'activo'; }
+    function pintarConflicto() {
+        const v = situacion(), t = $('conflTexto'), volver = $('conflVolver'), fin = $('conflTerminar'), canc = $('conflCancelar');
+        if (confirmandoFin) {
+            t.textContent = v === 'pendiente' ? '¿Descartar el viaje guardado? Se borra su progreso y no se puede deshacer.' : '¿Terminar el viaje actual? Se detiene el seguimiento y se borra su progreso. No se puede deshacer.';
+            volver.textContent = 'No, seguir con mi viaje'; fin.textContent = v === 'pendiente' ? 'Sí, descartar viaje' : 'Sí, terminar viaje'; canc.hidden = true;
+            return;
+        }
+        canc.hidden = false;
+        t.textContent = v === 'llegada' ? 'Cierra la llegada antes de empezar otro viaje.' : v === 'pendiente' ? 'Tienes un viaje guardado sin terminar. Reanúdalo o descártalo antes de empezar otro.'
+            : v === 'ajeno' ? 'Ya hay un viaje activo en otra pestaña de este navegador. Termina ese viaje antes de empezar otro.' : 'Termina el viaje actual antes de empezar otro.';
+        volver.textContent = v === 'pendiente' ? 'Reanudar viaje' : 'Volver a mi viaje';
+        fin.textContent = v === 'llegada' ? 'Cerrar llegada' : v === 'pendiente' ? 'Descartar viaje guardado' : 'Terminar viaje actual';
+    }
+    function cerrarConflicto() { confirmandoFin = false; if (dlgC && !dlgC.hidden) S.Modal.cerrar(dlgC); }
+    function crearDialogoConflicto() {
+        if (dlgC) return dlgC;
+        dlgC = document.createElement('div');
+        dlgC.id = 'viajeConflicto'; dlgC.className = 'modal-backdrop'; dlgC.hidden = true;
+        dlgC.innerHTML = `
+            <div class="modal-card inicio-card" role="alertdialog" aria-modal="true" aria-labelledby="conflTitulo" aria-describedby="conflTexto">
+                <h2 id="conflTitulo">Ya tienes un viaje en curso</h2>
+                <p id="conflTexto" class="muted"></p>
+                <div class="modal-actions inicio-acciones">
+                    <button id="conflVolver" class="primary-plan-button" type="button">Volver a mi viaje</button>
+                    <button id="conflTerminar" class="secondary danger" type="button">Terminar viaje actual</button>
+                    <button id="conflCancelar" class="secondary" type="button">Cancelar</button>
+                </div>
+            </div>`;
+        document.body.appendChild(dlgC);
+        $('conflCancelar').addEventListener('click', cerrarConflicto);
+        $('conflVolver').addEventListener('click', () => { const pend = situacion() === 'pendiente' && !confirmandoFin; cerrarConflicto(); if (pend) { const si = q('viajeSi'); if (si) si.click(); } else volverAMiViaje(); });
+        $('conflTerminar').addEventListener('click', async () => {
+            const v = situacion();
+            if (v === 'llegada') { cerrarConflicto(); finalizar(); return S.toast('Cerraste la llegada. Ya puedes empezar otro viaje.', { tipo: 'info', ms: 4500, clave: 'viaje' }); }
+            if (!confirmandoFin) { confirmandoFin = true; pintarConflicto(); $('conflVolver').focus({ preventScroll: true }); return; }      // la opción segura recibe el foco
+            cerrarConflicto();
+            if (await terminarActual()) return S.toast('Viaje terminado. Ya puedes empezar otro.', { tipo: 'info', ms: 4500, clave: 'viaje' });
+            const b = bloqueoAjeno(), seg = b ? Math.max(1, Math.ceil(((Number(b.vida) || VIDA_BLOQUEO_MS) - (Date.now() - b.t)) / 1000)) : 0;
+            S.toast('Ya hay un viaje activo en otra pestaña y no respondió. Por seguridad no lo borro: ' + (seg ? 'podrás empezar otro cuando esa pestaña deje de responder (en unos ' + seg + ' s) o al terminarlo allí.' : 'vuelve a intentarlo.'), { tipo: 'alerta', ms: 12000, clave: 'viaje' });
+        });
+        dlgC.addEventListener('click', (e) => { if (e.target === dlgC) cerrarConflicto(); });
+        return dlgC;
+    }
+    function mostrarConflicto() {
+        crearDialogoConflicto();
+        if (!dlgC.hidden) return;
+        confirmandoFin = false; pintarConflicto();
+        S.Modal.abrir(dlgC, { fondo: true, escape: true, foco: '#conflVolver', cerrar: cerrarConflicto });
+    }
+    /** Termina de verdad el viaje actual (esta pestaña, uno guardado o el de otra pestaña) y deja todo libre. Solo se llama tras una confirmación explícita. */
+    async function terminarActual() {
+        if (sesion) finalizar();
+        else if (ciclo === 'pendiente') descartarReanudar();
+        else if (bloqueoAjeno()) {
+            // La otra pestaña debe CONFIRMAR que terminó (soltando la concesión). Si no responde, su concesión vigente se respeta: nada se borra ni se sobrescribe.
+            const b = bloqueoAjeno();
+            if (b && !(await pedirTerminarAjeno(b))) { pintarBotonInicio(); vigilarVencimiento(); return false; }
+        }
+        ciclo = 'libre'; pintarBotonInicio();
+        return true;
+    }
+    /** «Volver a mi viaje»: la tarjeta a la vista y el mapa en tu posición; el planificador cede. En otra pestaña, le pide que se muestre. */
+    function volverAMiViaje() {
+        if (sesion) {
+            if (S.Panel && !S.Panel.oculto()) S.Panel.ocultar('viaje');
+            if (ui.modo !== 'completa') ponerModo('completa', { recordar: false });
+            const l = sesion.marcador && sesion.marcador.getPosition();
+            if (l && mapa()) { sesion.seguir = true; q('viajeSeguir').setAttribute('aria-pressed', 'true'); try { S.centrarEn(mapa(), l, Math.max(mapa().getZoom(), 16)); } catch { /* mapa no listo */ } sesion.zoomSeguimiento = true; }
+            const t = q('viajeTitulo'); t.setAttribute('tabindex', '-1'); try { t.focus({ preventScroll: true }); } catch { /* nada */ }
+        } else if (ciclo === 'pendiente') { tarjeta.hidden = false; try { q('viajeSi').focus({ preventScroll: true }); } catch { /* nada */ } }
+        else if (bloqueoAjeno()) {
+            try { canal && canal.postMessage({ tipo: 'enfocar' }); } catch { /* sin canal */ }
+            S.toast('Tu viaje está abierto en otra pestaña de este navegador. Cambia a esa pestaña para seguirlo.', { tipo: 'info', ms: 7000, clave: 'viaje' });
+        }
+    }
+    if (canal) canal.onmessage = (e) => {
+        const m = e && e.data; if (!m) return;
+        if (m.tipo === 'enfocar' && (sesion || ciclo === 'pendiente')) { try { window.focus(); } catch { /* nada */ } volverAMiViaje(); }
+        else if (m.tipo === 'terminar') atenderOrden(m);
+    };
+    window.addEventListener('storage', (e) => {
+        if (e.key === CLAVE_ORDEN) { try { atenderOrden(JSON.parse(e.newValue)); } catch { /* orden ilegible */ } return; }      // respaldo sin BroadcastChannel
+        if (e.key !== CLAVE_BLOQUEO) return;
+        if (nonce && !verificarPosesion()) return;      // otra pestaña tomó la concesión: esta detiene sus efectos
+        pintarBotonInicio();
+        if (ciclo === 'libre' && !sesion && !bloqueoAjeno() && !reanudarAbierta) ofrecerReanudar();      // la otra pestaña soltó el bloqueo: si quedó un viaje guardado, se ofrece reanudarlo
+        else if (ciclo === 'libre' && bloqueoAjeno()) vigilarVencimiento();
+    });
+
     const mapa = () => (S.maps && S.maps.map) || (window.SpevbExplorer && window.SpevbExplorer.map);
     const leer = () => { try { return JSON.parse(localStorage.getItem(CLAVE)); } catch { return null; } };
     const borrar = () => { try { localStorage.removeItem(CLAVE); } catch { /* sin almacenamiento */ } };
     /** Estado reanudable (4.14): el plan (con las caminatas cuando ya llegaron), el estado del núcleo, la hora ORIGINAL de inicio y solo la ÚLTIMA posición válida
      *  (nunca un historial de ubicaciones). `t` es cuándo se guardó: al reanudar, esa posición se presenta como antigua hasta recibir una lectura nueva. */
     const guardar = () => {
-        if (!sesion) return;
+        if (!sesion || !poseo()) return;      // solo la pestaña propietaria escribe el avance: una pestaña suspendida que despierta no pisa el estado de la que tomó el viaje
         try {
             const sel = S.Planner && S.Planner.seleccion && S.Planner.seleccion.viaje;
             if (sel && sel.caminatas && !sesion.plan.caminatas && sel.destino && sel.destino.lat === sesion.plan.destino.lat && sel.destino.lng === sesion.plan.destino.lng) sesion.plan.caminatas = redondear(sel.caminatas);
-            localStorage.setItem(CLAVE, JSON.stringify({ v: 2, plan: sesion.plan, estado: sesion.nucleo.serializar(), t: Date.now(), inicio: sesion.inicio, ultima: sesion.ultima || null, ruta: sesion.ruta ? sesion.ruta.serializar() : (sesion.rutaGuardada || null) }));
+            localStorage.setItem(CLAVE, JSON.stringify({ v: 2, id: sesion.id, bajada: !!sesion.bajadaAbierta, plan: sesion.plan, estado: sesion.nucleo.serializar(), t: Date.now(), inicio: sesion.inicio, ultima: sesion.ultima || null, ruta: sesion.ruta ? sesion.ruta.serializar() : (sesion.rutaGuardada || null) }));
         } catch { /* sin almacenamiento */ }
     };
     const redondear = (plan) => JSON.parse(JSON.stringify(plan, (k, v) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1e6) / 1e6 : v)));
@@ -60,6 +290,15 @@
                 <button type="button" class="viaje-no" id="viajeNo">No</button>
             </div>
         </div>
+        <div class="viaje-bajada" id="viajeBajada" role="alertdialog" aria-labelledby="viajeBajadaTitulo" aria-describedby="viajeBajadaTexto" hidden>
+            <p class="viaje-bajada-titulo" id="viajeBajadaTitulo">Tu bajada está aquí</p>
+            <p class="viaje-bajada-texto" id="viajeBajadaTexto">Baja cuando el bus se detenga.</p>
+            <p class="viaje-bajada-parada" id="viajeBajadaParada" hidden></p>
+            <div class="viaje-bajada-botones">
+                <button type="button" class="viaje-bajada-ya" id="viajeBajadaYa">Ya me bajé</button>
+                <button type="button" class="viaje-bajada-sigo" id="viajeBajadaSigo">Sigo en el bus</button>
+            </div>
+        </div>
         <div class="viaje-manual" id="viajeManual" hidden>
             <button type="button" id="viajeYaSubi" class="viaje-manual-boton" hidden>Ya me subí</button>
             <button type="button" id="viajeYaBaje" class="viaje-manual-boton" hidden>Ya me bajé</button>
@@ -76,6 +315,11 @@
             <span class="viaje-lecturas"><b id="viajePrec">—</b><small>precisión</small></span>
             <button type="button" id="viajeRecuperarMapa">Recuperar mapa</button>
             <button type="button" id="viajeRecalcular">Recalcular desde aquí</button>
+            <div class="viaje-alertas" id="viajeAlertasFila">
+                <button type="button" id="viajeAlertas" aria-pressed="true">Alertas de bajada: activadas</button>
+                <small id="viajeAlertasEstado" role="status"></small>
+                <button type="button" id="viajeActivarAlertas" hidden>Activar alertas</button>
+            </div>
         </div>`;
     // La tarjeta y su pastilla viven en <body>: dentro de .app (position: fixed = su propia pila) nunca podrían verse sobre el menú, ni siquiera un aviso urgente.
     document.body.appendChild(tarjeta);
@@ -136,13 +380,13 @@
     // (entra en «Sí»), Tab (se queda en la pregunta), Escape (= la respuesta prudente), el fondo inerte y el regreso del foco al terminar. Sin menú ni diálogo no se usa:
     // el mapa y el planificador siguen siendo operables junto a la tarjeta.
     let ventanaPregunta = null;
-    const preguntaPideRespuesta = () => !!sesion && !q('viajePregunta').hidden && ['subida', 'bajada', 'recalculo'].includes(q('viajePregunta').dataset.id || '');
-    function escaparPregunta() { if (preguntaPideRespuesta()) q('viajeNo').click(); }      // «Todavía no» / «No, sigo en el bus» / «No, seguir con el actual»: nunca descarta ni cambia nada por sí sola
+    const preguntaPideRespuesta = () => !!sesion && ((!q('viajePregunta').hidden && ['subida', 'bajada', 'recalculo'].includes(q('viajePregunta').dataset.id || '')) || !q('viajeBajada').hidden);
+    function escaparPregunta() { if (!q('viajeBajada').hidden) return q('viajeBajadaSigo').click(); if (preguntaPideRespuesta()) q('viajeNo').click(); }      // «Todavía no» / «No, sigo en el bus» / «No, seguir con el actual»: nunca descarta ni cambia nada por sí sola
     function sincronizarVentanaPregunta() {
         if (!S.Modal || !S.Superficies) return;
         const encima = !!S.Superficies.estado().overlay && preguntaPideRespuesta();
         if (encima && !ventanaPregunta) {
-            ventanaPregunta = S.Modal.abrir(tarjeta, { mostrar: () => {}, ocultar: () => {}, tarjeta, escape: true, cerrar: escaparPregunta, foco: () => q('viajeSi') });
+            ventanaPregunta = S.Modal.abrir(tarjeta, { mostrar: () => {}, ocultar: () => {}, tarjeta, escape: true, cerrar: escaparPregunta, foco: () => (!q('viajeBajada').hidden ? q('viajeBajadaYa') : q('viajeSi')) });
         } else if (!encima && ventanaPregunta) {
             ventanaPregunta = null;
             S.Modal.cerrar(tarjeta);
@@ -150,7 +394,7 @@
     }
     function sincronizarUrgente() {
         const aviso = q('viajeAviso'), preg = q('viajePregunta');
-        const urgente = !!sesion && (!preg.hidden || (!aviso.hidden && (aviso.dataset.nivel === 'urgente' || aviso.dataset.nivel === 'alerta')));
+        const urgente = !!sesion && (!preg.hidden || !q('viajeBajada').hidden || (!aviso.hidden && (aviso.dataset.nivel === 'urgente' || aviso.dataset.nivel === 'alerta')));
         const antes = tarjeta.dataset.urgente;
         if (urgente) tarjeta.dataset.urgente = '1'; else delete tarjeta.dataset.urgente;
         if (antes !== tarjeta.dataset.urgente && S.Superficies) S.Superficies.aplicar();      // el coordinador exime a la tarjeta del `inert` del menú mientras haya un aviso importante
@@ -207,7 +451,7 @@
     let audio = null;
     const prepararAudio = () => { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch { audio = null; } };
     function pitido(veces) {
-        if (!audio) return;
+        if (!audio || audio.state !== 'running') return;      // el sonido solo suena si una interacción de la persona ya habilitó el audio (si no, queda suspendido y no se fuerza)
         try {
             for (let i = 0; i < veces; i++) {
                 const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime + i * 0.28;
@@ -218,10 +462,62 @@
     }
     const vibrar = (patron) => { try { navigator.vibrate && navigator.vibrate(patron); } catch { /* sin vibración */ } };
     const avisarPersona = (texto, { vibra, pitidos } = {}) => { if (vibra) vibrar(vibra); if (pitidos) pitido(pitidos); };
+    // ---- Alertas de bajada (4.15.2): vibración, sonido y notificación opcionales; la pantalla SIEMPRE avisa. Nada depende de que existan.
+    const soportaVibracion = () => typeof navigator.vibrate === 'function';
+    const alertasOn = () => !(S.Ajustes && S.Ajustes.get('alertasBajada') === false);
+    const notifSoportada = () => typeof Notification !== 'undefined' && typeof Notification.requestPermission === 'function';
+    const permisoNotif = () => (notifSoportada() ? Notification.permission : 'no-soportado');
+    const unir = (l) => (l.length < 2 ? l.join('') : l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1]);
+    function pintarAlertas() {
+        const b = q('viajeAlertas'); if (!b) return;
+        const on = alertasOn(), canales = ['pantalla'];
+        if (soportaVibracion()) canales.push('vibración');
+        if (audio && audio.state === 'running') canales.push('sonido');
+        if (permisoNotif() === 'granted') canales.push('notificaciones');
+        b.setAttribute('aria-pressed', String(on));
+        b.textContent = on ? 'Alertas de bajada: activadas' : 'Alertas de bajada: solo en pantalla';
+        let t = on ? 'Te aviso con: ' + unir(canales) + '.' : 'Solo verás el aviso en la pantalla.';
+        if (on && permisoNotif() === 'denied') t += ' Las notificaciones están bloqueadas en este navegador.';
+        q('viajeAlertasEstado').textContent = t;
+        q('viajeActivarAlertas').hidden = !(on && notifSoportada() && Notification.permission === 'default');      // solo se ofrece; el permiso se pide al tocarlo
+    }
+    /** Vibración, sonido y notificación de una alerta de bajada, solo si la persona no las apagó. Una notificación solo sale con la página oculta y el permiso ya concedido. */
+    function avisarBajada({ vibra, pitidos, nivel } = {}) {
+        if (!alertasOn() || !sesion) return;
+        if (vibra && soportaVibracion()) vibrar(vibra);
+        if (pitidos) pitido(pitidos);
+        if (nivel && document.hidden && permisoNotif() === 'granted') notificarBajada(nivel);
+    }
+    function notificarBajada(nivel) {
+        const info = sesion.nucleo.info(), parada = paradaBajada(info);
+        const titulo = nivel === 'preparate' ? 'Prepárate para bajar' : 'Tu bajada está aquí';
+        const opciones = { body: 'Ruta ' + (info.etiqueta || info.codigo) + (parada ? ' · Paradero «' + parada + '»' : ''), tag: 'spevb-bajada-' + nivel + '-' + sesion.id + '-' + info.leg, icon: '/img/marca/sevb-icono-app-128.png', data: { url: '/' } };
+        const mostrar = (reg) => { try { if (reg && reg.showNotification) return reg.showNotification(titulo, opciones); const n = new Notification(titulo, opciones); (sesion.notifs = sesion.notifs || []).push(n); } catch { /* sin notificación: la pantalla ya avisó */ } };
+        try { if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(mostrar, () => mostrar(null)); else mostrar(null); } catch { mostrar(null); }
+    }
+    function cerrarNotificaciones() {
+        try { (sesion && sesion.notifs || []).forEach((n) => n.close()); } catch { /* nada */ }
+        try { if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then((r) => r && r.getNotifications && r.getNotifications().then((l) => l.filter((n) => (n.tag || '').startsWith('spevb-bajada-')).forEach((n) => n.close()))).catch(() => {}); } catch { /* nada */ }
+    }
+    const paradaBajada = (info) => { const b = sesion && sesion.plan.buses[Math.min(info.leg || 0, sesion.plan.buses.length - 1)]; return b && b.paraderoBajada ? String(b.paraderoBajada).slice(0, 60) : ''; };
+    /** Libera el audio y corta cualquier vibración pendiente (el siguiente viaje crea el suyo). */
+    function cerrarAudio() { try { if (audio && audio.close) audio.close(); } catch { /* nada */ } audio = null; try { navigator.vibrate && navigator.vibrate(0); } catch { /* nada */ } cerrarNotificaciones(); }
 
     // ------------------------------------------------------------------ pantalla encendida
-    async function pedirPantalla() {
-        try { if (navigator.wakeLock && sesion) { sesion.wake = await navigator.wakeLock.request('screen'); sesion.wake.addEventListener && sesion.wake.addEventListener('release', () => { if (sesion) sesion.wake = null; }); } } catch { /* opcional */ }
+    async function pedirPantalla(forzar = false) {
+        const mia = sesion;
+        try {
+            if (!navigator.wakeLock || !mia) return;
+            if (mia.wake) {
+                if (!forzar) return;
+                try { mia.wake.release(); } catch { /* nada */ }      // al volver a la app se pide uno nuevo (el navegador suele haber soltado el anterior; soltarlo dos veces es inofensivo)
+                mia.wake = null;
+            }
+            const w = await navigator.wakeLock.request('screen');
+            if (sesion !== mia) { try { w.release(); } catch { /* nada */ } return; }      // llegó tarde: ese viaje ya terminó (o es otro): no queda ningún candado de pantalla suelto
+            mia.wake = w;
+            if (w.addEventListener) w.addEventListener('release', () => { if (mia.wake === w) mia.wake = null; });
+        } catch { /* opcional */ }
     }
     function soltarPantalla() { try { sesion && sesion.wake && sesion.wake.release(); } catch { /* nada */ } if (sesion) sesion.wake = null; }
 
@@ -241,15 +537,34 @@
         const m = mapa(); if (!m || !sesion.capa || sesion.marcador) return;
         sesion.circulo = m.circle([l.lat, l.lng], l.precision, { color: '#1a73e8', weight: 1, fillColor: '#1a73e8', fillOpacity: 0.12, interactive: false }).addTo(sesion.capa);
         sesion.marcador = m.marker([l.lat, l.lng], {
-            className: 'viaje-yo-wrapper', html: '<div class="viaje-yo"></div>', size: [26, 26], anchor: [13, 13],
-            z: 1200, keyboard: false, interactive: false,
+            className: 'viaje-yo-wrapper', size: [50, 36], anchor: [25, 18], z: 1200, keyboard: false, interactive: false,
+            // UN solo elemento con las dos formas (se crea una vez): el círculo azul de siempre y un bus de SVG propio; el cambio es solo `data-modo` (transform y opacity).
+            html: '<div class="viaje-yo-caja" data-modo="persona"><div class="viaje-yo"></div><div class="viaje-bus-marca" aria-hidden="true"><svg viewBox="0 0 44 30" width="44" height="30" focusable="false"><rect class="bus-cuerpo" x="2" y="2" width="40" height="22" rx="6"/><rect class="bus-ventanas" x="6" y="6" width="32" height="10" rx="3"/><rect class="bus-franja" x="2" y="18" width="40" height="3"/><circle class="bus-rueda" cx="12" cy="25" r="3.6"/><circle class="bus-rueda" cx="32" cy="25" r="3.6"/></svg><b class="viaje-bus-cod" hidden></b></div></div>',
         }).addTo(sesion.capa);
+        sesion.marcadorClave = null; sesion.pintada = null;
+        pintarMarcadorYo(sesion.nucleo.info());
+    }
+    /** Círculo azul mientras caminas o esperas; bus (con el código corto de la ruta, si cabe) mientras vas en él. Solo toca el DOM si cambió la fase, el código o el color. */
+    function pintarMarcadorYo(info) {
+        if (!sesion || !sesion.marcador || !info) return;
+        const modo = info.fase === 'en_bus' ? 'bus' : 'persona';
+        const cod = modo === 'bus' && info.codigo && String(info.codigo).length <= 5 ? String(info.codigo) : '';
+        const color = modo === 'bus' && /^#[0-9a-f]{6}$/i.test(info.color || '') ? info.color : '';
+        const clave = modo + '|' + cod + '|' + color;
+        if (sesion.marcadorClave === clave) return;
+        const el = sesion.marcador.getElement && sesion.marcador.getElement(), caja = el && el.querySelector('.viaje-yo-caja');
+        if (!caja) return;      // el elemento aún no existe (el mapa lo monta después): se reintenta con la próxima lectura
+        sesion.marcadorClave = clave;
+        caja.dataset.modo = modo;
+        caja.style.setProperty('--bus-c', color || '#176650');
+        const b = caja.querySelector('.viaje-bus-cod'); b.textContent = cod; b.hidden = !cod;
     }
     function pintarPosicion(l, { sinSeguir = false } = {}) {
         if (!asegurarCapa()) return;      // sin mapa: la posición y las indicaciones de la tarjeta siguen; se dibujará cuando el mapa esté listo
         crearMarcador(l);
         if (!sesion.marcador) return;
-        sesion.marcador.setPosition([l.lat, l.lng]); sesion.circulo.setPosition([l.lat, l.lng]).setRadius(Math.max(5, l.precision));
+        const k = l.lat + ',' + l.lng + ',' + Math.round(l.precision);
+        if (sesion.pintada !== k) { sesion.pintada = k; sesion.marcador.setPosition([l.lat, l.lng]); sesion.circulo.setPosition([l.lat, l.lng]).setRadius(Math.max(5, l.precision)); }      // sin cambios no se repinta nada
         const m = mapa();
         if (m && m.priorizarCaminata) m.priorizarCaminata([l.lat, l.lng]);      // con un viaje en curso solo se anima la caminata más cercana a la persona
         if (sesion.seguir && m && !sinSeguir) {
@@ -275,8 +590,10 @@
     // ------------------------------------------------------------------ pintar la tarjeta
     const fmtDist = (m) => (m === null || m === undefined ? '—' : m < 1000 ? m + ' m' : (m / 1000).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + ' km');
     function pintarInfo(info) {
-        q('viajeTitulo').textContent = info.titulo;
-        q('viajeInstruccion').textContent = info.instruccion;
+        const prepararse = info.fase === 'en_bus' && info.alertas && info.alertas.preparate && !info.alertas.ahora;
+        q('viajeTitulo').textContent = prepararse ? 'Prepárate para bajar' : info.titulo;
+        q('viajeInstruccion').textContent = info.instruccion + (prepararse && paradaBajada(info) ? ' Paradero «' + paradaBajada(info) + '».' : '');
+        pintarMarcadorYo(info);
         q('viajeDist').textContent = fmtDist(info.distancia);
         q('viajeEta').textContent = info.etaMin === null ? '—' : info.etaMin + ' min';
         q('viajeVel').textContent = info.velKmh === null ? '—' : info.velKmh + ' km/h';
@@ -306,6 +623,50 @@
         sincronizarUrgente();
     }
     const ocultarAviso = () => { clearTimeout(temporizadorAviso); q('viajeAviso').hidden = true; sincronizarUrgente(); };
+    // ------------------------------------------------------------------ nivel 3: «Tu bajada está aquí» (recuadro persistente y prioritario; no se oculta por tiempo)
+    function mostrarBajada() {
+        if (!sesion) return;
+        const caja = q('viajeBajada'), info = sesion.nucleo.info(), parada = paradaBajada(info);
+        q('viajeBajadaParada').textContent = parada ? 'Paradero «' + parada + '»' : ''; q('viajeBajadaParada').hidden = !parada;
+        if (!caja.hidden) return;
+        const previo = document.activeElement;
+        sesion.focoPrevio = previo && previo !== document.body && !tarjeta.contains(previo) ? previo : null;      // a dónde devolver el foco al resolver
+        caja.hidden = false; tarjeta.dataset.bajada = '1'; sesion.bajadaAbierta = true;
+        mostrarCompleta();
+        sincronizarUrgente();
+        if (!(S.Superficies && S.Superficies.estado().overlay)) { try { q('viajeBajadaYa').focus({ preventScroll: true }); } catch { /* sin foco */ } }      // con un menú o diálogo abierto, la pila de modales.js lo hace
+    }
+    function ocultarBajada({ devolverFoco = true } = {}) {
+        const caja = q('viajeBajada'); if (caja.hidden) return;
+        const tenia = tarjeta.contains(document.activeElement), enPila = !!ventanaPregunta;
+        caja.hidden = true; delete tarjeta.dataset.bajada;
+        const previo = sesion && sesion.focoPrevio;
+        if (sesion) { sesion.bajadaAbierta = false; sesion.focoPrevio = null; }
+        sincronizarUrgente();
+        if (devolverFoco && tenia && !enPila) {
+            if (previo && previo.isConnected && previo.getClientRects().length && !previo.closest('[inert]')) { try { previo.focus({ preventScroll: true }); } catch { /* nada */ } }
+            else { const t = q('viajeTitulo'); t.setAttribute('tabindex', '-1'); try { t.focus({ preventScroll: true }); } catch { /* nada */ } }
+        }
+    }
+    /** Las tres alertas de bajada vienen del núcleo (una vez cada una por tramo); aquí solo se PRESENTAN. */
+    function alertaBajada(ev) {
+        const info = ev.info || sesion.nucleo.info(), clave = info.leg + ':' + ev.nivel;
+        if (sesion.avisadas.has(clave)) return;      // cada umbral se notifica una vez por tramo
+        sesion.avisadas.add(clave);
+        const parada = paradaBajada(info), fiable = info.precision !== null && info.precision <= 60;
+        if (ev.nivel === 'cerca') {
+            const base = 'Te acercas a tu punto de bajada';
+            mostrarAviso(base + (fiable && ev.texto.startsWith(base) ? ev.texto.slice(base.length) : (parada ? ' (paradero «' + parada + '»).' : '.')), { nivel: 'alerta', ms: 20000 });
+            avisarBajada({ vibra: [200] });
+        } else if (ev.nivel === 'preparate') {
+            mostrarCompleta();      // una sola vez: el núcleo emite este nivel una vez por tramo
+            mostrarAviso((fiable ? ev.texto : 'Prepárate para bajar.') + (parada ? ' Paradero «' + parada + '».' : ''), { nivel: 'alerta', ms: 20000 });
+            avisarBajada({ vibra: [450, 150, 450], pitidos: 2, nivel: 'preparate' });
+        } else {
+            ocultarAviso(); mostrarBajada();
+            avisarBajada({ vibra: [700, 200, 700, 200, 700], pitidos: 3, nivel: 'ahora' });
+        }
+    }
     function mostrarPregunta(id, texto) {
         q('viajePreguntaTexto').textContent = texto;
         q('viajePregunta').dataset.id = id; q('viajePregunta').hidden = false;
@@ -324,7 +685,7 @@
                     try { window.dispatchEvent(new CustomEvent('spevb-viaje-lectura', { detail: { fase: ev.info.fase, leg: ev.info.leg, etaMin: ev.info.etaMin, lat: ev.lectura.lat, lng: ev.lectura.lng, precision: ev.lectura.precision } })); } catch { /* sin compartir */ }
                     break;
                 case 'fase':
-                    pintarInfo(ev.info); ocultarPregunta(); if (sesion.ruta) sesion.ruta.actualizar(null, ev.info);
+                    pintarInfo(ev.info); ocultarPregunta(); ocultarBajada(); if (sesion.ruta) sesion.ruta.actualizar(null, ev.info);
                     if (ev.fase !== 'llegaste' && ev.fase !== 'terminado') { ocultarAviso(); guardar(); }
                     if (ev.texto && !ev.inicial) { mostrarAviso(ev.texto, { nivel: 'ok', ms: 9000 }); }
                     if (ev.inicial && ev.distanciaAOrigen > 1500) {
@@ -332,30 +693,26 @@
                     }
                     break;
                 case 'pregunta':
+                    if (ev.id === 'bajada') ocultarBajada();      // la pregunta de bajada toma el relevo del recuadro
                     mostrarCompleta(); pintarInfo(ev.info); mostrarPregunta(ev.id, ev.texto); avisarPersona(ev.texto, { vibra: [200, 100, 200], pitidos: 1 });
                     break;
                 case 'pregunta_retirada': ocultarPregunta(); break;
-                case 'alerta': {
-                    const fuerte = ev.nivel !== 'cerca';
-                    if (fuerte) mostrarCompleta();
-                    mostrarAviso(ev.texto, { nivel: ev.nivel === 'ahora' ? 'urgente' : 'alerta', ms: ev.nivel === 'ahora' ? 0 : 20000 });
-                    avisarPersona(ev.texto, { vibra: ev.nivel === 'cerca' ? [250, 120, 250] : ev.nivel === 'preparate' ? [500, 200, 500, 200, 500] : [700, 200, 700, 200, 700], pitidos: fuerte ? (ev.nivel === 'ahora' ? 3 : 2) : 1 });
-                    pintarInfo(ev.info); guardar();
-                    break;
-                }
-                case 'se_paso': mostrarCompleta(); mostrarAviso(ev.texto, { nivel: 'urgente', ms: 0 }); avisarPersona(ev.texto, { vibra: [500, 200, 500], pitidos: 2 }); break;
+                case 'alerta': alertaBajada(ev); pintarInfo(ev.info); guardar(); break;
+                case 'se_paso': ocultarBajada(); mostrarCompleta(); mostrarAviso(ev.texto, { nivel: 'urgente', ms: 0 }); avisarPersona(ev.texto, { vibra: [500, 200, 500], pitidos: 2 }); break;
                 case 'desvio': case 'desvio_bus': mostrarAviso(ev.texto, { nivel: 'alerta', ms: 15000 }); avisarPersona(ev.texto, { vibra: [250] }); break;
                 case 'senal_debil': mostrarAviso(ev.texto, { nivel: 'info', ms: 15000 }); break;
                 // Aviso de señal: informa en la tarjeta (en su modo actual, también la compacta) pero NO la maximiza ni reorganiza la pantalla.
                 case 'sin_senal': mostrarAviso(ev.texto, { nivel: 'alerta', ms: 0 }); pintarInfo(ev.info); estadoUbicacion(); break;
                 case 'senal_recuperada': mostrarAviso(ev.texto, { nivel: 'ok', ms: 5000 }); break;
-                case 'llego': llegada(); break;
+                case 'llego': ocultarBajada(); llegada(); break;
                 default: break;
             }
         }
     }
 
     function llegada() {
+        ciclo = 'llegada'; escribirBloqueo();      // sigue siendo ESTE viaje hasta que la persona pulse «Cerrar»: no se puede empezar otro
+        pintarBotonInicio();
         mostrarCompleta(); if (sesion && sesion.ruta) sesion.ruta.actualizar(null, { fase: 'llegaste' });
         avisarPersona('¡Llegaste a tu destino!', { vibra: [300, 120, 300, 120, 600], pitidos: 3 });
         mostrarAviso('¡Llegaste a tu destino! Gracias por viajar con SEVB.', { nivel: 'ok', ms: 0 });
@@ -393,7 +750,8 @@
         const gen = (sesion.genGps = (sesion.genGps || 0) + 1);
         try { sesion.gps && sesion.gps.detener(); } catch { /* nada */ }
         sesion.gps = null;
-        const vigente = () => !!sesion && sesion.genGps === gen;
+        const mia = sesion;
+        const vigente = () => !!sesion && sesion === mia && sesion.genGps === gen;      // ni de una escucha vieja ni de OTRO viaje
         sesion.gps = S.Gps.seguir({
             crudas: true, segundoPlano: true,
             onLectura: (l) => {
@@ -406,6 +764,7 @@
                     sesion.ultima = { lat: l.lat, lng: l.lng, precision: l.precision, t: Date.now() };      // solo la ÚLTIMA posición válida
                     if (sesion.antigua) { sesion.antigua = false; estadoUbicacion(); }      // llegó una lectura actual: la posición guardada deja de ser «antigua»
                 }
+                renovarSiToca();      // cada lectura de GPS también renueva la concesión entre pestañas (por si el navegador estrangula los temporizadores)
                 manejar(eventos);
             },
             onAviso: () => { if (vigente()) mostrarAviso('El GPS no responde por ahora; sigo intentando.', { nivel: 'info', ms: 6000 }); },
@@ -418,7 +777,7 @@
         if (!sesion) return;
         const fuera = sesion.oculto ? performance.now() - sesion.oculto : 0;
         sesion.oculto = null;
-        pedirPantalla();
+        pedirPantalla(true);
         if (motivo === 'pageshow' || fuera > 15000) {
             sesion.ultimaRecepcion = performance.now();      // margen antes de declarar «sin señal»: el GPS pudo pausarse
             sesion.antigua = true; estadoUbicacion();
@@ -430,12 +789,20 @@
     function alVisibilidad() {
         if (!sesion) return;
         if (document.hidden) { sesion.oculto = performance.now(); guardar(); return; }      // al ocultar la página se guarda el avance
+        if (!verificarPosesion()) return;      // mientras estuvo oculta, otra pestaña pudo tomar la concesión
         alVolver('visible');
     }
-    const alOcultarPagina = () => { if (sesion) guardar(); };
-    const alMostrarPagina = (e) => { if (e.persisted) alVolver('pageshow'); };      // página restaurada desde la memoria (bfcache)
+    const alOcultarPagina = (e) => {
+        if (sesion) guardar();
+        // Una descarga REAL de la página (cerrar o recargar; no bfcache) suelta la concesión: el avance ya quedó guardado y otra pestaña (o esta misma al recargar) puede ofrecer reanudarlo.
+        // Si la página va a la memoria (persisted) o el evento no es real, la concesión se conserva y vence sola si no vuelve.
+        if (e && e.isTrusted && !e.persisted && nonce) { if (poseo()) soltarBloqueo(); else nonce = null; }
+    };
+    const alMostrarPagina = (e) => { if (e.persisted) { if (!verificarPosesion()) return; alVolver('pageshow'); } };      // página restaurada desde la memoria (bfcache): ¿sigue siendo la propietaria?
     window.addEventListener('pagehide', alOcultarPagina);
     window.addEventListener('pageshow', alMostrarPagina);
+    document.addEventListener('resume', () => { verificarPosesion(); });      // una pestaña congelada que se reanuda comprueba de inmediato si perdió la concesión
+    window.addEventListener('focus', () => { verificarPosesion(); });
 
     // ------------------------------------------------------------------ iniciar / terminar
     function detenerEscucha() {
@@ -449,21 +816,35 @@
     }
 
     async function iniciar(planGuardado, estado, opciones = {}) {
-        if (sesion) return false;
+        // ÚNICA puerta de entrada (botón del planificador, flujo guiado, atajos): nada empieza si ya hay un viaje, una llegada sin cerrar, uno guardado esperando «Reanudar viaje» o uno abierto
+        // en otra pestaña. «Reanudar» y el recálculo pasan con `interno`: la persona ya lo decidió con una pregunta explícita.
+        if (!opciones.interno) {
+            if (ciclo === 'preparando') return false;      // doble toque: ya se está preparando UN viaje; no se crea otra sesión
+            if (ciclo !== 'libre' || bloqueoAjeno()) { mostrarConflicto(); return false; }
+        }
+        const volverA = opciones.volverA || 'libre', mio = ++intento;
+        ciclo = 'preparando'; pintarBotonInicio();      // el doble toque queda bloqueado de inmediato (síncrono); la concesión entre pestañas se toma justo después, ANTES de cualquier otra espera
+        const abortar = () => { if (mio === intento) { ciclo = volverA; if (volverA === 'libre') soltarBloqueo(); pintarBotonInicio(); } return false; };
+        const concesion = await adquirir();
+        if (mio !== intento || ciclo !== 'preparando') { if (concesion.ok && !sesion && ciclo === 'libre') soltarBloqueo(); return false; }      // se canceló mientras se tomaba la concesión
+        if (!concesion.ok) { abortar(); mostrarConflicto(); vigilarVencimiento(); return false; }      // otra pestaña es propietaria (vigente): no se empieza nada
         const sel = S.Planner && S.Planner.seleccion;
         const plan = planGuardado || (sel && sel.viaje ? redondear(sel.viaje) : null);
-        if (!plan) { S.toast('Primero calcula un viaje y elige una opción.', { tipo: 'info', ms: 4000 }); return false; }
+        if (!plan) { S.toast('Primero calcula un viaje y elige una opción.', { tipo: 'info', ms: 4000 }); return abortar(); }
         const prob = S.Gps.problema();
-        if (prob) { S.toast(prob.message + (prob.ayuda ? ' ' + prob.ayuda : ''), { tipo: 'error', ms: 12000, clave: 'viaje' }); return false; }
-        if ((await S.Gps.permiso()) === 'denied') { const e = S.Gps.errorGps({ code: 1 }); S.toast(e.message + ' ' + e.ayuda, { tipo: 'error', ms: 14000, clave: 'viaje' }); return false; }
+        if (prob) { S.toast(prob.message + (prob.ayuda ? ' ' + prob.ayuda : ''), { tipo: 'error', ms: 12000, clave: 'viaje' }); return abortar(); }
+        if ((await S.Gps.permiso()) === 'denied') { const e = S.Gps.errorGps({ code: 1 }); S.toast(e.message + ' ' + e.ayuda, { tipo: 'error', ms: 14000, clave: 'viaje' }); return abortar(); }
+        if (mio !== intento || ciclo !== 'preparando') return false;      // se canceló (terminar, volver al inicio) mientras se pedía el permiso: la promesa tardía no crea nada
+        if (!poseo()) { abortar(); mostrarConflicto(); return false; }      // la concesión se perdió durante la espera (otra pestaña la tomó al vencer): no se crea nada
         let nucleo;
-        try { nucleo = N.crearViaje(plan); } catch (e) { S.toast(e.message, { tipo: 'error', ms: 6000, clave: 'viaje' }); return false; }
+        try { nucleo = N.crearViaje(plan); } catch (e) { S.toast(e.message, { tipo: 'error', ms: 6000, clave: 'viaje' }); return abortar(); }
         if (estado) nucleo.restaurar(estado);
         // El viaje NO depende del mapa (Google puede tardar o fallar): arranca igual y la capa de dibujo se crea cuando el mapa está disponible.
         // Un viaje reanudado conserva la hora ORIGINAL de inicio y su última posición, que se marca como antigua hasta recibir una lectura nueva.
         const reanudado = !!opciones.reanudado;
-        sesion = { plan, nucleo, capa: null, seguir: true, inicio: opciones.inicio || Date.now(), ultimaRecepcion: performance.now(), fase0: true, wake: null,
-                   ultima: opciones.ultima || null, antigua: reanudado, genGps: 0, rutaGuardada: opciones.ruta || null, ruta: null };
+        sesion = { id: opciones.id || nuevoId(), plan, nucleo, capa: null, seguir: true, inicio: opciones.inicio || Date.now(), ultimaRecepcion: performance.now(), fase0: true, wake: null,
+                   ultima: opciones.ultima || null, antigua: reanudado, genGps: 0, rutaGuardada: opciones.ruta || null, ruta: null, avisadas: new Set(), marcadorClave: null, pintada: null };
+        ciclo = 'activo'; contadores.creadas++; escribirBloqueo(); iniciarLatido(); pintarBotonInicio();
         asegurarCapa();
         prepararAudio();
         try { window.SpevbExplorer.bus.suspender(true); } catch { /* sin explorador */ }      // el bus de demostración se pausa: compite con tu posición real y gasta batería
@@ -471,13 +852,13 @@
         if (S.Superficies) S.Superficies.viajeIniciado();      // la tarjeta pasa a ser la superficie principal; el planificador cede (sin perder A/B)
         const alerta = $('alightAlert');
         if (alerta) { if (alerta.getAttribute('aria-pressed') === 'true') alerta.click(); alerta.disabled = true; alerta.title = 'El modo viaje ya te avisa antes de bajar.'; }
-        $('startTrip').disabled = true; $('startTrip').querySelector('span').textContent = 'Viaje en curso';
         tarjeta.dataset.fase = 'iniciando';
         ponerModo(ui.modo === 'oculta' ? 'compacta' : ui.modo, { recordar: false });      // un viaje nuevo siempre empieza con la tarjeta a la vista
         q('viajeMasPanel').hidden = true; q('viajeMas').setAttribute('aria-expanded', 'false'); q('viajeMas').textContent = 'Más';
         q('viajeTerminar').textContent = 'Terminar viaje'; delete q('viajeTerminar').dataset.llego;
         q('viajeSeguir').setAttribute('aria-pressed', 'true');
-        ocultarAviso(); ocultarPregunta(); pintarInfo(nucleo.info());
+        ocultarAviso(); ocultarPregunta(); ocultarBajada({ devolverFoco: false }); pintarInfo(nucleo.info()); pintarAlertas();
+        if (opciones.bajada && nucleo.info().fase === 'en_bus') mostrarBajada();      // viaje reanudado con el recuadro abierto: vuelve a mostrarse (sin repetir vibración ni sonido)
         window.dispatchEvent(new CustomEvent('spevb-focus-map'));          // el panel baja para dejar ver el mapa
         asegurarRecorrido();
         escucharGps();
@@ -491,22 +872,41 @@
         return true;
     }
 
-    function finalizar({ borrarEstado = true } = {}) {
-        if (!sesion) return;
+    /** ÚNICO procedimiento de cierre (terminar, cerrar la llegada, volver al inicio, recálculo): idempotente. Libera el GPS, intervalos y temporizadores, Wake Lock, audio y vibración,
+     *  capas y marcadores, la ruta consumible, lo compartido (y su token de escritura), las clases de modo viaje, lo guardado y el bloqueo entre pestañas. Cancela también un inicio en preparación. */
+    function finalizar({ borrarEstado = true, conservarBloqueo = false, perdido = false } = {}) {
+        intento++;      // cualquier inicio que esté esperando (permiso de GPS, etc.) queda cancelado: su promesa tardía no crea nada
+        if (recalculo) { try { recalculo.cancelado = true; recalculo.abort.abort(); } catch { /* nada */ } reposoRecalculo(); }
+        clearTimeout(confirmarFin); confirmarFin = null;
+        if (!sesion) {
+            if (ciclo === 'preparando' || ciclo === 'llegada') { ciclo = conservarBloqueo ? 'preparando' : 'libre'; if (!conservarBloqueo) soltarBloqueo(); }
+            pintarBotonInicio();
+            return;
+        }
         detenerEscucha();
         clearTimeout(temporizadorAviso);
+        ocultarBajada({ devolverFoco: false });
+        cerrarAudio();      // audio, vibración pendiente y notificaciones de este viaje
         try { sesion.capa && sesion.capa.remove(); } catch { /* nada */ }
         if (S.MapaSalud) { S.MapaSalud.poner('ubicacion', null); }
         try { sesion.ruta && sesion.ruta.destruir(); } catch { /* nada */ }
         { const mm = mapa(); if (mm && mm.priorizarCaminata) mm.priorizarCaminata(null); }
+        if (perdido) { try { S.Compartir && S.Compartir.soltarLocal && S.Compartir.soltarLocal(); } catch { /* nada */ } }      // el enlace compartido y su token pertenecen ahora a la pestaña propietaria: aquí solo se detiene
+        else liberarCompartir();      // enlace compartido, temporizador de envíos y token de escritura guardado
         sesion = null;
+        contadores.liberadas++;
         if (borrarEstado) borrar();
         document.body.classList.remove('viaje-activo');
         try { window.SpevbExplorer.bus.suspender(false); } catch { /* sin explorador */ }
         tarjeta.hidden = true; pastilla.hidden = true; delete tarjeta.dataset.urgente; delete tarjeta.dataset.forzada; pastilla.classList.remove('con-aviso');
+        q('viajeTerminar').textContent = 'Terminar viaje'; delete q('viajeTerminar').dataset.llego;
+        ocultarAviso(); ocultarPregunta();
+        sincronizarVentanaPregunta();
         if (S.Superficies) S.Superficies.viajeTerminado();
         const alerta = $('alightAlert'); if (alerta) { alerta.disabled = false; alerta.title = ''; }
-        $('startTrip').disabled = false; $('startTrip').querySelector('span').textContent = 'Iniciar viaje';
+        ciclo = conservarBloqueo ? 'preparando' : 'libre';
+        if (!conservarBloqueo) soltarBloqueo();
+        pintarBotonInicio();
         window.dispatchEvent(new CustomEvent('spevb-viaje-modo', { detail: { activo: false } }));
     }
 
@@ -561,11 +961,11 @@
         const nuevo = sesion.propuesta;
         const respaldo = { plan: sesion.plan, estado: sesion.nucleo.serializar(), inicio: sesion.inicio, ultima: sesion.ultima, ruta: sesion.ruta ? sesion.ruta.serializar() : (sesion.rutaGuardada || null) };
         ocultarPregunta();
-        finalizar({ borrarEstado: false });      // suelta GPS, capa y temporizadores del viaje viejo SIN borrar su estado guardado
-        const ok = await iniciar(nuevo);
+        finalizar({ borrarEstado: false, conservarBloqueo: true });      // suelta GPS, capa y temporizadores del viaje viejo SIN borrar su estado guardado ni soltar el bloqueo
+        const ok = await iniciar(nuevo, undefined, { interno: true });
         if (ok) return;
         // El viaje nuevo no pudo arrancar: se recupera el anterior tal como estaba (misma fase, misma hora de inicio).
-        await iniciar(respaldo.plan, respaldo.estado, { reanudado: true, inicio: respaldo.inicio, ultima: respaldo.ultima, ruta: respaldo.ruta });
+        await iniciar(respaldo.plan, respaldo.estado, { interno: true, reanudado: true, inicio: respaldo.inicio, ultima: respaldo.ultima, ruta: respaldo.ruta });
         mostrarAviso('No pude cambiar de recorrido. Sigues con el anterior.', { nivel: 'alerta', ms: 10000 });
     }
     function rechazarRecalculo() { if (sesion) delete sesion.propuesta; ocultarPregunta(); mostrarAviso('Sigues con tu recorrido actual.', { nivel: 'info', ms: 5000 }); }
@@ -574,6 +974,16 @@
     $('startTrip').addEventListener('click', () => iniciar());
     q('viajeSi').addEventListener('click', () => { if (!sesion) return; if (q('viajePregunta').dataset.id === 'recalculo') return aceptarRecalculo(); manejar(sesion.nucleo.responder(q('viajePregunta').dataset.id, true)); });
     q('viajeNo').addEventListener('click', () => { if (!sesion) return; const id = q('viajePregunta').dataset.id; if (id === 'recalculo') return rechazarRecalculo(); manejar(sesion.nucleo.responder(id, false)); ocultarPregunta(); });
+    q('viajeBajadaYa').addEventListener('click', () => { if (!sesion) return; manejar(sesion.nucleo.confirmarBajada()); pintarInfo(sesion.nucleo.info()); ocultarBajada(); });
+    q('viajeBajadaSigo').addEventListener('click', () => {
+        if (!sesion) return;
+        manejar(sesion.nucleo.sigoEnBus());      // la fase y el bus se conservan; la pregunta automática se enfría
+        ocultarBajada();
+        mostrarAviso('Seguimos con tu viaje. Te avisaré si hace falta.', { nivel: 'info', ms: 5000 });
+    });
+    q('viajeAlertas').addEventListener('click', () => { if (S.Ajustes) S.Ajustes.set('alertasBajada', !alertasOn()); pintarAlertas(); });
+    q('viajeActivarAlertas').addEventListener('click', async () => { try { await Notification.requestPermission(); } catch { /* sin permiso: la pantalla sigue avisando */ } pintarAlertas(); });      // ÚNICO sitio que pide el permiso: un toque de la persona
+    window.addEventListener('spevb-ajustes', pintarAlertas);
     q('viajeYaSubi').addEventListener('click', () => { if (sesion) { manejar(sesion.nucleo.confirmarSubida()); pintarInfo(sesion.nucleo.info()); } });
     q('viajeYaBaje').addEventListener('click', () => { if (sesion) { manejar(sesion.nucleo.confirmarBajada()); pintarInfo(sesion.nucleo.info()); } });
     q('viajeSeguir').addEventListener('click', () => {
@@ -608,14 +1018,40 @@
     });
     // Si la persona cambia o borra el plan mientras viaja, el viaje sigue con su propia copia y se dibuja aparte.
     window.addEventListener('spevb-seleccion', () => { if (sesion) asegurarRecorrido(); });
-    document.addEventListener('keydown', (e) => { if (e.defaultPrevented) return; if (e.key === 'Escape' && sesion && !q('viajePregunta').hidden && tarjeta.contains(document.activeElement)) q('viajeNo').click(); });
+    document.addEventListener('keydown', (e) => { if (e.defaultPrevented) return; if (e.key === 'Escape' && sesion && tarjeta.contains(document.activeElement)) { if (!q('viajeBajada').hidden) q('viajeBajadaSigo').click(); else if (!q('viajePregunta').hidden) q('viajeNo').click(); } });
 
     // ------------------------------------------------------------------ reanudar un viaje interrumpido (recarga, cierre del navegador)
     let reanudarAbierta = false, descartarReanudar = () => {};
+    /** Un viaje guardado solo se ofrece si es COHERENTE: forma completa, no vencido, no terminado y con un recorrido que el núcleo acepta. Cualquier otra cosa se borra y deja empezar uno nuevo. */
+    function guardadoValido(g) {
+        try {
+            const num = (x) => typeof x === 'number' && Number.isFinite(x);
+            if (!g || typeof g !== 'object' || !num(g.t) || g.t > Date.now() + 60000 || Date.now() - g.t > MAX_EDAD_MS) return false;
+            if (!g.estado || typeof g.estado !== 'object' || ['llegaste', 'terminado'].includes(g.estado.fase)) return false;
+            const p = g.plan;
+            if (!p || !Array.isArray(p.buses) || !p.buses.length || !p.destino || !num(p.destino.lat) || !num(p.destino.lng)) return false;
+            if (!p.buses.every((b) => b && Array.isArray(b.tramo) && b.tramo.length > 1 && b.subida && num(b.subida.lat) && b.bajada && num(b.bajada.lat))) return false;
+            N.crearViaje(p);
+            return true;
+        } catch { return false; }
+    }
     function ofrecerReanudar() {
+        let crudo = null; try { crudo = localStorage.getItem(CLAVE); } catch { /* sin almacenamiento */ }
+        if (crudo === null || crudo === undefined) { if (ciclo === 'pendiente') { ciclo = 'libre'; pintarBotonInicio(); } return; }
         const g = leer();
-        if (!g || !g.plan || !g.estado || Date.now() - g.t > MAX_EDAD_MS || ['llegaste', 'terminado'].includes(g.estado.fase)) { if (g) borrar(); return; }
-        reanudarAbierta = true;
+        if (!guardadoValido(g)) { borrar(); liberarCompartir(); return; }      // corrupto, incompleto, vencido o terminado: se limpia de forma segura
+        if (bloqueoAjeno()) { pintarBotonInicio(); vigilarVencimiento(); return; }      // otra pestaña lo tiene abierto: aquí no se ofrece (se avisa al intentar empezar otro); al vencer su concesión se ofrece solo
+        if (ofreciendo) return; ofreciendo = true;
+        adquirir().then((r) => {
+            ofreciendo = false;
+            if (!r.ok) { pintarBotonInicio(); vigilarVencimiento(); return; }      // otra pestaña la tomó en ese instante
+            if (ciclo !== 'libre' || sesion || reanudarAbierta) { if (!sesion && ciclo === 'libre') soltarBloqueo(); return; }      // mientras tanto cambió el ciclo
+            mostrarReanudar(g);
+        }).catch(() => { ofreciendo = false; });
+    }
+    let ofreciendo = false;
+    function mostrarReanudar(g) {
+        reanudarAbierta = true; ciclo = 'pendiente'; escribirBloqueo(); pintarBotonInicio();
         tarjeta.dataset.fase = 'reanudar'; ponerModo('completa', { recordar: false });
         q('viajeTitulo').textContent = 'Tienes un viaje en curso';
         const bus = g.plan.buses[Math.min(g.estado.leg || 0, g.plan.buses.length - 1)];
@@ -624,7 +1060,7 @@
         q('viajeBarra').hidden = true; q('viajeMini').hidden = true;
         q('viajePreguntaTexto').textContent = '¿Quieres continuarlo?';
         q('viajePregunta').dataset.id = 'reanudar'; q('viajePregunta').hidden = false;
-        q('viajeSi').textContent = 'Reanudar'; q('viajeNo').textContent = 'Descartar';
+        q('viajeSi').textContent = 'Reanudar viaje'; q('viajeNo').textContent = 'Descartar';
         q('viajeTerminar').hidden = true; q('viajeMas').hidden = true; q('viajeSeguir').hidden = true;
         const restaurar = () => { q('viajeBarra').hidden = false; q('viajeMini').hidden = false; ['viajeTerminar', 'viajeMas', 'viajeSeguir'].forEach((i) => { q(i).hidden = false; }); };
         const si = q('viajeSi'), no = q('viajeNo');
@@ -635,15 +1071,20 @@
             e.stopImmediatePropagation();
             if (si.disabled) return;
             si.disabled = true;
-            iniciar(g.plan, g.estado, { reanudado: true, inicio: g.inicio, ultima: g.ultima || null, ruta: g.ruta || null }).then((ok) => {
+            iniciar(g.plan, g.estado, { interno: true, volverA: 'pendiente', id: g.id, bajada: !!g.bajada, reanudado: true, inicio: g.inicio, ultima: g.ultima || null, ruta: g.ruta || null }).then((ok) => {
                 si.disabled = false;
                 if (ok) { reanudarAbierta = false; restaurar(); }
                 else mostrarAviso('No pude reanudar todavía. Revisa que el GPS esté activado y vuelve a tocar «Reanudar»: tu viaje sigue guardado.', { nivel: 'alerta', ms: 0 });
             }).catch(() => { si.disabled = false; mostrarAviso('No pude reanudar el viaje. Sigue guardado: vuelve a intentarlo.', { nivel: 'alerta', ms: 0 }); });
         };
-        const alNo = (e) => { if (q('viajePregunta').dataset.id !== 'reanudar') return; e.stopImmediatePropagation(); reanudarAbierta = false; restaurar(); tarjeta.hidden = true; ocultarPregunta(); borrar(); };
+        const alNo = (e) => { if (q('viajePregunta').dataset.id !== 'reanudar') return; e.stopImmediatePropagation(); descartarReanudar(); };
         // «Volver al inicio» con la pregunta de reanudar abierta: se descarta el viaje pendiente (y su estado guardado) como si se hubiera contestado «Descartar».
-        descartarReanudar = () => { if (!reanudarAbierta) return; reanudarAbierta = false; restaurar(); tarjeta.hidden = true; ocultarPregunta(); delete tarjeta.dataset.fase; borrar(); };
+        descartarReanudar = ({ conservarGuardado = false } = {}) => {
+            if (!reanudarAbierta) return;
+            reanudarAbierta = false; restaurar(); tarjeta.hidden = true; ocultarPregunta(); delete tarjeta.dataset.fase;
+            if (!conservarGuardado) { borrar(); liberarCompartir(); }      // un enlace compartido que quedó guardado con ese viaje también se retira (no si la concesión pasó a otra pestaña: ese viaje es de ella)
+            if (ciclo === 'pendiente') { ciclo = 'libre'; soltarBloqueo(); pintarBotonInicio(); }
+        };
         si.addEventListener('click', alSi, true); no.addEventListener('click', alNo, true);
     }
 
@@ -670,9 +1111,14 @@
     $('verOpciones').addEventListener('click', () => window.dispatchEvent(new CustomEvent('spevb-ver-opciones')));
     $('editarAB').addEventListener('click', () => window.dispatchEvent(new CustomEvent('spevb-editar-ab')));
 
-    S.Viaje = { iniciar, detener: finalizar, pendiente: () => !sesion && reanudarAbierta, descartarPendiente: () => descartarReanudar(),
+    const cerrarLlegada = () => { if (sesion && q('viajeTerminar').dataset.llego) { finalizar(); return true; } return false; };
+    S.Viaje = { iniciar, detener: finalizar, cerrarLlegada, volverAMiViaje, mostrarConflicto, estadoCiclo: () => ciclo, bloqueado: () => ciclo !== 'libre' || !!bloqueoAjeno(), id: () => (sesion ? sesion.id : null),
+        alertas: () => ({ activadas: alertasOn(), vibracion: soportaVibracion(), sonido: !!(audio && audio.state === 'running'), notificaciones: permisoNotif(), bajadaAbierta: !q('viajeBajada').hidden, avisadas: sesion ? [...sesion.avisadas] : [] }),
+        diagnostico: () => ({ ciclo, id: sesion ? sesion.id : null, creadas: contadores.creadas, liberadas: contadores.liberadas, gps: !!(sesion && sesion.gps), timers: sesion ? [sesion.timer, sesion.timerGuardado].filter(Boolean).length : 0,
+            capa: !!(sesion && sesion.capa), ruta: !!(sesion && sesion.ruta), wake: !!(sesion && sesion.wake), latido: !!latido, bloqueo: leerBloqueo(), poseo: poseo(), concesionesPerdidas: contadores.concesionesPerdidas, instancia, canal: !!canal }), pendiente: () => !sesion && reanudarAbierta, descartarPendiente: () => descartarReanudar(),
         llego: () => !!(sesion && q('viajeTerminar').dataset.llego), activo: () => !!sesion, info: () => (sesion ? sesion.nucleo.info() : null), nucleo: () => (sesion ? sesion.nucleo : null),
         rutaEstado: () => (sesion && sesion.ruta ? sesion.ruta.estado() : null),
         plan: () => (sesion ? sesion.plan : null) };      // diagnóstico de la ruta consumible (pruebas y soporte)
+    pintarBotonInicio(); pintarAlertas();
     ofrecerReanudar();
 })();
