@@ -81,7 +81,9 @@ public class EditorSecurityFilter extends OncePerRequestFilter {
         }
         if (esEscrituraApiPublica(path, solicitud)) {
             solicitud = limitarCuerpoJson(solicitud, response);
-            if (solicitud == null) return;
+            if (solicitud == null) {
+                return;
+            }
         }
         chain.doFilter(solicitud, response);
     }
