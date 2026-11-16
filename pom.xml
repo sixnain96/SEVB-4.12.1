@@ -151,6 +151,9 @@
                     <targetJdk>21</targetJdk>
                     <includeTests>false</includeTests>
                     <minimumPriority>5</minimumPriority>
+                    <rulesets>
+                        <ruleset>config/pmd/sevb-ruleset.xml</ruleset>
+                    </rulesets>
                     <failOnViolation>false</failOnViolation>
                     <skipPmdError>false</skipPmdError>
                     <linkXRef>false</linkXRef>
