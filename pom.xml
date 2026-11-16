@@ -19,8 +19,8 @@
 
     <properties>
         <java.version>21</java.version>
-        <jacoco.version>0.8.16</jacoco.version>
-        <maven-pmd-plugin.version>3.28.0</maven-pmd-plugin.version>
+        <jacoco.version>0.8.13</jacoco.version>
+        <maven-pmd-plugin.version>3.26.0</maven-pmd-plugin.version>
         <!-- Versiones fijadas por vulnerabilidades conocidas en las que trae Spring Boot 4.1.1 por defecto. -->
         <tomcat.version>11.0.25</tomcat.version>
         <jackson.version>3.1.7</jackson.version>
