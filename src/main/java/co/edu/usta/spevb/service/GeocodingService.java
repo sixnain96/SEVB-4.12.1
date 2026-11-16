@@ -198,11 +198,11 @@ public class GeocodingService {
             return leerResultadoReverso(response, lat, lng, key);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.", ex);
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (java.net.http.HttpTimeoutException ex) {
-            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "El buscador de direcciones no respondió a tiempo.");
+            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "El buscador de direcciones no respondió a tiempo.", ex);
         } catch (Exception ex) {
             throw badGateway("No se pudo obtener la dirección del punto.", ex);
         }
@@ -230,7 +230,9 @@ public class GeocodingService {
 
     private Resultado convertirResultadoReverso(JsonNode item, double lat, double lng, String key) {
         String display = item.path("display_name").asText("").strip();
-        if (display.isBlank()) return null;
+        if (display.isBlank()) {
+            return null;
+        }
         double resultLat = parse(item.path("lat").asText(Double.toString(lat)));
         double resultLng = parse(item.path("lon").asText(Double.toString(lng)));
         if (!cityArea.contains(resultLat, resultLng)) {
@@ -260,7 +262,7 @@ public class GeocodingService {
                 Thread.sleep(remaining / 1_000_000L, (int) (remaining % 1_000_000L));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.");
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.", ex);
             }
         }
         lastCall = System.nanoTime();
