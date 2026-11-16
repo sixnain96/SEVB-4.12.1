@@ -75,7 +75,9 @@ public class EditorSecurityFilter extends OncePerRequestFilter {
         HttpServletRequest solicitud = request;
         if (esRutaEditor(path)) {
             solicitud = prepararSolicitudEditor(solicitud, response);
-            if (solicitud == null) return;
+            if (solicitud == null) {
+                return;
+            }
         }
         if (esEscrituraApiPublica(path, solicitud)) {
             solicitud = limitarCuerpoJson(solicitud, response);
@@ -121,7 +123,9 @@ public class EditorSecurityFilter extends OncePerRequestFilter {
             reject(response, 401, "Clave de edición ausente o incorrecta.");
             return null;
         }
-        if (METODOS_LECTURA.contains(request.getMethod())) return request;
+        if (METODOS_LECTURA.contains(request.getMethod())) {
+            return request;
+        }
         if ("cross-site".equals(request.getHeader("Sec-Fetch-Site"))) {
             reject(response, 403, "No se permiten operaciones desde otro sitio.");
             return null;
