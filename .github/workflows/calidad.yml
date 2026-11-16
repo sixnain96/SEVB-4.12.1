@@ -46,52 +46,71 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
+          import os
           import xml.etree.ElementTree as ET
           from pathlib import Path
 
           lines = ["## Resultados de calidad SEVB", ""]
+
+          # Pruebas JUnit/Surefire
+          report_files = sorted(Path("target/surefire-reports").glob("TEST-*.xml"))
+          totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          for report in report_files:
+              root = ET.parse(report).getroot()
+              for key in totals:
+                  totals[key] += int(root.attrib.get(key, 0))
+          passed = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
+          lines += [
+              f"- **Pruebas automatizadas:** {totals['tests']} ejecutadas; {passed} aprobadas; "
+              f"{totals['failures']} fallidas; {totals['errors']} errores; {totals['skipped']} omitidas."
+          ]
+
+          # JaCoCo
           jacoco = Path("target/site/jacoco/jacoco.xml")
           if jacoco.exists():
               root = ET.parse(jacoco).getroot()
               counters = {c.attrib["type"]: c.attrib for c in root.findall("counter")}
-              line = counters.get("LINE")
-              if line:
-                  covered = int(line["covered"])
-                  missed = int(line["missed"])
-                  total = covered + missed
-                  pct = (covered / total * 100) if total else 0
-                  lines += [f"- **Cobertura de líneas JaCoCo:** {pct:.2f}% ({covered}/{total})."]
-              else:
-                  lines += ["- JaCoCo generó el XML, pero no incluyó el contador de líneas global."]
+              for label, kind in [("líneas", "LINE"), ("ramas", "BRANCH")]:
+                  counter = counters.get(kind)
+                  if counter:
+                      covered = int(counter["covered"])
+                      missed = int(counter["missed"])
+                      total = covered + missed
+                      pct = (covered / total * 100) if total else 0
+                      lines += [f"- **Cobertura JaCoCo ({label}):** {pct:.2f}% ({covered}/{total})."]
           else:
               lines += ["- **JaCoCo:** no se encontró jacoco.xml; revisar el resultado de pruebas y del agente."]
+
+          # PMD y CPD: ambos reportes usan namespaces XML; se toma el nombre local de cada etiqueta.
+          def elements_named(root, local_name):
+              return [element for element in root.iter() if element.tag.rsplit("}", 1)[-1] == local_name]
 
           pmd = Path("target/pmd.xml")
           if pmd.exists():
               root = ET.parse(pmd).getroot()
-              violations = root.findall(".//violation")
+              violations = elements_named(root, "violation")
               lines += [f"- **Hallazgos PMD:** {len(violations)}."]
               priorities = {}
               for item in violations:
-                  p = item.attrib.get("priority", "sin prioridad")
-                  priorities[p] = priorities.get(p, 0) + 1
-              for p in sorted(priorities):
-                  lines += [f"  - Prioridad {p}: {priorities[p]}."]
+                  priority = item.attrib.get("priority", "sin prioridad")
+                  priorities[priority] = priorities.get(priority, 0) + 1
+              for priority in sorted(priorities):
+                  lines += [f"  - Prioridad {priority}: {priorities[priority]}."]
           else:
               lines += ["- **PMD:** no se encontró pmd.xml; revisar el paso de análisis."]
 
           cpd = Path("target/cpd.xml")
           if cpd.exists():
               root = ET.parse(cpd).getroot()
-              duplications = root.findall(".//duplication")
-              lines += [f"- **Duplicaciones CPD:** {len(duplications)}."]
+              duplications = elements_named(root, "duplication")
+              lines += [f"- **Duplicaciones CPD:** {len(duplications)} bloques."]
           else:
               lines += ["- **CPD:** no se encontró cpd.xml; revisar el paso de análisis."]
 
           lines += ["", "Los reportes completos se adjuntan como artefacto de esta ejecución."]
           summary = "\n".join(lines) + "\n"
           Path("quality-summary.md").write_text(summary, encoding="utf-8")
-          with open(Path(__import__("os").environ["GITHUB_STEP_SUMMARY"]), "a", encoding="utf-8") as f:
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
               f.write(summary)
           PY
 
