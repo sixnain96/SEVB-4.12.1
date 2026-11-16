@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="SEVB - Quickstart y complejidad"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.github.io/schema/ruleset_2_0_0.xsd">
+    <description>
+        Reglas de análisis estático acordadas en el Plan de Control de Calidad del proyecto SEVB.
+        Se parte del conjunto Quickstart de PMD para Java y se fija el límite de complejidad
+        ciclomática por método en 10.
+    </description>
+
+    <rule ref="rulesets/java/quickstart.xml"/>
+
+    <rule ref="category/java/design.xml/CyclomaticComplexity">
+        <properties>
+            <property name="classReportLevel" value="80"/>
+            <property name="methodReportLevel" value="10"/>
+        </properties>
+    </rule>
+</ruleset>
