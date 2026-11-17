@@ -18,11 +18,11 @@ Actualmente el proyecto está desarrollado con las siguientes herramientas:
 - **Base de datos:** PostgreSQL con PostGIS
 - **Contenedores:** Docker y Docker Compose
 - **Frontend:** HTML, CSS y JavaScript
-- **Mapa:** Leaflet
+- **Mapa:** capa intercambiable con Google Maps JavaScript API (`MAP_PROVIDER=google`) y Leaflet (`MAP_PROVIDER=leaflet`) como proveedor anterior/alternativo. El proveedor activo depende de la configuración del entorno; ver `docs/GOOGLE-MAPS.md` y `docs/CONFIGURACION.md`.
 - **IDE:** IntelliJ IDEA
 - **Control de versiones:** Git
 - **Repositorio:** GitHub
-- **Repositorio remoto:** https://github.com/sixnain96/spevb-rutas
+- **Repositorio remoto vigente:** https://github.com/sixnain96/SEVB-4.12.1
 
 En este momento el sistema permite trabajar con rutas, recorridos, paraderos, consultas mediante API REST, visualización en el mapa y edición de recorridos.
 
