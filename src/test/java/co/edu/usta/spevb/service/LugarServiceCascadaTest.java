@@ -217,7 +217,7 @@ class LugarServiceCascadaTest {
     }
 
     @Test void elTokenDeSesionLlegaAlDetalleYLaEleccionConGoogleInactivoFallaConClave() {
-        when(google.resolver("ChIJabcdefghij123", "Unicentro", "sesion-1234567890abcd")).thenReturn(lugares(lugar("Unicentro", "Cra 33", "Google Maps", "LUGAR")));
+        when(google.resolver("ChIJabcdefghij123", "Unicentro", "sesion-1234567890abcd")).thenReturn(new ResultadoLugares(List.of(new LugarResponse(null, "Unicentro", "Cra 33", 4.1272, -73.6203, "Google Maps", false, "LUGAR", "ChIJabcdefghij123")), 0));
         assertEquals(1, servicio.buscarDetallado("Unicentro", "g:ChIJabcdefghij123", "sesion-1234567890abcd").lugares().size());
         when(google.sugerir(anyString(), eq("sesion-1234567890abcd"))).thenReturn(List.of(sg("Unicentro Villavicencio", "ChIJabcdefghij123")));
         servicio.sugerirDetallado("unic", "sesion-1234567890abcd");

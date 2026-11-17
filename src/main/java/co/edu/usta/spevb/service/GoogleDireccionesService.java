@@ -48,9 +48,9 @@ public class GoogleDireccionesService {
     private static final java.util.regex.Pattern SESION = java.util.regex.Pattern.compile("[A-Za-z0-9_-]{16,36}");
     private static final int MAX_BYTES = 200_000;
     /** Campos mínimos del detalle del lugar elegido (todos de nivel Essentials). */
-    static final String CAMPOS_DETALLE = "id,formattedAddress,location,types";
+    static final String CAMPOS_DETALLE = "id,formattedAddress,addressComponents,location,types";
     /** Campos de la búsqueda por texto (Enter / «Buscar»): el nombre visible hace falta porque aquí no hay sugerencia elegida. */
-    static final String CAMPOS_TEXTO = "places.id,places.displayName,places.formattedAddress,places.location,places.types";
+    static final String CAMPOS_TEXTO = "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.types";
 
 /** {@code texto} es el texto completo de la predicción; {@code principal} y {@code secundario} son su nombre y su referencia (structuredFormat de Places) para mostrarlos en dos líneas. */
     public record Sugerencia(String texto, String lugarId, String principal, String secundario) {
@@ -104,8 +104,9 @@ public class GoogleDireccionesService {
     public List<Sugerencia> sugerir(String texto, String sesion) {
         if (!activo() || texto == null || texto.strip().length() < 3 || texto.length() > 160) return List.of();
         Map<String, Object> cuerpo = new java.util.LinkedHashMap<>();
-        cuerpo.put("input", area.normalizeAddress(texto));
+        cuerpo.put("input", paraGoogle(texto));
         cuerpo.put("languageCode", "es");
+        cuerpo.put("regionCode", "co");
         cuerpo.put("includedRegionCodes", List.of("co"));
         cuerpo.put("locationRestriction", Map.of("rectangle", Map.of(
                 "low", Map.of("latitude", area.minLat(), "longitude", area.minLng()),
@@ -119,7 +120,8 @@ public class GoogleDireccionesService {
         for (JsonNode s : raiz.path("suggestions")) {
             JsonNode p = s.path("placePrediction");
             String id = p.path("placeId").asText("").strip(), t = p.path("text").path("text").asText("").strip();
-            if (!t.isBlank() && t.length() <= 200 && ID_LUGAR.matcher(id).matches() && salida.stream().noneMatch(x -> x.texto().equals(t))) {
+            // Se deduplica por el identificador de Google: dos lugares con el mismo nombre y distinto identificador pueden ser sedes distintas.
+            if (!t.isBlank() && t.length() <= 200 && ID_LUGAR.matcher(id).matches() && salida.stream().noneMatch(x -> x.lugarId().equals(id))) {
                 String principal = p.path("structuredFormat").path("mainText").path("text").asText("").strip();
                 String secundario = p.path("structuredFormat").path("secondaryText").path("text").asText("").strip();
                 if (principal.isBlank() || principal.length() > 120) {      // sin formato estructurado: el primer segmento es el nombre y el resto la referencia
@@ -134,6 +136,29 @@ public class GoogleDireccionesService {
         return List.copyOf(salida);
     }
 
+    /** Una dirección con vía y número («Cra. 22 #38-10», «cll30»); un nombre comercial («TV Center») NO lo es y se envía tal cual lo escribió la persona. */
+    static boolean pareceDireccion(String texto) {
+        return texto != null && texto.matches("(?iUs)^\\s*(?:calle|carrera|avenida|diagonal|transversal|cra|kra|cr|kr|cll|cl|av|avda|diag|dg|tv|transv|tr)\\.?\\s*\\d.*");
+    }
+
+    /** Texto que se manda al autocompletado: normalizado solo si es una dirección; si no, el texto de la persona sin espacios de más. */
+    String paraGoogle(String texto) {
+        return pareceDireccion(texto) ? area.normalizeAddress(texto) : texto.strip().replaceAll("\\s+", " ");
+    }
+
+    private static final java.util.regex.Pattern OTRA_CIUDAD = java.util.regex.Pattern.compile(
+            "(?iU)\\b(bogot[aá]|medell[ií]n|cali|barranquilla|cartagena|bucaramanga|c[uú]cuta|ibagu[eé]|pereira|manizales|villeta|acac[ií]as|granada|restrepo|cumaral|puerto l[oó]pez)\\b");
+
+    /**
+     * Consulta de la búsqueda por texto. El rectángulo (locationRestriction) de Text Search NO garantiza que una dirección quede en Villavicencio: el servidor revisa cada coordenada. Para una
+     * dirección numerada se agrega el contexto «Villavicencio, Meta» solo si la persona no nombró otra ciudad (así «Bogotá» no se vuelve un sitio local); un nombre se envía tal cual.
+     */
+    String consultaTexto(String texto) {
+        if (!pareceDireccion(texto)) return texto.strip().replaceAll("\\s+", " ");
+        String normal = area.normalizeAddress(texto);
+        return OTRA_CIUDAD.matcher(normal).find() ? normal : area.searchQuery(texto);
+    }
+
     /** Búsqueda por texto (Enter o botón «Buscar»): varios lugares de Villavicencio a la vez. Se usa con moderación porque es más cara que el autocompletar. */
     public List<LugarResponse> buscarTexto(String texto) { return buscarTextoResultado(texto).lugares(); }
 
@@ -141,7 +166,7 @@ public class GoogleDireccionesService {
     public ResultadoLugares buscarTextoResultado(String texto) {
         if (!activo() || texto == null || texto.strip().length() < 3 || texto.length() > 160) return ResultadoLugares.VACIO;
         Map<String, Object> cuerpo = Map.of(
-                "textQuery", area.normalizeAddress(texto),
+                "textQuery", consultaTexto(texto),
                 "languageCode", "es",
                 "regionCode", "co",
                 "pageSize", 5,
@@ -176,6 +201,9 @@ public class GoogleDireccionesService {
         String url = base + "/v1/places/" + URLEncoder.encode(lugarId, StandardCharsets.UTF_8) + "?languageCode=es"
                 + (token != null ? "&sessionToken=" + URLEncoder.encode(token, StandardCharsets.UTF_8) : "");
         JsonNode r = llamar(HttpRequest.newBuilder(URI.create(url)).header("X-Goog-FieldMask", CAMPOS_DETALLE).GET());
+        // Se resuelve ESE identificador: si Google devuelve otro (u ninguno) NO se acepta ni se sustituye por otro resultado.
+        if (!lugarId.equals(r.path("id").asText("")))
+            throw new ProveedorException(EstadoBusqueda.RESPUESTA_INVALIDA, "Google devolvió un lugar distinto al elegido.");
         LugarResponse l = aLugar(r, nombreSugerido);
         if (l != null) return new ResultadoLugares(List.of(l), 0);
         return new ResultadoLugares(List.of(), r.has("location") && !dentro(r) ? 1 : 0);
@@ -197,7 +225,26 @@ public class GoogleDireccionesService {
         if (direccion.isBlank() && nombre.isBlank()) return null;
         if (nombre.isBlank()) nombre = direccion;
         if (direccion.isBlank()) direccion = nombre;
-        return new LugarResponse(null, nombre, direccion, lat, lng, FUENTE, false, precision(r.path("types")));
+        String gid = r.path("id").asText("");
+        return new LugarResponse(null, nombre, direccion, lat, lng, FUENTE, false, precision(r.path("types")), ID_LUGAR.matcher(gid).matches() ? gid : null, nomenclaturaDe(r.path("addressComponents")));
+    }
+
+    /**
+     * Dirección armada con los componentes estructurados de Google: «route» («Carrera 27») + «street_number» («35A-50») → «Carrera 27 # 35A-50». Null si Google no trae ambos.
+     * Se compara por componentes (tipo, vía, Bis, sentido, placa) en lugar de por las cifras sueltas de la dirección formateada.
+     */
+    String nomenclaturaDe(JsonNode componentes) {
+        String ruta = null, numero = null;
+        for (JsonNode c : componentes) {
+            boolean esRuta = false, esNumero = false;
+            for (JsonNode t : c.path("types")) { if ("route".equals(t.asText())) esRuta = true; if ("street_number".equals(t.asText())) esNumero = true; }
+            String largo = c.path("longText").asText("").strip();
+            if (esRuta && ruta == null && !largo.isBlank() && largo.length() <= 80) ruta = largo;
+            if (esNumero && numero == null && !largo.isBlank() && largo.length() <= 30) numero = largo;
+        }
+        if (ruta == null || numero == null) return null;
+        String armada = area.normalizeAddress(ruta + " # " + numero);
+        return Nomenclatura.de(armada, area).filter(Nomenclatura::tienePlaca).map(Nomenclatura::texto).orElse(null);
     }
 
     /** Tipo de punto según los «types» de Google (no certifica exactitud, igual que en las demás fuentes). */

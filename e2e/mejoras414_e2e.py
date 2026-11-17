@@ -1,4 +1,4 @@
-"""Pruebas de navegador de 4.14: nombre popular de las rutas, mapa de noche, letra grande, línea de tiempo, «Ir a Casa/Trabajo», logros y WhatsApp.
+"""Pruebas de navegador de 4.14: nombre popular de las rutas, mapa de noche, letra grande, línea de tiempo, «Ir a casa/Trabajo», logros y WhatsApp.
 
 Uso: SEVB_E2E_URL=http://127.0.0.1:18080/ python e2e/mejoras414_e2e.py [filtro]      (lo normal es e2e/run_e2e.py)
 """
@@ -124,21 +124,27 @@ def el_mapa_se_oscurece_de_noche_y_se_puede_forzar(nav):
 
 
 @prueba
-def casa_y_trabajo_viven_en_el_menu_se_guardan_una_vez_y_despues_son_un_toque(nav):
-    s = B.Sesion(nav, **MOVIL)
+def casa_y_trabajo_viven_en_el_menu_se_guardan_con_cuenta_en_el_mapa_y_despues_son_un_toque(nav):
+    """Fase C: Casa y Trabajo exigen sesión (Google), se marcan en un modo de mapa propio y luego son un toque. El detalle (editar, borrar, duplicados, carreras) está en lugares_e2e.py."""
+    import cuenta_google_e2e as G
+    s = G.sesion(nav, **MOVIL)
     p = s.abrir()
     assert p.evaluate("!!document.querySelector('#atajos') && !!document.querySelector('#atajos').closest('#sideMenu')"), 'los atajos están en el menú lateral'
     assert not p.evaluate("!!document.querySelector('.trip-panel #atajos')"), 'ya no están en la pantalla principal'
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
-    assert 'Guardar mi Casa' in p.inner_text('#atajos')
-    p.click('#atajos .atajo[data-atajo="Casa"]'); p.wait_for_timeout(700)
-    assert not p.evaluate("document.getElementById('sideMenu').classList.contains('open')"), 'el menú se cierra para escribir la dirección'
-    p.fill('#tripDestination', DEST); p.keyboard.press('Enter'); p.wait_for_timeout(900)
-    lugares = p.evaluate("Spevb.Datos.leer('lugares').map(f => f.nombre)")
-    assert 'Casa' in lugares, f'se guardó como Casa: {lugares}'
-    p.click('#clearDestination'); p.wait_for_timeout(500)
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
-    assert 'Ir a Casa' in p.inner_text('#atajos')
+    p.click('#menuButton'); p.wait_for_timeout(500)
+    assert 'Guardar mi casa' in p.inner_text('#atajos') and 'Guardar mi trabajo' in p.inner_text('#atajos')
+    p.click('#atajos .atajo[data-atajo="Casa"]'); p.wait_for_timeout(600)
+    assert p.evaluate("!document.getElementById('authModal').hidden"), 'sin cuenta, guardar la casa abre «Continuar con Google»'
+    B.esperar(p, "document.getElementById('authEstado').dataset.estado === 'listo'", 5000)
+    G.emitir(p, G.cred('111', 'ana@example.com', 'Ana Pérez')); p.wait_for_timeout(1500)
+    assert p.evaluate("Spevb.Lugares.estado().activo"), 'tras entrar se retoma lo que la persona quería: el mapa para marcar la casa'
+    assert not p.evaluate("document.getElementById('sideMenu').classList.contains('open')"), 'el menú se cierra para marcar el punto'
+    assert 'Marca tu casa en el mapa' in p.inner_text('#lugarModo')
+    p.click('#lugarGuardar'); p.wait_for_timeout(1500)
+    assert p.evaluate("Spevb.Datos.leer('lugares').map(f => f.nombre)") == ['Casa'], 'se guardó como Casa'
+    p.click('#closeMenu'); p.wait_for_timeout(500)
+    p.click('#menuButton'); p.wait_for_timeout(500)
+    assert 'Ir a casa' in p.inner_text('#atajos')
     p.click('#atajos .atajo[data-atajo="Casa"]'); p.wait_for_timeout(700)
     assert p.input_value('#tripDestination') == 'Casa', 'un toque pone la Casa como destino'
     s.limpio('atajos'); s.cerrar()
@@ -146,20 +152,24 @@ def casa_y_trabajo_viven_en_el_menu_se_guardan_una_vez_y_despues_son_un_toque(na
 
 @prueba
 def los_logros_cuentan_viajes_racha_y_avisan(nav):
+    """Fase D: la racha se calcula con días de Bogotá (un día vacío de gracia) y el reloj de la aplicación es controlable (Spevb.Reloj). Las pruebas completas están en logros_e2e.py."""
     s = B.Sesion(nav, **MOVIL)
     p = s.abrir()
     r = p.evaluate("""() => { const L = Spevb.Logros;
-        const a = L.registrarViaje({ buses: 2 }, new Date(2026, 0, 5, 6, 30)).map(x => x.id);
-        const b = L.registrarViaje({ buses: 1 }, new Date(2026, 0, 6, 8, 0)).map(x => x.id);
-        const c = L.registrarViaje({ buses: 1 }, new Date(2026, 0, 7, 20, 0)).map(x => x.id);
+        const m = (d, h, mi) => Date.UTC(2026, 0, d, h + 5, mi || 0);
+        Spevb.Reloj.fijar(m(5, 6, 30)); const a = L.registrarViaje({ buses: 2, viajeId: 'v-a-0001', llegadaMs: m(5, 6, 30) }).map(x => x.id);
+        Spevb.Reloj.fijar(m(6, 8)); const b = L.registrarViaje({ buses: 1, viajeId: 'v-b-0002', llegadaMs: m(6, 8) }).map(x => x.id);
+        Spevb.Reloj.fijar(m(7, 20)); const c = L.registrarViaje({ buses: 1, viajeId: 'v-c-0003', llegadaMs: m(7, 20) }).map(x => x.id);
         return { a, b, c, e: L.leer() }; }""")
     assert set(r['a']) == {'primero', 'transbordo', 'madrugador'}, r
     assert r['c'] and 'racha3' in r['c'] and 'noche' in r['c'], r
     assert r['e']['viajes'] == 3 and r['e']['racha'] == 3, r
-    p.evaluate("Spevb.Logros.registrarViaje({ buses: 1 }, new Date(2026, 0, 20, 9, 0))")
-    assert p.evaluate("Spevb.Logros.leer().racha") == 1, 'la racha se reinicia si pasa un día sin viajar'
+    p.evaluate("Spevb.Reloj.fijar(Date.UTC(2026, 0, 24, 14)); Spevb.Logros.registrarViaje({ buses: 1, viajeId: 'v-d-0004', llegadaMs: Date.UTC(2026, 0, 24, 14) })")
+    assert p.evaluate("Spevb.Logros.leer().racha") == 1, 'tras varios días sin viajar la racha vuelve a empezar'
+    p.evaluate("window.dispatchEvent(new CustomEvent('spevb-viaje-llegada', { detail: { viajeId: 'v-e-0005', llegadaMs: Date.UTC(2026, 0, 24, 15), subidas: 1, busConfirmado: true, buses: 1 } }))")
+    assert p.evaluate("Spevb.Logros.leer().viajes") == 5, 'el aviso de llegada del modo viaje (con subida confirmada) suma un viaje'
     p.evaluate("window.dispatchEvent(new CustomEvent('spevb-viaje-llegada', { detail: { buses: 1 } }))")
-    assert p.evaluate("Spevb.Logros.leer().viajes") == 5, 'el aviso de llegada del modo viaje suma un viaje'
+    assert p.evaluate("Spevb.Logros.leer().viajes") == 5, 'sin id, hora ni subida confirmada no suma'
     p.click('#menuButton'); p.wait_for_timeout(400); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     assert 'Has terminado 5 viajes' in p.inner_text('#logrosResumen')
     assert p.locator('#logrosLista .logro.ganado').count() >= 5
@@ -234,7 +244,7 @@ def la_lista_de_sugerencias_no_queda_tapada_por_los_botones_buscar_en_el_mapa(na
 
 
 LUGARES_VARIOS = {'lugares': [
-    {'id': None, 'nombre': 'Aeropuerto Vanguardia', 'direccion': 'Villavicencio', 'lat': 4.1644, 'lng': -73.6184, 'fuente': 'Google Maps', 'confirmado': False, 'precision': 'LUGAR'},
+    {'id': None, 'nombre': 'Aeropuerto Vanguardia', 'direccion': 'Villavicencio', 'lat': 4.1644, 'lng': -73.6184, 'fuente': 'Google Maps', 'confirmado': False, 'precision': 'LUGAR', 'googleId': 'ChIJabcdefghij123'},      # el contrato nuevo: lleva el identificador de la opción elegida
     {'id': None, 'nombre': 'Colegio Adventista de Villavicencio', 'direccion': 'x', 'lat': 4.14, 'lng': -73.63, 'fuente': 'OpenStreetMap', 'confirmado': False, 'precision': 'LUGAR'},
     {'id': None, 'nombre': 'Antonio Villavicencio', 'direccion': 'x', 'lat': 4.13, 'lng': -73.60, 'fuente': 'OpenStreetMap', 'confirmado': False, 'precision': 'LUGAR'}],
     'avisos': [], 'catastroConfigurado': True, 'arcgisConfigurado': True, 'direccionesHabilitadas': True, 'reversoHabilitado': True, 'ciudad': 'Villavicencio'}

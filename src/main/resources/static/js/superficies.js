@@ -14,7 +14,11 @@
     const E = { principal: 'planificador', cedio: null, viaje: false, menu: false, modal: null, planificador: 'visible', ocultoPor: null, causa: 'inicio' };
     const registro = [];
     // Mismo criterio que sheet.js: en pantallas anchas el planificador es una tarjeta lateral y NO compite con la tarjeta del viaje: ahí no hay nada que ceder.
-    const compacto = window.matchMedia('(max-width: 559px), (max-width: 860px) and (min-height: 481px)');
+    const compactoCss = window.matchMedia('(max-width: 559px), (max-width: 860px) and (min-height: 481px)');
+    // Celular girado (poca altura): el planificador lateral y la tarjeta del viaje se TAPABAN entre sí (≈ 210 px de alto para la tarjeta sobre un panel de 336). Se trata como pantalla compacta
+    // SOLO para decidir quién cede durante un viaje; el diseño del planificador en sí (tarjeta lateral) no cambia.
+    const bajoHorizontal = window.matchMedia('(max-width: 860px) and (max-height: 480px) and (orientation: landscape)');      // solo celulares girados: una ventana ancha de escritorio no cambia
+    const compacto = { get matches() { return compactoCss.matches || bajoHorizontal.matches; } };
     const $ = (id) => doc.getElementById(id);
     const menu = $('sideMenu'), botonMenu = $('menuButton');
     const copia = () => ({ ...E, overlay: E.menu ? 'menu' : E.modal ? 'modal' : null });
@@ -52,10 +56,10 @@
     // Orden y secciones abiertas según lo que la persona necesita AHORA; nada se quita (lo secundario queda en secciones plegables). Antes de la fase de viaje el menú medía ≈ 2,6 pantallas
     // a 320 × 568 y durante el viaje ≈ 3,6 (la ficha de la ruta abierta añadía 540 px). No se mueve nada mientras el menú está abierto: se aplica al cerrarlo.
     const ORDEN = {
-        planificar: ['menuEspacio', 'logros', 'menuAyuda', 'menuLinks', 'menuVista', 'colorGuide', 'menuOffline', 'menuCerca', 'menuExplorar'],
-        viaje: ['menuVista', 'menuOffline', 'menuAyuda', 'menuEspacio', 'logros', 'menuLinks', 'colorGuide', 'menuCerca', 'menuExplorar'],
+        planificar: ['menuLugares', 'menuEspacio', 'logros', 'menuAyuda', 'menuInstalar', 'menuLinks', 'menuVista', 'colorGuide', 'menuOffline', 'menuCerca', 'menuExplorar'],
+        viaje: ['menuVista', 'menuOffline', 'menuAyuda', 'menuLugares', 'menuEspacio', 'logros', 'menuInstalar', 'menuLinks', 'colorGuide', 'menuCerca', 'menuExplorar'],
     };
-    const ABIERTAS = { planificar: ['menuEspacio'], viaje: [] };
+    const ABIERTAS = { planificar: ['menuLugares'], viaje: [] };
     let faseMenu = null, pendienteFase = null;
     function ordenarMenu(fase) {
         if (!menu || faseMenu === fase) { pendienteFase = null; return; }
@@ -118,7 +122,7 @@
         else if (compacto.matches && E.planificador === 'visible') Panel().ocultar('viaje');
         else aplicar();
     };
-    if (compacto.addEventListener) compacto.addEventListener('change', alCambiarDiseno);
+    if (compactoCss.addEventListener) { compactoCss.addEventListener('change', alCambiarDiseno); bajoHorizontal.addEventListener('change', alCambiarDiseno); }
     window.addEventListener('spevb-panel', (e) => {
         const d = e.detail || {};
         E.planificador = d.oculto ? 'oculto' : 'visible';
@@ -163,5 +167,22 @@
             if (estado && /^(Preparando|El mapa tarda)/.test(estado.textContent)) estado.textContent = original;
         }, { once: true });
     }
+    // ------------------------------------------------------------------ presentación del menú (4.16): iconos de sección y transición al desplegar
+    // Solo presentación: cada sección es el mismo <details> de siempre. Los iconos se ponen una vez; la animación se activa SOLO cuando la persona toca el título de la sección
+    // (no al abrir el menú, no al cambiar de fase ni cuando llega un dato), y movimiento reducido la desactiva por CSS.
+    function decorarMenu() {
+        if (!menu || !S.Iconos) return;
+        menu.querySelectorAll('details.menu-seccion[data-ico] > summary').forEach((sum) => {
+            if (sum.querySelector('.menu-ico')) return;
+            const i = document.createElement('span'); i.className = 'menu-ico'; i.setAttribute('aria-hidden', 'true');
+            i.append(S.Iconos.el(sum.parentElement.dataset.ico, { tam: 20 })); sum.prepend(i);
+        });
+    }
+    if (menu) menu.addEventListener('click', (e) => {
+        const sum = e.target.closest && e.target.closest('details.menu-seccion > summary'); if (!sum) return;
+        const d = sum.parentElement; d.classList.add('anima');
+        clearTimeout(d._anima); d._anima = setTimeout(() => d.classList.remove('anima'), 320);
+    });
+    decorarMenu(); window.addEventListener('DOMContentLoaded', decorarMenu); window.addEventListener('load', decorarMenu);
     revisarMenu(); revisarModales(); ordenarMenu(faseActual()); nota('inicio'); aplicar();
 })();

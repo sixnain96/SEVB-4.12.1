@@ -5,6 +5,8 @@
 > **Mapa visual y trampas ya conocidas: `docs/GRAFO-DEL-PROYECTO.md`** (arquitectura, cómo se elige dónde subir/bajar, direcciones, módulos JS, migraciones V1–V11, lo que no se debe repetir).
 > No contiene claves. El `.env` real es privado y nunca se pega aquí, en chats ni en repositorios.
 
+> **Fase A (sin publicar, sobre 4.15.0): desvío del bus y «Tu parada quedó atrás».** Detector de desvío con referencia del recorrido posterior a la bajada, aviso urgente reutilizando el recuadro de bajada y caminata desde la bajada real. Léelo en `docs/DESVIO-BUS.md` antes de tocar `viaje-nucleo.js`, `viaje-ruta.js` o las alertas de bajada. Pendiente: pruebas físicas en bus (ver §7 de ese documento).
+
 > **Trabajo en curso (sin publicar, rama `ux-movil-solo-google`): UX móvil 4.14.** Coordinador de superficies (`js/superficies.js`), «Volver al inicio» (`js/inicio.js`), búsqueda **solo Google** y A/B fiable. Léelo en `docs/UX-MOVIL-4.14.md` antes de tocar menús, tarjeta del viaje, planificador o búsqueda. Regla nueva: ningún módulo abre/cierra paneles por su cuenta; se pasa por `Spevb.Superficies` (`puedeAbrir(causa)`, `menu.abrir/cerrar`, `viajeIniciado/Terminado`) y `Spevb.Panel`.
 
 ---
@@ -60,6 +62,7 @@ SEVB-4.13.1/   (carpeta de trabajo; el nombre de la carpeta puede variar)
 ### Servicios clave (Java)
 - `ViajeService` (planificador, optimizador de subida/bajada, variantes MENOS_CAMINATA / MAS_RAPIDA, caché de planes 90 s, `invalidarCache()`), `AbordajeService` (optimizador con ventaja de 25 m para paraderos), `TransbordoService` (un transbordo, espera estimada 8 min, pares por rejilla ≤ 250 m), `CaminataService` + `RedPeatonal`/`RedPeatonalService` (caminata por calles), `RutaService`, `PasoPeatonalService`.
 - `ParaderoService` (paraderos de cada ruta, PUT atómico) y `ParaderoBusService` (paraderos de bus independientes de las rutas).
+- `LogrosService`/`Racha`/`LogrosController` (Fase D: logros y racha por cuenta, idempotentes por viaje; `docs/LOGROS.md`). `lugares.js` (Fase C: Mis lugares guardados en la cuenta, modo de mapa propio; `docs/LUGARES.md`).
 - `CuentaService`, `ClaveHash` (PBKDF2 600 000 it.), `DatosUsuario` (validación de datos sincronizados), `GoogleTokenVerifier` (verifica ID token de Google con JWKS, sin librerías).
 - Filtros: `EditorSecurityFilter` (CSP, cabeceras, protege `/api/editor/**` con `X-Editor-Token` **o** sesión de administrador), `LimiteGeneralFilter` (límite por IP; se apaga con `LIMITE_SOLICITUDES=false`), `LimitadorSolicitudes`.
 - `GlobalExceptionHandler`: errores JSON uniformes.
@@ -87,10 +90,10 @@ Service worker `sw.js` (versión actual **spevb-v4.15.0** (se filtra desde `pom.
 **Uso sin conexión:** menú «Guardar mapa de Villavicencio» (≈ 5–6 MB), rutas guardadas, «Recientes» (últimos 6 viajes con resultado), avisos de conexión, instalación como app.
 
 **Cuentas y datos personales (v4.4/4.5)**
-- Registro/entrada con correo+contraseña (≥ 8 caracteres) **o Google** (botón «Continuar con Google»), cookie HttpOnly `spevb_sesion`, límites de intentos, defensa CSRF.
+- **Fase B (sin publicar): «Continuar con Google» es la ÚNICA vía pública de acceso** (identidad = `sub` de Google; propiedad de los datos = id interno de SEVB). Registro, entrada y cambio de contraseña responden **410**. Cookie HttpOnly `spevb_sesion`, límites de intentos, defensa CSRF, credenciales de Google de un solo uso. Léelo en `docs/CUENTAS.md` y `docs/GOOGLE.md`; `Spevb.Cuenta.requiere(motivo)` es el punto de entrada para los lugares privados.
 - Datos sincronizados PC↔celular (`usuario_datos`, JSONB): **lugares, rutas favoritas (★), viajes guardados, historial**. Sin cuenta funcionan en el dispositivo (localStorage). Al entrar se **unen** local y servidor; al salir se borra lo local del dispositivo.
-- Ajustes de cuenta: cambiar/crear contraseña, cerrar todas las sesiones, eliminar cuenta.
-- Cuenta de Google vinculada a un correo con contraseña previa: se anula la contraseña vieja, se cierran sesiones y se descartan nombre/datos (anti pre-secuestro).
+- Ajustes de cuenta: cerrar todas las sesiones y eliminar la cuenta (reautenticación reciente con Google del mismo `sub` + confirmación final). Ya no hay contraseñas.
+- Cuentas antiguas con contraseña: **se conservan intactas** y ya no se vinculan por correo (esa rama borraba datos). Sus sesiones dejan de valer; el vínculo explícito (`/vinculo-anterior`, apagado por defecto) comprueba la cuenta anterior Y Google y conserva el id. Migración V14.
 
 **Extras (v4.1):** compartir viaje (`/?a=lat,lng&b=lat,lng&an=&bn=`), «Mis lugares», «Avisarme al bajar» (GPS: 600/220/60 m; vibración, sonido, wake lock), reportar problema (`POST /api/reportes`, lista en `/reportes.html`), botón instalar app, límite de solicitudes por IP.
 

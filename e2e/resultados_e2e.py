@@ -101,7 +101,9 @@ def la_recomendacion_del_servidor_va_primero_compacta_y_sin_duplicados(nav):
     rec = data['recomendacion']
     assert rec['idRecomendada'] == data['opciones'][0]['id'] and mejores.first.get_attribute('data-opcion-id') == rec['idRecomendada']
     assert mejores.first.get_attribute('data-recomendada') == 'true' and 'Recomendada' in mejores.first.inner_text()
-    assert rec['motivo'] and rec['motivo'][:40] in mejores.first.inner_text(), 'se muestra el motivo del servidor'
+    assert rec['motivo'] and mejores.first.get_attribute('data-motivo-servidor') == rec['motivo'], 'el motivo del servidor se conserva como dato (ya no se pega al texto de las instrucciones)'
+    assert 'un solo bus' in p.inner_text('#tripItinerario .itin-porque'), 'el «por qué» sale de los datos estructurados (buses), no de palabras sueltas del motivo'
+    assert 'tomas el bus a' not in p.inner_text('#tripStatus'), 'el estado ya no mezcla motivo, instrucciones y explicación de colores'
     assert mejores.first.locator('.best-badge svg').count() == 1, 'ícono además del texto y el color'
     antes = p.evaluate("(() => { const b = document.querySelector('.best-options'), g = document.querySelector('details.results-group'); return !!(b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING); })()")
     assert antes, 'la recomendación va antes de los grupos secundarios'
@@ -646,7 +648,10 @@ def caso_A_recomienda_el_transbordo_que_sube_cerca_y_conserva_la_directa(nav):
     assert rec['idRecomendada'].startswith('T:'), rec['idRecomendada']
     mejores = p.locator('.best-options .trip-option')
     assert mejores.first.get_attribute('data-opcion-id') == rec['idRecomendada'] and mejores.first.get_attribute('data-recomendada') == 'true'
-    assert 'transbordo' in mejores.first.inner_text().lower() and '100 m' in mejores.first.inner_text(), 'el motivo trae los números reales'
+    it = p.inner_text('#tripItinerario')
+    ini = rec['ranking'][0]['caminataInicialMetros']
+    esperado = 'unos %d m' % max(10, round(ini / 10) * 10)
+    assert '1 transbordo · 2 buses' in it and esperado in it, f'las indicaciones traen las distancias reales del itinerario ({esperado}): {it}'
     assert mejores.count() == 2 and 'Sin transbordo' in mejores.nth(1).inner_text(), 'la directa se conserva al lado para comparar'
     assert data['opciones'], 'la directa sigue en la respuesta'
     # etiquetas: solo las verdaderas

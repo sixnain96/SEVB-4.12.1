@@ -52,7 +52,7 @@ class Sesion:
         self.ctx.add_init_script(INIT)
         # El planificador con A y B es el predeterminado; las pruebas del flujo guiado lo piden expresamente (una sola vez por contexto: luego manda la persona).
         if guiado:
-            self.ctx.add_init_script("try { if (!localStorage.getItem('__t3')) { localStorage.setItem('__t3', '1'); localStorage.setItem('spevb-modo-planificador', 'guiado'); } } catch (e) {}")
+            self.ctx.add_init_script("try { if (!localStorage.getItem('__t3')) { localStorage.setItem('__t3', '1'); localStorage.setItem('spevb-modo-planificador', 'guiado'); localStorage.setItem('spevb-guiado-habilitado', '1'); } } catch (e) {}")
         self.ctx.route(lambda u: not u.startswith(URL.rstrip('/')) and not u.startswith('data:') and not u.startswith('blob:'), self._externo)
         self.page = self.ctx.new_page()
         self.page.on('pageerror', lambda e: self.errores.append('pageerror: ' + str(e)))
@@ -557,7 +557,7 @@ def datos_guardados_de_versiones_anteriores_siguen_funcionando(nav):
     p = s.abrir()
     p.click('#menuButton')      # 4.14: historial, viajes guardados y «Mis lugares» viven en el menú lateral
     p.wait_for_timeout(400)
-    p.evaluate("document.querySelector('#espacio').open = true; document.querySelector('#favorites').open = true;")
+    p.evaluate("document.querySelector('#menuEspacio').open = true; document.querySelector('#espacio').open = true; document.querySelector('#favorites').open = true;")
     p.wait_for_timeout(500)
     assert 'Casa vieja' in p.locator('#favList').inner_text(), 'favoritos antiguos'
     assert p.locator('#histList .esp-row').count() == 1, 'historial antiguo (con soloValidadas)'

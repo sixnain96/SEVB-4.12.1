@@ -236,6 +236,28 @@ def google_solo_carga_google_y_una_sola_vez(nav):
 
 
 @prueba
+def experimentos_de_carga_apagados_por_defecto_y_con_bandera_solo_afectan_a_google(nav):
+    """map_ids y preconnect son experimentos para medir con una clave real: apagados no cambian nada; encendidos, solo en modo Google y una vez."""
+    g = Google(nav, BASES['google'])
+    p = g.abrir()
+    assert 'map_ids' not in g.sdk_pedidos[0] and not p.evaluate("document.querySelectorAll('link[rel=preconnect]').length"), 'por defecto no hay map_ids ni preconnect'
+    g.s.limpio('exp apagado'); g.cerrar()
+    g = Google(nav, BASES['google'])
+    g.s.ctx.add_init_script("localStorage.setItem('spevb-mapa-exp', 'map_ids,preconnect')")
+    p = g.abrir()
+    assert len(g.sdk_pedidos) == 1 and 'map_ids=DEMO_MAP_ID' in g.sdk_pedidos[0] and g.sdk_pedidos[0].count('map_ids=') == 1, g.sdk_pedidos
+    assert p.evaluate("[...document.querySelectorAll('link[rel=preconnect]')].map(l => l.href)") == ['https://maps.googleapis.com/'], 'una sola preconexión, al origen del SDK'
+    assert p.evaluate('__gfake.mapas') == 1
+    g.s.limpio('exp encendido'); g.cerrar()
+    s2 = B.Sesion(nav, **{'viewport': {'width': 390, 'height': 844}})
+    B.URL = URL_LEAFLET
+    s2.ctx.add_init_script("localStorage.setItem('spevb-mapa-exp', 'map_ids,preconnect')")
+    p = s2.abrir()
+    assert p.evaluate("Spevb.Mapa.proveedor") == 'leaflet' and not p.evaluate("document.querySelectorAll('link[rel=preconnect]').length"), 'con Leaflet no se abre ninguna conexión a Google por este cambio'
+    s2.limpio('exp leaflet'); s2.cerrar()
+
+
+@prueba
 def google_planificar_dibuja_y_no_recrea_el_mapa(nav):
     g = Google(nav, BASES['google'])
     p = g.abrir()

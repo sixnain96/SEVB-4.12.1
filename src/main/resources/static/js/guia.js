@@ -138,7 +138,7 @@
     ];
     // Ayudas rápidas: cada tema reutiliza una escena (no hay una ilustración nueva por tema). La primera ayuda que se abre desde el planificador con A y B muestra la escena 0.
     const TEMAS = [
-        { t: 'Cómo elegir el destino', escena: 0, titulo: 'Cómo elegir el destino', texto: 'Escribe el lugar al que quieres ir y toca «Buscar destino». Google te muestra sugerencias: toca la correcta y confirma con «Sí, continuar». Si no la encuentras, toca «Elegir en el mapa».' },
+        { t: 'Cómo elegir el destino', escena: 0, practicaMapa: true, titulo: 'Cómo elegir el destino', texto: 'Escribe el lugar al que quieres ir y toca «Buscar destino». Google te muestra sugerencias: toca la correcta y confirma con «Sí, continuar». Si no la encuentras, toca «Elegir en el mapa».' },
         { t: 'Cómo decir dónde estás', escena: 1, titulo: 'Cómo decir dónde estás', texto: 'Toca «Usar mi ubicación actual» si ya estás donde empiezas. También puedes tocar «Escribir una dirección» o «Elegir en el mapa» y marcar el punto con el dedo.' },
         { t: 'Cómo buscar cómo llegar', escena: 2, titulo: 'Cómo buscar cómo llegar', texto: 'Revisa desde dónde sales y a dónde vas. Si algo no es correcto, toca «Cambiar origen» o «Cambiar destino»: no pierdes el otro lugar. Después toca «Buscar cómo llegar».' },
         { t: 'Cómo leer la recomendación', escena: 3, titulo: 'Cómo leer la recomendación', texto: 'Mira el tiempo aproximado, cuánto caminas y qué bus tomar. El tiempo no incluye la espera del bus. «Ver otras opciones» muestra las demás rutas.' },
@@ -149,8 +149,6 @@
         { t: 'Cómo terminar el viaje', escena: 7, titulo: 'Cómo terminar el viaje', texto: 'Toca «Ya me bajé» cuando bajes del bus y camina el último tramo. Al llegar, toca «Terminar viaje». También puedes terminarlo antes desde la tarjeta del viaje.' },
         { t: 'Si no aparece una ruta', escena: null, titulo: 'Si no aparece una ruta', accion: '#tripDestination',
             tips: ['Prueba con otro lugar cercano o más conocido.', 'Toca «Elegir en el mapa» y marca el punto con el dedo para ver dónde quedó.', 'Hay zonas con pocas rutas registradas: acércate a una calle grande.'] },
-        { t: 'El planificador con A y B (opcional)', escena: null, titulo: 'El planificador con A y B (opcional)', accion: '#menuPasoAPaso',
-            tips: ['Es una forma más rápida para quien ya conoce SEVB: escribes el origen y el destino en la misma pantalla.', 'Se cambia desde el menú ☰, con el botón «Usar el planificador con A y B» o «Planear paso a paso».', 'El paso a paso sigue siendo la mejor manera de empezar.'] },
     ];
 
     // ------------------------------------------------------------------ bienvenida y lecciones
@@ -186,6 +184,7 @@
         $('bienSiguiente').textContent = leccion ? 'Entendido' : ultimo ? 'Empezar a explorar' : 'Siguiente';
         $('bienSiguiente').className = ultimo ? 'secondary' : 'primary-plan-button';
         $('bienPractica').hidden = !ultimo;
+        $('bienPracticaMapa').hidden = !(leccion && leccionActual && leccionActual.practicaMapa);
         $('bienSaltar').hidden = leccion || ultimo;
         $('bienPasoTexto').textContent = leccion ? 'Ayuda rápida' : 'Paso ' + (paso + 1) + ' de ' + ESCENAS.length;
         anterior = paso;
@@ -252,7 +251,7 @@
     // Ayuda del FLUJO GUIADO («Planear paso a paso»): habla de los botones reales de cada pantalla (no de «¿De dónde sales?» ni «Buscar rutas», que ahí no existen).
     const AYUDAS_GUIADO = {
         destino: { titulo: 'Para empezar', tips: ['Escribe el lugar al que quieres ir y toca «Buscar destino». Las sugerencias vienen de Google: toca la que corresponda.',
-            'Si no lo encuentras, toca «Elegir en el mapa» y marca el punto con el dedo.'], accion: '#gBuscarDestino' },
+            'Si no lo encuentras, toca «Elegir en el mapa» y marca el punto con el dedo.'], accion: '#gBuscarDestino', practicaMapa: true },
         confirmar_destino: { titulo: 'Confirma el destino', tips: ['Mira el punto en el mapa.', 'Si es el lugar correcto toca «Sí, continuar»; si no, «Cambiar destino».'], accion: '#gSiDestino' },
         origen: { titulo: 'Ahora, desde dónde sales', tips: ['Toca «Usar mi ubicación actual» si ya estás donde empiezas.', 'O toca «Escribir una dirección», o «Elegir en el mapa».',
             '«Volver al destino» te deja corregir el lugar al que vas.'], accion: '#gUsarGps' },
@@ -286,7 +285,7 @@
             const b = document.createElement('button'); b.type = 'button'; b.className = 'tema-chip'; b.dataset.tema = String(i);
             b.textContent = t.t;
             b.onclick = () => {
-                if (t.escena === null) { $('ayudaTitulo').textContent = t.titulo; llenarLista(t.tips); accionPendiente = t.accion || null; demoPendiente = null; $('ayudaDemo').hidden = true; return; }
+                if (t.escena === null) { $('ayudaTitulo').textContent = t.titulo; llenarLista(t.tips); accionPendiente = t.accion || null; demoPendiente = null; $('ayudaDemo').hidden = true; $('ayudaMapa').hidden = true; return; }
                 cerrarAyuda({ devolver: false }); setTimeout(() => abrirLeccion(t), 200);
             };
             cont.append(b);
@@ -311,6 +310,7 @@
         accionPendiente = typeof a.accion === 'function' ? a.accion() : a.accion;
         demoPendiente = a.demo ? TEMAS[a.demo.tema] : null;      // (la ayuda del flujo guiado no ofrece la demostración del flujo avanzado)
         $('ayudaDemo').hidden = !demoPendiente;
+        $('ayudaMapa').hidden = !a.practicaMapa;
         if (demoPendiente) $('ayudaDemo').textContent = a.demo.texto;
         montarTemas();
         const det = ayuda.querySelector('.ayuda-temas'); if (det) det.open = false;
@@ -331,6 +331,68 @@
     async function cerrarMenu() { if (!menuAbierto()) return; const c = $('closeMenu'); if (c) c.click(); for (let i = 0; i < 20 && menuAbierto(); i++) await sleep(50); await sleep(reducido() ? 0 : 380); }
     $('menuBienvenida').addEventListener('click', async () => { await cerrarMenu(); abrirBienvenida(); });
     $('menuPractica').addEventListener('click', async () => { await cerrarMenu(); practica(); });
+
+    // ------------------------------------------------------------------ práctica breve: «No encontramos esa dirección» → «Elegir en el mapa»
+    // Es una pantalla de EJEMPLO dibujada aquí (botones con el mismo nombre y aspecto que los del flujo real). No usa el buscador, ni Google, ni el selector del mapa, ni A/B, la cuenta,
+    // el historial o un viaje: no publica ninguna dirección y no guarda nada. Se abre ENCIMA de la ayuda o la lección (pila de ventanas); al salir, el foco vuelve a quien la abrió.
+    const pm = { el: null, paso: 1, punto: null };
+    const PM_TEXTOS = {
+        1: ['Paso 1 de 3', 'Toca Elegir en el mapa'], 2: ['Paso 2 de 3', 'Marca el punto'], 3: ['Paso 3 de 3', 'Confírmalo'], 4: ['Listo', 'Así puedes elegir el destino cuando no aparece en la lista'],
+    };
+    function construirPracticaMapa() {
+        if (pm.el) return pm.el;
+        const f = document.createElement('div'); f.id = 'practicaMapa'; f.className = 'modal-backdrop'; f.hidden = true;
+        f.innerHTML = '<div class="modal-card pm-card" role="dialog" aria-modal="true" aria-labelledby="pmTitulo">'
+            + '<p class="pm-sello">Práctica</p><p id="pmPaso" class="pm-paso"></p><h2 id="pmTitulo">Cuando no aparece la dirección</h2>'
+            + '<div class="pm-pantalla" role="group" aria-label="Pantalla de ejemplo: no se guarda nada">'
+            + '<p class="pm-etiqueta">Ejemplo de destino</p><div class="pm-campo" id="pmCampo">Calle 99 # 99-99, Villavicencio</div>'
+            + '<p id="pmNoHay" class="pm-error" role="status">No encontramos esa dirección</p>'
+            + '<div id="pmAcciones" class="pm-acciones"><button type="button" class="guiado-boton secundario" id="pmElegir">Elegir en el mapa</button></div>'
+            + '<button type="button" id="pmMapa" class="pm-mapa" hidden aria-label="Mapa de práctica. Toca el lugar para marcar el punto, o pulsa Enter para marcar el centro.">'
+            + '<svg viewBox="0 0 300 150" aria-hidden="true" focusable="false"><rect width="300" height="150" rx="14" class="pm-fondo"/><path class="pm-calle" d="M-5 100 305 66M70-5 96 155M200-5 184 155"/><rect class="pm-manzana" x="110" y="22" width="60" height="26" rx="6"/><rect class="pm-manzana" x="212" y="104" width="64" height="28" rx="6"/>'
+            + '<g id="pmPin" hidden><path d="M0 0S-9-10-9-17a9 9 0 0 1 18 0C9-10 0 0 0 0z" fill="#176650" stroke="#fff" stroke-width="2"/><circle cy="-17" r="3.4" fill="#fff"/></g></svg></button>'
+            + '<div id="pmConfirma" class="pm-acciones" hidden><button type="button" class="guiado-boton primario" id="pmSi">Sí, continuar</button></div>'
+            + '<p id="pmHecho" class="pm-hecho" role="status" hidden></p></div>'
+            + '<p id="pmInstruccion" class="pm-instruccion" aria-live="polite"></p>'
+            + '<div class="pm-botones"><button id="pmAtras" class="secondary" type="button">Atrás</button><button id="pmOtra" class="secondary" type="button" hidden>Repetir la práctica</button><button id="pmListo" class="primary-plan-button" type="button" hidden>Entendido</button></div>'
+            + '<button id="pmOmitir" class="text-button" type="button">Omitir</button></div>';
+        document.body.appendChild(f); pm.el = f;
+        const q = (id) => f.querySelector('#' + id);
+        q('pmElegir').onclick = () => irPM(2, true);
+        q('pmMapa').addEventListener('click', (e) => {
+            const r = q('pmMapa').getBoundingClientRect(), teclado = e.detail === 0 || !r.width;
+            pm.punto = teclado ? { x: 150, y: 80 } : { x: Math.max(12, Math.min(288, (e.clientX - r.left) / r.width * 300)), y: Math.max(22, Math.min(148, (e.clientY - r.top) / r.height * 150)) };
+            irPM(3, true);
+        });
+        q('pmSi').onclick = () => irPM(4, true);
+        q('pmAtras').onclick = () => irPM(pm.paso - 1, true);
+        q('pmOtra').onclick = () => { pm.punto = null; irPM(1, true); };
+        q('pmListo').onclick = () => cerrarPM(); q('pmOmitir').onclick = () => cerrarPM();
+        return f;
+    }
+    function irPM(n, mover = false) {
+        const f = pm.el; if (!f) return;
+        if (n < 1) return cerrarPM();
+        const antes = pm.punto; pm.paso = n; if (n < 3) pm.punto = null; else if (!pm.punto) pm.punto = antes;
+        const q = (id) => f.querySelector('#' + id), [sub, instr] = PM_TEXTOS[n];
+        q('pmPaso').textContent = sub; q('pmInstruccion').textContent = n === 4 ? '' : instr;
+        q('pmNoHay').hidden = n === 4; q('pmCampo').hidden = n === 4; q('pmAcciones').hidden = n > 1; q('pmMapa').hidden = n < 2 || n === 4; q('pmConfirma').hidden = n !== 3; q('pmHecho').hidden = n !== 4;
+        q('pmHecho').textContent = n === 4 ? instr : '';
+        const pin = q('pmPin');      // (un <g> de SVG no tiene la propiedad `hidden`: se usa el atributo)
+        pin.toggleAttribute('hidden', !(n === 3 && pm.punto)); if (pm.punto) pin.setAttribute('transform', 'translate(' + pm.punto.x.toFixed(1) + ' ' + pm.punto.y.toFixed(1) + ')');
+        q('pmAtras').hidden = n === 1; q('pmOtra').hidden = n !== 4; q('pmListo').hidden = n !== 4; q('pmOmitir').hidden = n === 4;
+        f.querySelectorAll('.ayuda-resalta').forEach((x) => x.classList.remove('ayuda-resalta'));
+        const objetivo = n === 1 ? q('pmElegir') : n === 2 ? q('pmMapa') : n === 3 ? q('pmSi') : q('pmListo');
+        if (n < 4) objetivo.classList.add('ayuda-resalta');      // el mismo resaltado de las ayudas, fijo mientras dure ese momento
+        if (mover) setTimeout(() => { try { objetivo.focus({ preventScroll: true }); } catch { /* nada */ } }, 30);
+    }
+    function abrirPracticaMapa() {
+        construirPracticaMapa(); pm.punto = null; irPM(1);
+        S.Modal.abrir(pm.el, { foco: () => pm.el.querySelector('#pmElegir'), retardo: 60, fondo: true, abridor: document.activeElement, cerrar: () => cerrarPM() });
+    }
+    function cerrarPM() { if (pm.el && !pm.el.hidden) S.Modal.cerrar(pm.el); }
+    $('bienPracticaMapa').onclick = abrirPracticaMapa;
+    $('ayudaMapa').onclick = abrirPracticaMapa;
 
     // ------------------------------------------------------------------ práctica guiada (8 pasos sobre el FLUJO GUIADO real)
     // Dos puntos de ejemplo con ruta registrada. Si en la ciudad no hay ruta entre ellos (o el servicio no responde), la práctica sigue con un ejemplo ilustrado.
@@ -785,7 +847,7 @@
         }
     }
 
-    window.Spevb.Guia = { abrirBienvenida, abrirAyuda, abrirLeccion, practica, estadoActual, visto, EJEMPLO, ESCENAS, TEMAS };
+    window.Spevb.Guia = { abrirPracticaMapa, abrirBienvenida, abrirAyuda, abrirLeccion, practica, estadoActual, visto, EJEMPLO, ESCENAS, TEMAS };
 
     // La primera vez, la bienvenida sale sola (no si se abrió un enlace compartido ni si ya hay un viaje en curso).
     document.addEventListener('DOMContentLoaded', () => {

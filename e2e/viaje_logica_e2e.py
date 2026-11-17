@@ -436,6 +436,341 @@ def la_proyeccion_sobre_la_ruta_da_avance_y_distancia(nav):
     s.cerrar()
 
 
+# ---------------------------------------------------------------------------------------------- Fase A: desvío del bus y «tu parada quedó atrás» (caso R006 / KIRPAS)
+# Plano local en metros (SimGps.R006): la ruta corre 5 km al este con una ondulación de ±8 m; el pasajero sube en x = 600 y baja en x = 3000 (la parada). Umbrales por defecto (CFG):
+# sale a > 150 m de la línea, vuelve a < 60 m; confirma el desvío con 3 lecturas / 15 s y se mueve; confirma el retorno con 4 lecturas / 12 s / 60 m de avance por la ruta, precisión ≤ 35 m,
+# separación ≥ 30 m frente a otros tramos y un margen mínimo de 20 m (o 1,5 × la imprecisión) por encima de la parada. Sin referencia posterior a la bajada NO se afirma que la parada quedó atrás.
+RUN_JS = """([caso, op]) => {
+    const R = SimGps.R006, N = Spevb.ViajeNucleo, o = op || {}, plan = o.plan || R.plan();
+    const xOf = (p) => (p.lng + 73.65) * R.KX;
+    // Trayecto del bus: ruta hasta `salida`, sube `alto` m al norte, avanza en paralelo hasta `retorno` y baja a la ruta; sigue hasta `hasta`.
+    const desvio = (salida, retorno, hasta, alto = 400) => R.unir(R.ruta(600, salida), R.recta([salida, 0], [salida, alto]), R.recta([salida, alto], [retorno, alto]), R.recta([retorno, alto], [retorno, R.yRuta(retorno)]), R.ruta(retorno, hasta));
+    const salida = (x = 1800, alto = 400) => [R.ruta(600, x), R.recta([x, R.yRuta(x)], [x, alto])];
+    const T = {
+        normal: () => R.ruta(600, 3000),
+        pasaDeLargo: () => R.ruta(600, 3700),
+        antes: () => desvio(1000, 1600, 3000),
+        r006: () => desvio(1800, 3600, 5000),
+        r006Corto: () => desvio(1800, 3600, 4200),
+        zona: () => desvio(1800, o.retorno || 2975, o.hasta || 3400),
+        breve: () => R.unir(R.ruta(600, 1800), R.recta([1800, 0], [1800, 158]), R.recta([1800, 158], [1800, 0]), R.ruta(1800, 3000)),
+        paralela: () => R.unir(...salida(), R.recta([1800, 400], [2400, 400]), R.recta([2400, 400], [2600, 80]), R.recta([2600, 80], [5000, 80])),
+        paralela70: () => R.unir(...salida(), R.recta([1800, 400], [2400, 400]), R.recta([2400, 400], [2600, 70]), R.recta([2600, 70], [5000, 70])),
+        cruce: () => R.unir(...salida(), R.recta([1800, 400], [3300, 400]), R.recta([3300, 400], [3300, -400]), R.recta([3300, -400], [5000, -400])),
+        bucle: () => R.unir(...salida(), R.recta([1800, 400], [3100, 400]), R.recta([3100, 400], [3100, -100]), R.recta([3100, -100], [3300, -100]), R.recta([3300, -100], [3300, 400]), R.recta([3300, 400], [5000, 400])),
+        contrario: () => R.unir(...salida(), R.recta([1800, 400], [3800, 400]), R.recta([3800, 400], [3800, R.yRuta(3800)]), R.ruta(3800, 3300), R.recta([3300, R.yRuta(3300)], [3300, 400]), R.recta([3300, 400], [5000, 400])),
+        pasaCerca: () => desvio(2700, 4300, 5000, 200),
+        dosDesvios: () => R.unir(desvio(1800, 3600, 4200), R.recta([4200, R.yRuta(4200)], [4200, 400]), R.recta([4200, 400], [4800, 400]), R.recta([4800, 400], [4800, R.yRuta(4800)]), R.ruta(4800, 5000)),
+    };
+    const tray = T[caso](), refOpts = o.refOpts || {};
+    let l = SimGps.viajeLibre(plan, tray, { sinCaminarFinal: o.sinCaminarFinal !== false, vBus: o.vBus, paradas: o.semaforo ? [{ i: tray.findIndex((q, k) => k > 60 && xOf(q) >= o.semaforo.x && Math.abs((q.lat - 4.15) * R.KY) < 20), seg: o.semaforo.seg }] : undefined, precision: o.precision, esperaSeg: 40 });
+    if (o.aislado) { const k = l.findIndex((x) => x.tipo === 'bus' && xOf(x) >= o.aislado); l[k] = { ...l[k], lat: l[k].lat - 50 / R.KY }; }
+    if (o.ruido) l = SimGps.ruido(l, o.ruido);
+    const ref = o.sinRef ? null : R.referencia(plan, refOpts);
+    const capturas = {};
+    const alLeer = (i, v) => { const inf = v.info(); if (inf.fase !== 'en_bus') return; const e = inf.desvio.estado; if (!capturas[e]) capturas[e] = { i, instruccion: inf.instruccion, distancia: inf.distancia, etaMin: inf.etaMin, estimacion: inf.estimacion, desvio: inf.desvio }; };
+    const r = SimGps.correr(plan, l, { alLeer, bajada: o.bajada }, o.cfg, ref ? [ref] : undefined);
+    const idx = (tipo) => r.eventos.findIndex((e) => e.tipo === tipo);
+    const out = { seq: SimGps.secuencia(r.eventos), eventos: r.eventos.filter((e) => !['progreso', 'descartada'].includes(e.tipo)).map((e) => ({ tipo: e.tipo, i: e.i, t: e.t, nivel: e.nivel, motivo: e.motivo, texto: e.texto, estado: e.estadoDesvio, incidente: e.incidente })),
+        traza: r.traza, n: l.length, estadoFinal: r.info.desvio.estado, infoFinal: r.info.desvio, capturas, ref: ref && { ok: ref.ok, motivo: ref.motivo, a: ref.a, b: ref.b, despues: ref.despues },
+        t: l.map((x) => x.t), x: l.map(xOf), y: l.map((x) => (x.lat - 4.15) * R.KY) };
+    const ia = idx('parada_atras');
+    if (ia >= 0 && ref && ref.ok) {
+        const lin = N.prepararLinea(ref.coords), i = r.eventos[ia].i;
+        out.avancesAtras = [i - 3, i - 2, i - 1, i].map((k) => N.proyectar(lin, l[k]).avance);
+    }
+    return out;
+}"""
+
+
+def correr_desvio(p, caso, **op):
+    return p.evaluate(RUN_JS, [caso, op])
+
+
+def sin(seq, *quitar):
+    return [x for x in seq if x not in quitar]
+
+
+@prueba
+def la_referencia_del_recorrido_se_construye_y_se_rechaza_cuando_no_corresponde(nav):
+    s, p = sesion(nav)
+    r = p.evaluate("""() => {
+        const R = SimGps.R006, N = Spevb.ViajeNucleo, plan = R.plan(), rec = R.recorrido(), tr = plan.buses[0].tramo, out = {};
+        out.normal = N.construirReferencia(tr, rec, { sentidoRuta: 'IDA', sentidoViaje: 'SENTIDO_DEL_TRAZADO' });
+        out.sinSentido = N.construirReferencia(tr, rec, {});                                       // sin dato de sentido se prueban los dos y solo cabe uno
+        // el tramo va al revés del dibujo (sentido inverso): la referencia es la ruta invertida y el bus sigue hacia donde el dibujo empieza
+        out.inverso = N.construirReferencia(tr.slice().reverse(), rec, { sentidoRuta: 'IDA', sentidoViaje: 'SENTIDO_INVERSO' });
+        out.inversoMalDicho = N.construirReferencia(tr.slice().reverse(), rec, { sentidoRuta: 'IDA', sentidoViaje: 'SENTIDO_DEL_TRAZADO' });
+        // la ruta cambió (o es otra): el tramo ya no está dentro de ella
+        out.otra = N.construirReferencia(tr.map(([x, y]) => [x, y + 60 / R.KY]), rec, { sentidoRuta: 'IDA' });
+        out.sinDatos = N.construirReferencia([], rec, {}); out.sinRecorrido = N.construirReferencia(tr, null, {}); out.corto = N.construirReferencia([tr[0], [tr[0][0] + 5 / R.KX, tr[0][1]]], rec, {});
+        // ruta circular (un cuadrado de 2 km): el tramo cruza el cierre del lazo (B antes que A) y la referencia sigue más allá, con la vuelta duplicada
+        const cuadro = [[0, 0], [500, 0], [500, 500], [0, 500], [0, 0]].flatMap(([x, y], k, a) => (k ? R.recta(a[k - 1], [x, y], 25).slice(1) : [R.local(x, y)])).map((q) => [q.lng, q.lat]);
+        const tramoCierre = cuadro.slice(70).concat(cuadro.slice(1, 15));
+        out.circular = N.construirReferencia(tramoCierre, cuadro, { sentidoRuta: 'CIRCULAR' });
+        out.circularComoIda = N.construirReferencia(tramoCierre, cuadro, { sentidoRuta: 'IDA' });
+        // calle repetida en el mismo sentido (el recorrido pasa dos veces por ella): no se elige una al azar
+        const pts = [[0, 0], [1000, 0], [1000, 300], [0, 300], [0, 0], [1000, 0], [2000, 0]];
+        const doble = pts.flatMap(([x, y], k, a) => (k ? R.recta(a[k - 1], [x, y], 25).slice(1) : [R.local(x, y)])).map((q) => [q.lng, q.lat]);
+        const ida = R.recta([200, 0], [800, 0], 25).map((q) => [q.lng, q.lat]);
+        out.repetida = N.construirReferencia(ida, doble, { sentidoRuta: 'IDA', sentidoViaje: 'SENTIDO_DEL_TRAZADO' });
+        const unica = R.recta([1200, 0], [1900, 0], 25).map((q) => [q.lng, q.lat]);
+        out.noRepetida = N.construirReferencia(unica, doble, { sentidoRuta: 'IDA', sentidoViaje: 'SENTIDO_DEL_TRAZADO' });
+        return out; }""")
+    n = r['normal']
+    assert n['ok'] and abs(n['a'] - 600) < 5 and abs(n['b'] - 3000) < 5 and n['despues'] > 1900, r['normal'] and {k: n.get(k) for k in ('ok', 'motivo', 'a', 'b', 'despues')}
+    assert r['sinSentido']['ok'] and abs(r['sinSentido']['a'] - 600) < 5, 'sin dato de sentido se prueban los dos y solo uno encaja'
+    inv = r['inverso']
+    assert inv['ok'] and inv['invertida'] and abs(inv['a'] - (inv['total'] - 3000)) < 5 and abs(inv['b'] - (inv['total'] - 600)) < 5, {k: inv.get(k) for k in ('ok', 'motivo', 'a', 'b', 'total', 'invertida')}
+    assert not r['inversoMalDicho']['ok'] and r['inversoMalDicho']['motivo'] == 'no-coincide', 'el sentido informado por el plan se respeta: un tramo al revés de lo dicho no encaja'
+    assert not r['otra']['ok'] and r['otra']['motivo'] == 'no-coincide', r['otra']
+    assert (r['sinDatos']['motivo'], r['sinRecorrido']['motivo'], r['corto']['motivo']) == ('sin-datos', 'sin-datos', 'tramo-corto'), (r['sinDatos'], r['sinRecorrido'], r['corto'])
+    c = r['circular']
+    assert c['ok'] and c['circular'] and c['b'] > c['a'] and c['despues'] > 100 and c['total'] > 3000, {k: c.get(k) for k in ('ok', 'motivo', 'a', 'b', 'total', 'circular', 'despues')}
+    assert not r['circularComoIda']['ok'], 'un tramo que cruza el cierre del lazo solo existe en una ruta circular'
+    assert not r['repetida']['ok'] and r['repetida']['motivo'] == 'ambigua', f"calle repetida en el mismo sentido: ambigua, no se elige una: {r['repetida']}"
+    assert r['noRepetida']['ok'] and r['noRepetida']['a'] > 2000, 'la parte que no se repite sí se identifica'
+    s.limpio('referencia'); s.cerrar()
+
+
+@prueba
+def sale_y_vuelve_antes_de_la_bajada_el_aviso_se_retira_y_las_alertas_son_las_normales(nav):
+    s, p = sesion(nav)
+    r = correr_desvio(p, 'antes', sinCaminarFinal=False)
+    seq = sin(r['seq'], 'desvio')
+    esperado = ['fase:caminar', 'fase:esperando', 'pregunta:subida', 'fase:en_bus', 'desvio_posible', 'desvio_confirmado', 'desvio_largo', 'desvio_fin:retomo_antes', 'alerta:cerca', 'alerta:preparate', 'alerta:ahora', 'pregunta:bajada', 'fase:caminar_final', 'fase:llegaste', 'llego']
+    assert seq == esperado, seq
+    assert 'parada_atras' not in seq and 'se_paso' not in seq, seq
+    pos, conf = r['capturas']['posible'], r['capturas']['confirmado']
+    assert 'apartado de la ruta' in pos['instruccion'] and 'Todo va bien' not in pos['instruccion'], pos
+    assert 'se desvió de la ruta habitual' in conf['instruccion'] and 'Te aviso si retoma la ruta y ya pasó tu bajada' in conf['instruccion'], conf
+    assert r['estadoFinal'] == 'normal' and r['traza'].count('confirmado') > 20, 'el desvío duró un buen rato y terminó'
+    # durante el desvío no hay alertas de bajada: las normales salen después, con la ruta recuperada
+    i_fin = next(e['i'] for e in r['eventos'] if e['tipo'] == 'desvio_fin')
+    assert all(e['i'] > i_fin for e in r['eventos'] if e['tipo'] == 'alerta'), r['eventos']
+    s.limpio('antes'); s.cerrar()
+
+
+@prueba
+def r006_sale_por_la_calle_en_obras_y_retoma_la_ruta_despues_de_la_bajada(nav):
+    s, p = sesion(nav)
+    r = correr_desvio(p, 'r006')
+    assert r['ref']['ok'], r['ref']
+    seq = sin(r['seq'], 'desvio')
+    assert seq == ['fase:caminar', 'fase:esperando', 'pregunta:subida', 'fase:en_bus', 'desvio_posible', 'desvio_confirmado', 'desvio_largo', 'parada_atras'], seq
+    assert r['seq'].count('parada_atras') == 1 and 'se_paso' not in seq and 'alerta:ahora' not in seq, 'una sola alerta, y ninguna «Tu bajada está aquí» ni «te pasaste» por el mismo hecho'
+    ev = {e['tipo']: e for e in r['eventos'] if e['tipo'].startswith('desvio') or e['tipo'] == 'parada_atras'}
+    # tiempos: «posible» en cuanto se aparta; «confirmado» ≥ 15 s después con 3 lecturas fuera; «parada atrás» solo tras el retorno real (4 lecturas, ≥ 12 s)
+    assert ev['desvio_confirmado']['t'] - ev['desvio_posible']['t'] >= 15000, ev
+    assert ev['desvio_largo']['t'] - ev['desvio_posible']['t'] >= 120000, ev
+    # el dato que demuestra que la parada quedó atrás: las 4 lecturas que lo confirman están SOBRE la referencia y más allá de la bajada + margen (20 m)
+    b = r['ref']['b']
+    assert min(r['avancesAtras']) >= b + 20, f"avances {r['avancesAtras']} frente a la bajada en {b}"
+    assert r['avancesAtras'] == sorted(r['avancesAtras']), 'y avanzan en el sentido de la ruta'
+    # en el momento de la parada atrás el bus ya está de vuelta sobre la ruta (y ≈ 0), no sobre la calle paralela (y = 400)
+    i_atras = ev['parada_atras']['i']
+    assert abs(r['y'][i_atras]) < 30 and r['x'][i_atras] > 3600, (r['x'][i_atras], r['y'][i_atras])
+    assert r['estadoFinal'] == 'atras' and r['infoFinal']['paradaAtras'] and r['infoFinal']['estado'] == 'atras'
+    assert ev['parada_atras']['texto'] == 'El bus retomó la ruta después de tu bajada. Baja en la próxima parada, cuando el bus se detenga.'
+    s.limpio('r006'); s.cerrar()
+
+
+@prueba
+def mientras_hay_incertidumbre_la_tarjeta_no_dice_todo_va_bien_y_la_estimacion_es_incierta(nav):
+    s, p = sesion(nav)
+    r = correr_desvio(p, 'r006')
+    for estado in ('posible', 'confirmado', 'atras'):
+        c = r['capturas'][estado]
+        assert 'Todo va bien' not in c['instruccion'], (estado, c['instruccion'])
+        assert c['estimacion'] == 'incierta' and c['distancia'] is None and c['etaMin'] is None and c['desvio']['incierta'], (estado, c)
+    assert 'Estamos comprobando el recorrido' in r['capturas']['posible']['instruccion']
+    assert r['capturas']['confirmado']['desvio']['referencia'] == 'lista'
+    assert 'Todo va bien' in correr_desvio(p, 'normal')['capturas']['normal']['instruccion'], 'sin desvío sigue diciendo lo de siempre'
+    s.cerrar()
+
+
+@prueba
+def un_desvio_largo_ofrece_preguntar_al_conductor_y_uno_breve_no_se_confirma(nav):
+    s, p = sesion(nav)
+    r = correr_desvio(p, 'r006')
+    largo = next(e for e in r['eventos'] if e['tipo'] == 'desvio_largo')
+    assert largo['texto'] == 'Pregunta al conductor si pasa por tu parada.', largo
+    b = correr_desvio(p, 'breve', vBus=10)      # se aparta apenas 158 m y vuelve enseguida: menos de 15 s «fuera»
+    assert 'desvio_confirmado' not in b['seq'] and 'desvio_largo' not in b['seq'], b['seq']
+    assert 'desvio_posible' in b['seq'] and 'desvio_fin:regreso' in b['seq'], f"una salida breve queda en «posible» y el aviso se retira solo: {b['seq']}"
+    assert b['estadoFinal'] == 'normal'
+    s.cerrar()
+
+
+@prueba
+def vuelve_dentro_de_la_zona_de_bajada_y_se_mantiene_la_alerta_ordinaria(nav):
+    s, p = sesion(nav)
+    r = correr_desvio(p, 'zona', retorno=2975, hasta=3400)
+    assert 'parada_atras' not in r['seq'], f"volvió a 25 m ANTES de la parada: no se afirma que quedó atrás: {r['seq']}"
+    assert 'desvio_fin:retomo_antes' in r['seq'] and 'alerta:ahora' in r['seq'], r['seq']
+    assert r['seq'].index('desvio_fin:retomo_antes') < r['seq'].index('alerta:ahora'), 'la alerta ordinaria sale con el recorrido ya recuperado'
+    assert 'Todo va bien' not in r['capturas']['confirmado']['instruccion']
+    # volver claramente después (a 300 m) sí es «atrás»
+    d = correr_desvio(p, 'zona', retorno=3300, hasta=3900)
+    assert 'parada_atras' in d['seq'] and 'alerta:ahora' not in d['seq'], d['seq']
+    s.limpio('zona'); s.cerrar()
+
+
+@prueba
+def sin_la_referencia_del_recorrido_el_caso_se_mantiene_sin_confirmar(nav):
+    s, p = sesion(nav)
+    r = correr_desvio(p, 'r006', sinRef=True)
+    assert 'desvio_confirmado' in r['seq'], 'el desvío mismo se detecta con el tramo'
+    assert 'parada_atras' not in r['seq'] and r['estadoFinal'] == 'confirmado', f"sin recorrido posterior a la bajada no se concluye nada: {r['seq']}"
+    assert r['infoFinal']['referencia'] == 'pendiente', r['infoFinal']
+    # volver ANTES del final del tramo sí se puede afirmar con el tramo solo
+    a = correr_desvio(p, 'antes', sinRef=True)
+    assert 'desvio_fin:retomo_antes' in a['seq'] and 'parada_atras' not in a['seq'], a['seq']
+    s.cerrar()
+
+
+@prueba
+def una_referencia_que_no_coincide_o_es_ambigua_deja_la_incertidumbre(nav):
+    s, p = sesion(nav)
+    for motivo, opciones in (('no-coincide', {'sentidoViaje': 'SENTIDO_INVERSO'}),):
+        r = p.evaluate("""([opciones]) => { const R = SimGps.R006, plan = R.plan(); const ref = R.referencia(plan, opciones);
+            const v = Spevb.ViajeNucleo.crearViaje(plan); const ok = v.ponerReferencia(0, ref); return { ok, ref: v.referencia(0), motivo: ref.motivo }; }""", [opciones])
+        assert not r['ok'] and r['ref']['estado'] == motivo and r['motivo'] == motivo, r
+    s.cerrar()
+
+
+@prueba
+def un_punto_aislado_mala_precision_via_paralela_cruce_bucle_o_sentido_contrario_no_confirman_el_retorno(nav):
+    s, p = sesion(nav)
+    casos = {
+        'paralela a 80 m': dict(caso='paralela'),
+        'paralela a 70 m con un punto aislado sobre la ruta': dict(caso='paralela70', aislado=4000),
+        'cruce perpendicular de la ruta': dict(caso='cruce'),
+        'bucle que cruza la ruta dos veces': dict(caso='bucle'),
+        'sentido contrario sobre la propia ruta': dict(caso='contrario'),
+    }
+    for nombre, op in casos.items():
+        caso = op.pop('caso')
+        r = correr_desvio(p, caso, **op)
+        assert 'desvio_confirmado' in r['seq'], (nombre, r['seq'])
+        assert 'parada_atras' not in r['seq'] and 'desvio_fin:retomo_antes' not in r['seq'] and r['estadoFinal'] == 'confirmado', (nombre, r['seq'], r['estadoFinal'])
+    # mala precisión: el mismo retorno que SÍ se confirma con precisión normal, no se confirma si la imprecisión supera el umbral configurado
+    buena = correr_desvio(p, 'r006')
+    mala = correr_desvio(p, 'r006', precision=45, cfg={'RETORNO_PRECISION_MAX': 12})
+    assert 'parada_atras' in buena['seq'], buena['seq']
+    assert 'desvio_confirmado' in mala['seq'] and 'parada_atras' not in mala['seq'] and mala['estadoFinal'] == 'confirmado', mala['seq']
+    s.limpio('falsos positivos'); s.cerrar()
+
+
+@prueba
+def gps_perdido_y_recuperado_semaforo_y_bus_lento_exigen_evidencia_nueva_y_terminan_confirmando(nav):
+    s, p = sesion(nav)
+    base = correr_desvio(p, 'r006')
+    i_atras = next(e['i'] for e in base['eventos'] if e['tipo'] == 'parada_atras')
+    # hueco de GPS de 35 s justo antes de confirmar: la racha se rompe; hacen falta lecturas NUEVAS después del hueco (≥ 4, ≥ 12 s, ≥ 60 m)
+    ini = i_atras - 6
+    con_hueco = correr_desvio(p, 'r006', ruido={'sigma': 0.01, 'semilla': 1, 'huecos': [[ini, ini + 35]]})
+    ia = next(e for e in con_hueco['eventos'] if e['tipo'] == 'parada_atras')
+    assert 'senal_recuperada' in con_hueco['seq'], con_hueco['seq']
+    primera_nueva = ini  # el índice de la primera lectura posterior al hueco en la lista con huecos
+    assert ia['t'] - con_hueco['t'][primera_nueva] >= 12000, f"la confirmación usa solo lecturas posteriores al hueco: {ia['t'] - con_hueco['t'][primera_nueva]} ms"
+    assert con_hueco['seq'].count('parada_atras') == 1
+    # semáforo de 90 s EN la zona de reincorporación (justo después de volver a la ruta): detenido no avanza, no confirma; al arrancar sí
+    sem = correr_desvio(p, 'r006', semaforo={'x': 3640, 'seg': 90})
+    ev = {e['tipo']: e for e in sem['eventos']}
+    assert 'parada_atras' in ev, sem['seq']
+    quietas = [k for k in range(len(sem['x'])) if 3630 <= sem['x'][k] <= 3660 and abs(sem['y'][k]) < 20]
+    assert ev['parada_atras']['i'] > quietas[-1] - 5, 'no confirma mientras el semáforo lo tiene detenido'
+    # bus lento (4,2 m/s ≈ 15 km/h, apenas por encima del umbral de «va en un bus»): tarda más pero confirma
+    lento = correr_desvio(p, 'r006', vBus=4.2)
+    assert 'desvio_confirmado' in lento['seq'] and 'parada_atras' in lento['seq'] and lento['seq'].count('parada_atras') == 1, lento['seq']
+    s.limpio('hueco semaforo lento'); s.cerrar()
+
+
+@prueba
+def la_alerta_urgente_sale_una_sola_vez_por_incidente_aunque_el_bus_siga_o_se_desvie_otra_vez(nav):
+    s, p = sesion(nav)
+    r = correr_desvio(p, 'dosDesvios')
+    assert r['seq'].count('parada_atras') == 1 and r['seq'].count('desvio_posible') == 1, r['seq']
+    assert r['estadoFinal'] == 'atras' and r['infoFinal']['atrasEmitido']
+    s.cerrar()
+
+
+@prueba
+def el_aviso_de_te_pasaste_de_un_viaje_normal_se_mantiene_y_no_se_toma_por_un_desvio(nav):
+    s, p = sesion(nav)
+    for sin_ref in (False, True):
+        r = correr_desvio(p, 'pasaDeLargo', sinRef=sin_ref)
+        assert 'se_paso' in r['seq'] and 'alerta:ahora' in r['seq'], (sin_ref, r['seq'])
+        assert not any(x.startswith('desvio') or x == 'parada_atras' for x in r['seq']), f"seguir por su recorrido habitual (con o sin referencia) no es un desvío: {r['seq']}"
+    # pasar cerca de la parada por una calle del desvío NO dispara «te pasaste» por distancia directa
+    c = correr_desvio(p, 'pasaCerca', sinRef=True)
+    assert 'desvio_confirmado' in c['seq'] and 'se_paso' not in c['seq'] and 'alerta:ahora' not in c['seq'], c['seq']
+    s.limpio('te pasaste'); s.cerrar()
+
+
+@prueba
+def el_estado_del_desvio_se_guarda_minimo_y_al_reanudar_espera_lecturas_nuevas(nav):
+    s, p = sesion(nav)
+    r = p.evaluate("""() => {
+        const R = SimGps.R006, N = Spevb.ViajeNucleo, plan = R.plan(), ref = R.referencia(plan), out = {};
+        const tray = R.unir(R.ruta(600, 1800), R.recta([1800, 0], [1800, 400]), R.recta([1800, 400], [3600, 400]), R.recta([3600, 400], [3600, 0]), R.ruta(3600, 5000));
+        const l = SimGps.viajeLibre(plan, tray, { sinCaminarFinal: true });
+        const v = N.crearViaje(plan); v.ponerReferencia(0, ref);
+        let iConf = -1, iAtras = -1;
+        l.forEach((x, i) => { v.procesar(x).forEach((e) => { if (e.tipo === 'pregunta' && e.id === 'subida') v.responder('subida', true); if (e.tipo === 'desvio_confirmado') iConf = i; if (e.tipo === 'parada_atras') iAtras = i; }); if (i === iConf + 25 && iConf >= 0 && !out.guardadoConfirmado) out.guardadoConfirmado = JSON.parse(JSON.stringify(v.serializar())); });
+        out.guardadoAtras = JSON.parse(JSON.stringify(v.serializar()));
+        out.claves = Object.keys(out.guardadoAtras.dv || {});
+        out.tamano = JSON.stringify(out.guardadoAtras).length;
+        // estado de una versión anterior (sin «dv»): circulación normal
+        const viejo = N.crearViaje(plan); viejo.restaurar({ fase: 'en_bus', leg: 0, alertas: { cerca: false, preparate: false, ahora: false }, avanceMax: 900, sePaso: false, velBus: 6 }); out.viejo = viejo.info().desvio.estado;
+        // reanudar un desvío CONFIRMADO: conserva el estado, pero una lectura vieja o aislada no lo cierra; hacen falta lecturas nuevas y coherentes
+        const w = N.crearViaje(plan); w.ponerReferencia(0, ref); w.restaurar(out.guardadoConfirmado);
+        out.restConf = w.info().desvio.estado;
+        const evs = []; const sobre = (x) => ({ lat: R.local(x, R.yRuta(x)).lat, lng: R.local(x, R.yRuta(x)).lng, precision: 6, t: 1800000000000 });
+        let t = 1800000000000; for (let k = 0; k < 3; k++) { t += 1000; const q = sobre(3700 + k * 7); q.t = t; w.procesar(q).forEach((e) => evs.push(e.tipo)); }
+        out.tras3 = { estado: w.info().desvio.estado, eventos: evs.filter((e) => e !== 'progreso') };
+        // reanudar con la parada atrás: sigue «atrás» y NO repite la alerta urgente
+        const z = N.crearViaje(plan); z.ponerReferencia(0, ref); z.restaurar(out.guardadoAtras);
+        out.restAtras = z.info().desvio; const ev2 = []; t = 1800000100000; for (let k = 0; k < 8; k++) { t += 1000; const q = sobre(4200 + k * 7); q.t = t; z.procesar(q).forEach((e) => ev2.push(e.tipo)); }
+        out.repiteAlerta = ev2.includes('parada_atras');
+        return out; }""")
+    assert r['guardadoConfirmado']['dv']['estado'] == 'confirmado' and r['guardadoAtras']['dv']['estado'] == 'atras', r
+    assert set(r['claves']) <= {'estado', 'incidente', 'atrasEmitido', 'largo', 'sigo', 'ult'} and r['tamano'] < 400, f"solo el estado mínimo: {r['claves']} ({r['tamano']} bytes)"
+    assert r['viejo'] == 'normal', 'un estado guardado por una versión anterior se acepta'
+    assert r['restConf'] == 'confirmado' and r['tras3']['estado'] == 'confirmado' and 'parada_atras' not in r['tras3']['eventos'], f"una racha incompleta tras reanudar no concluye nada: {r['tras3']}"
+    assert r['restAtras']['estado'] == 'atras' and r['restAtras']['atrasEmitido'] and not r['repiteAlerta'], r
+    s.cerrar()
+
+
+@prueba
+def ya_me_baje_con_el_bus_desviado_entrega_la_posicion_real_y_el_siguiente_bus_reinicia_el_desvio(nav):
+    s, p = sesion(nav)
+    r = p.evaluate("""() => {
+        const R = SimGps.R006, N = Spevb.ViajeNucleo, plan = R.plan();
+        const t2 = R.tramo(3400, 4800), ll = (c) => ({ lat: c[1], lng: c[0] });
+        plan.buses.push({ codigo: 'R007', etiqueta: 'R007', nombre: 'Segunda', color: '#1e5fbf', subida: ll(t2[0]), bajada: ll(t2[t2.length - 1]), tramo: t2 });
+        plan.destino = R.local(5100, 100);
+        const ref = R.referencia(plan);
+        const tray = R.unir(R.ruta(600, 1800), R.recta([1800, 0], [1800, 400]), R.recta([1800, 400], [3600, 400]), R.recta([3600, 400], [3600, 0]), R.ruta(3600, 4200));
+        const l = SimGps.viajeLibre(plan, tray, { sinCaminarFinal: true });
+        const v = N.crearViaje(plan); v.ponerReferencia(0, ref);
+        let ultima = null; l.forEach((x) => { v.procesar(x).forEach((e) => { if (e.tipo === 'pregunta' && e.id === 'subida') v.responder('subida', true); }); ultima = x; });
+        const antes = v.info().desvio;
+        const ev = v.confirmarBajada(), f = ev.find((e) => e.tipo === 'fase');
+        const dm = N.dist({ lat: f.bajadaReal.lat, lng: f.bajadaReal.lng }, ultima);
+        return { antes, fase: f.fase, leg: f.leg, transbordo: f.transbordo, desviada: f.desviada, estadoDesvio: f.estadoDesvio, distReal: dm, despues: v.info().desvio, infoLeg: v.info().leg }; }""")
+    assert r['antes']['estado'] == 'atras', r
+    assert r['fase'] == 'caminar' and r['transbordo'] and r['leg'] == 1 and r['desviada'] and r['estadoDesvio'] == 'atras', r
+    assert r['distReal'] < 15, f"la bajada real es la última posición filtrada: {r['distReal']} m"
+    assert r['despues']['estado'] == 'normal' and r['despues']['incidente'] == 0, 'cambiar de bus reinicia el desvío'
+    # y una bajada normal NO marca «desviada» (las caminatas del plan siguen siendo las de siempre)
+    n = p.evaluate("""() => { const R = SimGps.R006, N = Spevb.ViajeNucleo, plan = R.plan(), v = N.crearViaje(plan); v.ponerReferencia(0, R.referencia(plan));
+        const l = SimGps.viajeLibre(plan, R.ruta(600, 3000), { sinCaminarFinal: true }); l.forEach((x) => v.procesar(x).forEach((e) => { if (e.tipo === 'pregunta' && e.id === 'subida') v.responder('subida', true); })); const f = v.confirmarBajada().find((e) => e.tipo === 'fase'); return { desviada: f.desviada, bajadaReal: f.bajadaReal }; }""")
+    assert n['desviada'] is None and n['bajadaReal'] is None, n
+    s.cerrar()
+
+
 def correr(filtro=None):
     fallos = []
     with sync_playwright() as p:

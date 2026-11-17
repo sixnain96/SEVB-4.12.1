@@ -43,6 +43,9 @@ services:
       LIMITE_SOLICITUDES: ${LIMITE_SOLICITUDES:-true}
       ADMIN_CORREOS: ${ADMIN_CORREOS:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      DIRECCION_OFICIAL: ${DIRECCION_OFICIAL:-}
+      SOPORTE_CORREO: ${SOPORTE_CORREO:-}
+      CUENTA_VINCULO_ANTERIOR: ${CUENTA_VINCULO_ANTERIOR:-false}
       GOOGLE_JWKS_URL: ${GOOGLE_JWKS_URL:-https://www.googleapis.com/oauth2/v3/certs}
       GEOCODER_URL: ${GEOCODER_URL:-https://nominatim.openstreetmap.org/search}
       GEOCODER_REVERSE_URL: ${GEOCODER_REVERSE_URL:-https://nominatim.openstreetmap.org/reverse}

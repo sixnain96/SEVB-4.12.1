@@ -231,8 +231,9 @@ def ningun_campo_de_texto_baja_de_16_px_en_el_celular(nav):
 def ventanas_y_menu_con_teclado_estilo_iphone_sus_campos_quedan_sobre_el_teclado(nav):
     probados = []
     for nombre, w, h, kb in (('iPhone SE 320x568', 320, 568, 260), ('iPhone 13 390x844', 390, 844, 336), ('iPhone 14 Pro Max 430x932', 430, 932, 346)):
-        for abrir_js, campo in (("document.getElementById('authModal').hidden = false", 'authPass'), ("document.getElementById('authModal').hidden = false", 'authName'),
-                                ("document.getElementById('reportModal').hidden = false", 'reportContact'), ("document.getElementById('settingsModal').hidden = false", 'setDel')):
+        # Fase B: el diálogo de cuenta ya no tiene campos de texto (solo el botón oficial de Google): el teclado se prueba en el reporte y en «Guardar viaje».
+        for abrir_js, campo in (("document.getElementById('reportModal').hidden = false", 'reportContact'), ("document.getElementById('reportModal').hidden = false", 'reportMessage'),
+                                ("document.getElementById('nameModal').hidden = false", 'nameInput')):
             s, p = abrir(nav, w, h, ios=True)
             p.evaluate(abrir_js)
             p.wait_for_timeout(200)

@@ -1,0 +1,25 @@
+{
+  "rachas": [
+    {"nombre": "sin viajes", "dias": [], "hoy": "2026-03-10", "actual": 0, "mejor": 0, "estricta": 0},
+    {"nombre": "lunes y miercoles continuan (un dia de gracia)", "dias": ["2026-03-02", "2026-03-04"], "hoy": "2026-03-04", "actual": 2, "mejor": 2, "estricta": 1},
+    {"nombre": "lunes con martes y miercoles vacios: el jueves vale 0", "dias": ["2026-03-02"], "hoy": "2026-03-05", "actual": 0, "mejor": 1, "estricta": 1},
+    {"nombre": "el miercoles aun se puede continuar", "dias": ["2026-03-02"], "hoy": "2026-03-04", "actual": 1, "mejor": 1, "estricta": 1},
+    {"nombre": "el primer viaje del jueves vale 1", "dias": ["2026-03-02", "2026-03-05"], "hoy": "2026-03-05", "actual": 1, "mejor": 1, "estricta": 1},
+    {"nombre": "cambio de mes", "dias": ["2026-01-30", "2026-01-31", "2026-02-01", "2026-02-02"], "hoy": "2026-02-02", "actual": 4, "mejor": 4, "estricta": 4},
+    {"nombre": "cambio de anio", "dias": ["2025-12-31", "2026-01-01"], "hoy": "2026-01-01", "actual": 2, "mejor": 2, "estricta": 2},
+    {"nombre": "anio bisiesto", "dias": ["2028-02-28", "2028-02-29", "2028-03-01"], "hoy": "2028-03-01", "actual": 3, "mejor": 3, "estricta": 3},
+    {"nombre": "varios viajes el mismo dia cuentan una vez", "dias": ["2026-03-02", "2026-03-02", "2026-03-02", "2026-03-03"], "hoy": "2026-03-03", "actual": 2, "mejor": 2, "estricta": 2},
+    {"nombre": "fuera de orden", "dias": ["2026-03-04", "2026-03-02", "2026-03-03"], "hoy": "2026-03-04", "actual": 3, "mejor": 3, "estricta": 3},
+    {"nombre": "dias alternos suman con la gracia pero no son estrictos", "dias": ["2026-03-01", "2026-03-03", "2026-03-05", "2026-03-07"], "hoy": "2026-03-07", "actual": 4, "mejor": 4, "estricta": 1},
+    {"nombre": "se conserva la mejor racha tras cortarse", "dias": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07", "2026-02-01"], "hoy": "2026-02-01", "actual": 1, "mejor": 7, "estricta": 7},
+    {"nombre": "solo ayer", "dias": ["2026-03-09"], "hoy": "2026-03-10", "actual": 1, "mejor": 1, "estricta": 1},
+    {"nombre": "dos dias de gracia seguidos cortan", "dias": ["2026-03-01", "2026-03-02", "2026-03-05", "2026-03-06"], "hoy": "2026-03-06", "actual": 2, "mejor": 2, "estricta": 2}
+  ],
+  "dias": [
+    {"ms": 1772513999000, "dia": "2026-03-02", "hora": 23},
+    {"ms": 1772514000000, "dia": "2026-03-03", "hora": 0},
+    {"ms": 1767243599000, "dia": "2025-12-31", "hora": 23},
+    {"ms": 1767243600000, "dia": "2026-01-01", "hora": 0},
+    {"ms": 1772701200000, "dia": "2026-03-05", "hora": 4}
+  ]
+}

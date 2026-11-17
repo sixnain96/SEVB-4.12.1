@@ -21,15 +21,11 @@ class CuentaSeguridadTest {
     }
 
     @Test
-    void validaCorreoYClave() {
+    void validaElCorreo() {
         assertEquals("ana@ejemplo.com", CuentaService.normalizarCorreo("  Ana@Ejemplo.COM "));
         for (String malo : new String[]{"", "ana", "ana@", "@x.com", "a b@x.com", "ana@x"}) {
             assertThrows(IllegalArgumentException.class, () -> CuentaService.normalizarCorreo(malo), malo);
         }
-        assertThrows(IllegalArgumentException.class, () -> CuentaService.validarClave("corta"));
-        assertThrows(IllegalArgumentException.class, () -> CuentaService.validarClave("12345678"), "solo números");
-        assertThrows(IllegalArgumentException.class, () -> CuentaService.validarClave("a".repeat(129)));
-        assertDoesNotThrow(() -> CuentaService.validarClave("clave-segura-1"));
     }
 
     @Test

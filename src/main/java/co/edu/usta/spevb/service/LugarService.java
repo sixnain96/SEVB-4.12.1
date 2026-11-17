@@ -235,10 +235,14 @@ public class LugarService {
             if (r.ok()) {
                 List<SugerenciaResponse> utiles = new ArrayList<>();
                 for (var g : r.valor == null ? List.<GoogleDireccionesService.Sugerencia>of() : r.valor)
-                    if (sugerenciaUtilizable(query, g.texto()))
+                    if (sugerenciaUtilizable(paraFiltro(query), g.texto()))
                         utiles.add(new SugerenciaResponse(g.texto(), g.secundario() != null && !g.secundario().isBlank() ? g.secundario() : GoogleDireccionesService.FUENTE,
                                 GoogleDireccionesService.PREFIJO + g.lugarId(), null, null, null, GoogleDireccionesService.FUENTE, null, g.principal(), g.secundario()));
-                if (!utiles.isEmpty()) return new ResultadoSugerencias(List.copyOf(utiles.subList(0, Math.min(MAX_SUGERENCIAS, utiles.size()))), EstadoBusqueda.OK, GOOGLE, List.copyOf(intentos));
+                if (!utiles.isEmpty()) {
+                    if (GoogleDireccionesService.pareceDireccion(query))      // «Calle 3» antes que «Calle 30»; el resto conserva el orden de relevancia de Google
+                        utiles.sort(java.util.Comparator.comparing((SugerenciaResponse x) -> !DireccionesHibridasService.coincidenciaExacta(paraFiltro(query), x.texto())));
+                    return new ResultadoSugerencias(List.copyOf(utiles.subList(0, Math.min(MAX_SUGERENCIAS, utiles.size()))), EstadoBusqueda.OK, GOOGLE, List.copyOf(intentos));
+                }
                 marcar(intentos, GOOGLE, EstadoBusqueda.SIN_COINCIDENCIAS);
             }
         } else if (soloGoogle) {
@@ -273,6 +277,16 @@ public class LugarService {
      * ¿Una predicción es utilizable para esta consulta? No vacía; no es solo la ciudad cuando se buscó algo concreto; y si se escribió una dirección
      * con vía y números, conserva el tipo de vía y los primeros números (la placa completa se verifica al pedir las coordenadas).
      */
+    /**
+     * La consulta como la entiende el filtro: normalizada (nomenclatura colombiana) y con un espacio final si el fragmento anterior quedó CERRADO (la persona dejó un espacio o escribió «número»/«#»),
+     * porque eso distingue «Calle 3» (se sigue escribiendo: prefijo) de «Calle 30 » (número completo).
+     */
+    String paraFiltro(String query) {
+        String n = cityArea.normalizeAddress(query);
+        boolean cerrado = !query.isEmpty() && Character.isWhitespace(query.charAt(query.length() - 1)) || n.endsWith("#");
+        return cerrado ? n + " " : n;
+    }
+
     boolean sugerenciaUtilizable(String consulta, String texto) {
         if (texto == null || texto.isBlank()) return false;
         if (DireccionesHibridasService.esSoloCiudad(texto) && DireccionesHibridasService.busquedaEspecifica(consulta)) return false;
@@ -321,6 +335,13 @@ public class LugarService {
                 ? consultar(GOOGLE, cortaGoogle, timeoutProveedorExplicitaMs, fin, true,
                         () -> google.resolver(magicKey.substring(GoogleDireccionesService.PREFIJO.length()), query, sesion), intentos)
                 : consultar(ARCGIS, cortaArcgis, timeoutProveedorExplicitaMs, fin, true, () -> hibrido.buscarArcgisResultado(query, magicKey), intentos);
+        if (r.ok() && esGoogle && r.valor != null && !r.valor.lugares().isEmpty()
+                && !magicKey.substring(GoogleDireccionesService.PREFIJO.length()).equals(r.valor.lugares().get(0).googleId())) {
+            // Defensa en profundidad: el lugar que llegó no lleva el identificador de la opción elegida.
+            marcar(intentos, proveedor, EstadoBusqueda.RESPUESTA_INVALIDA);
+            avisos.add("Google devolvió un lugar distinto al que elegiste. No se cambió por otro resultado: vuelve a elegirlo o escoge otra opción.");
+            return fallida(avisos, intentos, EstadoBusqueda.RESPUESTA_INVALIDA, proveedor);
+        }
         if (r.ok() && r.valor != null && !r.valor.lugares().isEmpty())
             return new ResultadoBusqueda(List.of(r.valor.lugares().get(0)), List.of(), catastroOLocal(), arcgisActivo(), EstadoBusqueda.OK, proveedor, List.copyOf(intentos), false);
         EstadoBusqueda estado;
@@ -345,9 +366,34 @@ public class LugarService {
         String precision = l.precision() == null ? "" : l.precision();
         if (DireccionesHibridasService.esDireccionNumerada(consulta)) {
             if (precision.equals("VIA") || precision.equals("SECTOR") || precision.equals("CIUDAD")) return false;
+            var pedida = Nomenclatura.de(consulta, cityArea);
+            if (pedida.isPresent() && pedida.get().tienePlaca()) {
+                // Componentes estructurados de Google si los hay; si no, la nomenclatura de la dirección devuelta, con las mismas reglas del normalizador.
+                var devuelta = Nomenclatura.de(l.nomenclatura() != null ? l.nomenclatura() : (l.direccion() == null ? l.nombre() : l.direccion()), cityArea);
+                return devuelta.isPresent() && pedida.get().igual(devuelta.get());
+            }
             return DireccionesHibridasService.direccionCoincide(consulta, l.direccion() == null ? l.nombre() : l.direccion());
         }
         return !(precision.equals("CIUDAD") && DireccionesHibridasService.busquedaEspecifica(consulta));
+    }
+
+    /** «Encontramos la carrera, pero no ese número…» si entre los resultados hay la misma vía (aunque sin la placa pedida); null si no. */
+    String avisoViaSinNumero(String consulta, List<LugarResponse> lugares) {
+        var pedida = Nomenclatura.de(consulta, cityArea);
+        if (pedida.isEmpty() || !pedida.get().tienePlaca()) return null;
+        for (var l : lugares) {
+            var d = Nomenclatura.de(l.nomenclatura() != null ? l.nomenclatura() : (l.direccion() == null ? l.nombre() : l.direccion()), cityArea);
+            if (d.isPresent() && pedida.get().mismaVia(d.get()))
+                return "Encontramos la " + pedida.get().sustantivo() + ", pero no ese número. Puedes marcar el punto en el mapa con «Elegir en el mapa».";
+        }
+        return null;
+    }
+
+    /** Si la persona escribió la vía y UNA sola cifra más («Carrera 27 35A»), qué dato falta (la placa tiene dos fragmentos). Null si no aplica. */
+    String avisoPlacaIncompleta(String consulta) {
+        String n = cityArea.normalizeAddress(consulta);
+        if (!n.matches("(?iU)^(Carrera|Calle|Avenida|Diagonal|Transversal)\\s+\\d+[A-Z]?(\\s+Bis)?(\\s+(Norte|Sur|Este|Oeste))?\\s+(#\\s*)?\\d+[A-Z]?$")) return null;
+        return "Falta un dato de la placa: escribe los dos números, por ejemplo «Carrera 27 # 35A-50».";
     }
 
     private ResultadoBusqueda buscarExplicita(String query) {
@@ -370,7 +416,12 @@ public class LugarService {
                 List<LugarResponse> utiles = r.valor.lugares().stream().filter(l -> lugarUtilizable(query, l)).toList();
                 fueraDeCiudad += r.valor.fueraDeCiudad();
                 if (!utiles.isEmpty()) { merged.addAll(utiles); proveedorFinal = GOOGLE; resuelto = true; }
-                else marcar(intentos, GOOGLE, r.valor.fueraDeCiudad() > 0 ? EstadoBusqueda.FUERA_DE_CIUDAD : EstadoBusqueda.SIN_COINCIDENCIAS);
+                else {
+                    marcar(intentos, GOOGLE, r.valor.fueraDeCiudad() > 0 ? EstadoBusqueda.FUERA_DE_CIUDAD : EstadoBusqueda.SIN_COINCIDENCIAS);
+                    String viaSola = avisoViaSinNumero(query, r.valor.lugares());
+                    if (viaSola != null) avisos.add(viaSola);      // nunca se confirma otra puerta como esa
+                    else { String falta = avisoPlacaIncompleta(query); if (falta != null) avisos.add(falta); }
+                }
             } else if (!r.ok()) {
                 externoFallo = true;
                 String aviso = avisoDe(GOOGLE, r.estado);

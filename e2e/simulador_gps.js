@@ -85,25 +85,74 @@
     }
 
     /** Ejecuta el núcleo con una lista de lecturas y responde las preguntas como diga `resp` ({subida:true|false|[false,true,...], bajada:true, demora:n lecturas}). */
-    function correr(plan, lecturas, resp = {}, cfg) {
+    function correr(plan, lecturas, resp = {}, cfg, refs) {
         const v = N().crearViaje(plan, { cfg });
-        const eventos = [], cuenta = {}; let pendiente = null;
+        const eventos = [], cuenta = {}, traza = []; let pendiente = null;
+        (refs || []).forEach((r, k) => { if (r !== undefined && r !== null) v.ponerReferencia(k, r); });      // referencia del recorrido tras la bajada (construirReferencia), por tramo
         const respuestas = { subida: [].concat(resp.subida === undefined ? true : resp.subida), bajada: [].concat(resp.bajada === undefined ? true : resp.bajada) };
         const demora = resp.demora || 0;
-        const usar = (lista) => { for (const e of lista) { eventos.push({ ...e, i: cuenta.i, info: undefined, lectura: undefined }); if (e.tipo === 'pregunta' && !resp.ignorar) pendiente = { id: e.id, en: cuenta.i + demora }; } };
+        const usar = (lista) => { for (const e of lista) { eventos.push({ ...e, i: cuenta.i, t: cuenta.t, estadoDesvio: e.info && e.info.desvio ? e.info.desvio.estado : undefined, info: undefined, lectura: undefined }); if (e.tipo === 'pregunta' && !resp.ignorar) pendiente = { id: e.id, en: cuenta.i + demora }; } };
         lecturas.forEach((l, i) => {
-            cuenta.i = i;
+            cuenta.i = i; cuenta.t = l.t;
             usar(v.procesar(l));
+            traza.push(v.info().desvio.estado);
+            if (resp.alLeer) resp.alLeer(i, v, eventos);
             if (pendiente && i >= pendiente.en) {
                 const lista = respuestas[pendiente.id]; const si = lista.length > 1 ? lista.shift() : lista[0];
                 const id = pendiente.id; pendiente = null;
                 usar(v.responder(id, si));
             }
         });
-        return { eventos, info: v.info(), v };
+        return { eventos, info: v.info(), v, traza };
     }
-    const secuencia = (eventos) => eventos.filter((e) => ['fase', 'pregunta', 'alerta', 'se_paso', 'senal_recuperada', 'pregunta_retirada', 'desvio', 'desvio_bus', 'llego'].includes(e.tipo))
-        .map((e) => (e.tipo === 'fase' ? 'fase:' + e.fase : e.tipo === 'pregunta' ? 'pregunta:' + e.id : e.tipo === 'alerta' ? 'alerta:' + e.nivel : e.tipo));
+    const secuencia = (eventos) => eventos.filter((e) => ['fase', 'pregunta', 'alerta', 'se_paso', 'senal_recuperada', 'pregunta_retirada', 'desvio', 'desvio_bus', 'desvio_posible', 'desvio_confirmado', 'desvio_largo', 'desvio_fin', 'parada_atras', 'llego'].includes(e.tipo))
+        .map((e) => (e.tipo === 'fase' ? 'fase:' + e.fase : e.tipo === 'pregunta' ? 'pregunta:' + e.id : e.tipo === 'alerta' ? 'alerta:' + e.nivel : e.tipo === 'desvio_fin' ? 'desvio_fin:' + e.motivo : e.tipo));
+
+    // ------------------------------------------------------------------ escenario R006 / KIRPAS (desvío del bus, Fase A)
+    // Plano local en metros: x al este, y al norte, con origen en (4,15 N; -73,65 O). La ruta «R006» corre 5 km hacia el este con una ondulación suave; el pasajero sube en x = 600 y baja en x = 3000.
+    const KX = 111320 * Math.cos(4.15 * Math.PI / 180), KY = 110574;
+    const local = (x, y) => ({ lat: 4.15 + y / KY, lng: -73.65 + x / KX });
+    const yRuta = (x) => 8 * Math.sin(x / 300);
+    const R006 = {
+        local, yRuta, KX, KY,
+        /** Puntos {lat,lng} sobre la ruta entre x0 y x1 (en cualquier sentido), cada `paso` m. */
+        ruta(x0, x1, paso = 25) { const out = [], dir = x1 >= x0 ? 1 : -1; for (let x = x0; dir > 0 ? x <= x1 : x >= x1; x += dir * paso) out.push(local(x, yRuta(x))); return out; },
+        /** Línea recta entre dos puntos locales [x, y] (cada `paso` m), para los desvíos. */
+        recta(a, b, paso = 25) { const n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / paso)); return Array.from({ length: n + 1 }, (_, k) => local(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n)); },
+        /** Une trayectos sin repetir el punto de empalme. */
+        unir(...tr) { const out = []; tr.forEach((t) => t.forEach((p, i) => { if (i === 0 && out.length) return; out.push(p); })); return out; },
+        /** Recorrido completo de la ruta (GeoJSON [lng, lat], el de /api/rutas/{id}). */
+        recorrido() { return R006.ruta(0, 5000).map((p) => [p.lng, p.lat]); },
+        tramo(x0 = 600, x1 = 3000) { return R006.ruta(x0, x1).map((p) => [p.lng, p.lat]); },
+        plan(op = {}) {
+            const t = R006.tramo(op.x0 || 600, op.x1 || 3000), ll = (c) => ({ lat: c[1], lng: c[0] });
+            return { origen: local((op.x0 || 600) - 120, -70), destino: local((op.x1 || 3000) + 260, 120),
+                buses: [{ codigo: 'R006', etiqueta: 'KIRPAS', nombre: 'KIRPAS', color: '#d81b60', rutaId: 6006, sentidoRuta: 'IDA', sentidoViaje: 'SENTIDO_DEL_TRAZADO', subida: ll(t[0]), bajada: ll(t[t.length - 1]), tramo: t }] };
+        },
+        /** Referencia del recorrido tras la bajada (lo que hace la interfaz con el detalle de la ruta). */
+        referencia(plan, o = {}) { return N().construirReferencia(plan.buses[0].tramo, o.recorrido || R006.recorrido(), { sentidoRuta: 'IDA', sentidoViaje: 'SENTIDO_DEL_TRAZADO', ...o }); },
+    };
+    /** Lecturas del viaje completo con un trayecto LIBRE del bus (el que se arma con R006.ruta/recta/unir): caminar → esperar → bus → parada final → caminar al destino.
+     *  op: { vBus, vCamina, esperaSeg, paradas: [{ i: índice de punto del trayecto, seg }], paradaFinalSeg, sinCaminarFinal, t0, dt, precision } */
+    function viajeLibre(plan, trayecto, op = {}) {
+        const o = { vCamina: 1.35, vBus: 7, esperaSeg: 40, paradaFinalSeg: 12, dt: 1, paradas: [], ...Object.fromEntries(Object.entries(op).filter(([, v]) => v !== undefined)) };      // un `undefined` explícito no pisa el valor por defecto (daría velocidad NaN)
+        const st = { t: op.t0 || 1700000000000 }, out = [], b = plan.buses[0];
+        if (d(plan.origen, b.subida) > 1) out.push(...recorrer([plan.origen, b.subida], () => o.vCamina, o.dt, st, 'caminar'));
+        out.push(...quieto(b.subida, o.esperaSeg, o.dt, st, 'espera'));
+        const cortes = (o.paradas || []).slice().sort((x, y) => x.i - y.i);
+        let desde = 0;
+        const perfil = (m) => Math.min(o.vBus, 0.8 + m / 4);
+        cortes.concat([{ i: trayecto.length - 1, seg: 0, fin: true }]).forEach((c) => {
+            const sub = trayecto.slice(desde, c.i + 1);
+            if (sub.length > 1) out.push(...recorrer(sub, perfil, o.dt, st, 'bus'));
+            if (c.seg) out.push(...quieto(trayecto[c.i], c.seg, o.dt, st, 'semaforo'));
+            desde = c.i;
+        });
+        out.push(...quieto(trayecto[trayecto.length - 1], o.paradaFinalSeg, o.dt, st, 'parada'));
+        if (!o.sinCaminarFinal) out.push(...recorrer([trayecto[trayecto.length - 1], { ...plan.destino }], () => o.vCamina, o.dt, st, 'camina_final'));
+        if (o.precision) out.forEach((l) => { l.precision = o.precision; });
+        return out;
+    }
 
     // ------------------------------------------------------------------ geolocalización falsa controlable (para las pruebas de interfaz)
     function instalarGeo() {
@@ -125,8 +174,12 @@
 
     /** Emite lecturas por la geolocalización falsa desde `desde`; se detiene cuando se cumple `parar` ('pregunta' | 'aviso' | 'fase:<x>' | 'alerta:<nivel>') y devuelve el índice siguiente. */
     async function alimentar(lecturas, desde, parar) {
-        const cond = () => {
+        const cond = (n) => {
             if (!parar) return false;
+            if (parar.startsWith('desvio:')) return document.getElementById('viajeCard').dataset.desvio === parar.slice(7);      // 'posible' | 'confirmado' (Fase A)
+            if (parar === 'atras') { const b = document.getElementById('viajeBajada'); return !b.hidden && b.dataset.tipo === 'atras'; }      // recuadro «Tu parada quedó atrás»
+            if (parar === 'sin-desvio') return !document.getElementById('viajeCard').dataset.desvio && document.getElementById('viajeCard').dataset.fase === 'en_bus';
+            if (parar.startsWith('indice:')) return n >= Number(parar.slice(7));
             const card = document.getElementById('viajeCard');
             if (parar === 'pregunta') return !document.getElementById('viajePregunta').hidden;
             if (parar === 'aviso') return !document.getElementById('viajeAviso').hidden;
@@ -138,11 +191,11 @@
         let i = desde;
         for (; i < lecturas.length; i++) {
             window.__geo.emitir(lecturas[i]);
-            if (cond()) { i++; break; }
+            if (cond(i)) { i++; break; }
             if (i % 20 === 0) await new Promise((r) => setTimeout(r, 0));
         }
         return i;
     }
 
-    window.SimGps = { viaje, ruido, correr, secuencia, recorrer, quieto, instalarGeo, azar, alimentar };
+    window.SimGps = { viaje, viajeLibre, R006, ruido, correr, secuencia, recorrer, quieto, instalarGeo, azar, alimentar };
 })();

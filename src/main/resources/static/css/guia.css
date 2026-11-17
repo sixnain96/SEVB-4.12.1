@@ -263,3 +263,31 @@ html[data-motion="reduce"] .ayuda-resalta, html[data-motion="reduce"] .coach-ok,
 .trip-option.walk-better > summary .opt-main small { color: #8a4a00; font-weight: 600; }
 #startTripInfo.walk-better { color: #8a4a00; font-weight: 600; }
 @media (prefers-color-scheme: dark) { .result-aviso-caminar { background: #3a2a10; color: #ffd9a8; border-left-color: #e08a1e; } }
+
+/* ===================== 4.16 · Práctica breve «No encontramos esa dirección» (pantalla de ejemplo, aislada del buscador real) ===================== */
+.pm-card { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); align-content: start; text-align: left; }
+.pm-card h2 { margin: 0; font-size: 22px; line-height: 1.2; }
+.pm-paso { margin: 0; font-size: 13px; font-weight: 700; color: #55645d; }
+.pm-botones { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.pm-botones [hidden] { display: none !important; }
+.pm-card .primary-plan-button, .pm-card .secondary { min-height: 52px; height: auto; font-size: 17px; }
+.pm-card .text-button { min-height: 48px; }
+.pm-sello { justify-self: start; margin: 0; padding: 3px 12px; border-radius: 999px; background: #ffd54a; color: #3b2a00; font-size: 13px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.pm-pantalla { display: grid; gap: 10px; padding: 12px; border: 2px dashed #8aa89d; border-radius: 16px; background: #f4f8f6; }
+.pm-pantalla [hidden] { display: none !important; }
+.pm-etiqueta { margin: 0; font-size: 13px; font-weight: 700; color: #3d4a44; }
+.pm-campo { padding: 12px 14px; border: 2px solid #c9d3d0; border-radius: 14px; background: #fff; color: #1b2430; font-size: 16px; overflow-wrap: anywhere; }
+.pm-error { margin: 0; padding: 8px 12px; border-radius: 12px; background: #fff3d6; color: #5c3b00; font-weight: 800; }
+.pm-acciones { display: grid; gap: 8px; }
+.pm-mapa { display: block; width: 100%; padding: 0; border: 3px solid #176650; border-radius: 16px; background: none; cursor: crosshair; }
+.pm-mapa svg { display: block; width: 100%; height: auto; }
+.pm-fondo { fill: #e6efe8; } .pm-calle { stroke: #fff; stroke-width: 9; fill: none; } .pm-manzana { fill: #d4e3da; }
+.pm-instruccion { margin: 0; font-size: 20px; font-weight: 800; color: #0f4a39; min-height: 1.3em; }
+.pm-hecho { margin: 0; padding: 12px; border-radius: 12px; background: #e3efe9; color: #0f4a39; font-size: 18px; font-weight: 800; }
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]) .pm-pantalla { background: #17261f; border-color: #4b6a5e; }
+    html:not([data-theme="light"]) .pm-campo { background: #101a16; color: #eef6f1; border-color: #3c574b; }
+    html:not([data-theme="light"]) .pm-etiqueta, html:not([data-theme="light"]) .pm-instruccion { color: #d7f0e4; }
+    html:not([data-theme="light"]) .pm-hecho { background: #24463a; color: #eef6f1; }
+    html:not([data-theme="light"]) .pm-error { background: #3a2c10; color: #ffe9b8; }
+}

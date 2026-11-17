@@ -76,7 +76,7 @@ class LugarServiceSoloGoogleTest {
     }
 
     @Test void elegirUnaPrediccionResuelveSuPlaceIdYNoHaceUnaSegundaBusquedaDeTexto() {
-        when(google.resolver(anyString(), any(), any())).thenReturn(new ResultadoLugares(List.of(new LugarResponse(null, "Unicentro", "Cra. 33, Villavicencio", 4.1272, -73.6203, "Google Maps", false, "LUGAR")), 0));
+        when(google.resolver(anyString(), any(), any())).thenReturn(new ResultadoLugares(List.of(new LugarResponse(null, "Unicentro", "Cra. 33, Villavicencio", 4.1272, -73.6203, "Google Maps", false, "LUGAR", "ChIJabcdefghij123")), 0));
         var r = s.buscarDetallado("Unicentro Villavicencio", "g:ChIJabcdefghij123", "sesion-abc-123");
         assertEquals(EstadoBusqueda.OK, r.estado());
         verify(google).resolver(eq("ChIJabcdefghij123"), eq("Unicentro Villavicencio"), eq("sesion-abc-123"));

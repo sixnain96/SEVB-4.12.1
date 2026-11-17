@@ -7,7 +7,7 @@
    Interfaz: Spevb.Modal.abrir(el, opciones) / .cerrar(el, { devolver }) / .atrapar(evento, ventana) / .recordarAbridor() / .devolverFoco(el) / .abierta(el) */
 (() => {
     const S = (window.Spevb = window.Spevb || {});
-    const FOCO = 'button:not([hidden]):not([disabled]), summary, a[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const FOCO = 'button:not([hidden]):not([disabled]), summary, a[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';      // iframe: el botón oficial de Google vive en uno y el teclado tiene que poder llegar a él
     const pila = [];               // ventanas abiertas, la ultima es la de arriba
     const marcados = new Set();    // elementos a los que ESTE controlador puso inert (no se toca el inert que ya tuvieran por otra razon)
 

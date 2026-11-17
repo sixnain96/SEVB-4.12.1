@@ -1,0 +1,1171 @@
+[
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [
+   "#searchDestination",
+   "#pickDestination",
+   "#planTrip«Buscar rutas»",
+   "#clearTripPoints«Limpiar A y B»",
+   "#tripDestination"
+  ],
+  "pequenos": [],
+  "faltan": [
+   "#planTrip"
+  ],
+  "cubierto_pct": 40,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← header.sheet-head«SEVBRutas de Villa»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "planificando con teclado (alto reducido)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#closeMenu«×» ← #viajePreguntaTexto«Parece que te subi»",
+   "#menuVolverViaje«Volver a mi viaje» ← #viajeCard«Espera el bus »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 26,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← div.viaje-ruta«M01 3,»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 138,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "viaje + planificador (Editar A y B)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [
+   "#tripOrigin"
+  ],
+  "cubierto_pct": 99,
+  "w": 320,
+  "h": 568,
+  "letra": "normal",
+  "estado": "viaje + planificador + teclado"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [
+   "#swapTrip",
+   "#searchDestination",
+   "#pickDestination",
+   "#planTrip«Buscar rutas»",
+   "#clearTripPoints«Limpiar A y B»",
+   "#tripDestination"
+  ],
+  "pequenos": [],
+  "faltan": [
+   "#planTrip"
+  ],
+  "cubierto_pct": 40,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← header.sheet-head«SEVBRutas de Villa»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "planificando con teclado (alto reducido)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#closeMenu«×» ← #viajePreguntaTexto«Parece que te subi»",
+   "#menuVolverViaje«Volver a mi viaje» ← #viajeNo«Todavía no»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← div.viaje-ruta«M01 3,»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 138,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "viaje + planificador (Editar A y B)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [
+   "#tripOrigin"
+  ],
+  "cubierto_pct": 99,
+  "w": 320,
+  "h": 568,
+  "letra": "enorme",
+  "estado": "viaje + planificador + teclado"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [
+   "#searchDestination",
+   "#pickDestination",
+   "#planTrip«Buscar rutas»",
+   "#clearTripPoints«Limpiar A y B»"
+  ],
+  "pequenos": [],
+  "faltan": [
+   "#planTrip"
+  ],
+  "cubierto_pct": 40,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #formAB«A »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "planificando con teclado (alto reducido)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#closeMenu«×» ← #viajePreguntaTexto«Parece que te subi»",
+   "#menuVolverViaje«Volver a mi viaje» ← #viajeCard«Espera el bus »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 23,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← div.viaje-ruta«M01 3,»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 138,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "viaje + planificador (Editar A y B)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#clearOrigin ← #viajeMinimizar",
+   "#searchOrigin ← #viajeTitulo«Vas en el bus M01»",
+   "#pickOrigin ← #viajeTitulo«Vas en el bus M01»",
+   "#useMyLocation ← #viajeTitulo«Vas en el bus M01»",
+   "#swapTrip ← div.viaje-ruta«M01 3,»",
+   "#tripOrigin ← #viajeAsa",
+   "#locateMe ← #formAB«A »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 360,
+  "h": 640,
+  "letra": "normal",
+  "estado": "viaje + planificador + teclado"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [
+   "#searchDestination",
+   "#pickDestination",
+   "#planTrip«Buscar rutas»",
+   "#clearTripPoints«Limpiar A y B»",
+   "#tripDestination"
+  ],
+  "pequenos": [],
+  "faltan": [
+   "#planTrip"
+  ],
+  "cubierto_pct": 40,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #formAB«A »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "planificando con teclado (alto reducido)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 40,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#closeMenu«×» ← #viajePreguntaTexto«Parece que te subi»",
+   "#menuVolverViaje«Volver a mi viaje» ← div.viaje-botones«Sí, me subí »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 28,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 98,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← div.viaje-ruta«M01 3,»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 138,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "viaje + planificador (Editar A y B)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#clearOrigin ← svg",
+   "#tripOrigin ← #viajeInicio",
+   "#locateMe ← svg"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 360,
+  "h": 640,
+  "letra": "enorme",
+  "estado": "viaje + planificador + teclado"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [
+   "#searchDestination",
+   "#pickDestination",
+   "#planTrip«Buscar rutas»",
+   "#clearTripPoints«Limpiar A y B»"
+  ],
+  "pequenos": [],
+  "faltan": [
+   "#planTrip"
+  ],
+  "cubierto_pct": 32,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← svg"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "planificando con teclado (alto reducido)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 32,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 32,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeAviso«Llegaste al parade»",
+   "#fitRoute ← #viajeYaSubi«Ya me subí»",
+   "#resetMap ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 99,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#closeMenu«×» ← #viajePreguntaTexto«Parece que te subi»",
+   "#menuVolverViaje«Volver a mi viaje» ← #viajeCard«Espera el bus »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 18,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeAviso«Vas en la ruta M01»",
+   "#fitRoute ← #viajeYaBaje«Ya me bajé»",
+   "#resetMap ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 46,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#fitRoute ← #viajeOcultar",
+   "#resetMap ← div.viaje-ruta«M01 3,»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 138,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "viaje + planificador (Editar A y B)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#searchOrigin ← #viajeAsa",
+   "#pickOrigin ← #viajeAsa",
+   "#useMyLocation ← #viajeMinimizar",
+   "#swapTrip ← svg",
+   "#clearDestination ← #viajeTitulo«Vas en el bus M01»",
+   "#tripDestination ← div.viaje-ruta«M01 3,»",
+   "#locateMe ← svg"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 390,
+  "h": 844,
+  "letra": "normal",
+  "estado": "viaje + planificador + teclado"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [
+   "#searchDestination",
+   "#pickDestination",
+   "#planTrip«Buscar rutas»",
+   "#clearTripPoints«Limpiar A y B»"
+  ],
+  "pequenos": [],
+  "faltan": [
+   "#planTrip"
+  ],
+  "cubierto_pct": 29,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #formAB«A »",
+   "#fitRoute ← #formAB«A »",
+   "#resetMap ← #formAB«A »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "planificando con teclado (alto reducido)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 29,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 29,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeAviso«Llegaste al parade»",
+   "#fitRoute ← #viajeYaSubi«Ya me subí»",
+   "#resetMap ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 44,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#closeMenu«×» ← #viajePreguntaTexto«Parece que te subi»",
+   "#menuVolverViaje«Volver a mi viaje» ← #viajeCard«Espera el bus »"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 16,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#locateMe ← #viajeAviso«Vas en la ruta M01»",
+   "#fitRoute ← #viajeYaBaje«Ya me bajé»",
+   "#resetMap ← #viajeTerminar«Terminar viaje»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 42,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#fitRoute ← #viajeOcultar",
+   "#resetMap ← div.viaje-ruta«M01 3,»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 138,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "viaje + planificador (Editar A y B)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#swapTrip ← svg",
+   "#clearDestination ← #viajeTitulo«Vas en el bus M01»",
+   "#tripDestination ← #viajeTitulo«Vas en el bus M01»",
+   "#locateMe ← #formAB«A »",
+   "#fitRoute ← #formAB«A »",
+   "#resetMap ← #viajeOcultar"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 100,
+  "w": 430,
+  "h": 932,
+  "letra": "normal",
+  "estado": "viaje + planificador + teclado"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 34,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 126,
+  "w": 740,
+  "h": 360,
+  "letra": "normal",
+  "estado": "viaje + planificador (Editar A y B)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "planificando"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "menú abierto (planificando)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "menú abierto, al final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "viaje activo"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "viaje + menú"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 0,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "viaje + menú, final del scroll"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [
+   "#menuVolverViaje«Volver a mi viaje» ← #viajeNo«Todavía no»"
+  ],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 51,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "viaje + menú + pregunta urgente"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 97,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "viaje (tras responder y cerrar el menú)"
+ },
+ {
+  "desborde": 0,
+  "bloqueados": [],
+  "fuera": [],
+  "pequenos": [],
+  "faltan": [],
+  "cubierto_pct": 133,
+  "w": 740,
+  "h": 360,
+  "letra": "enorme",
+  "estado": "viaje + planificador (Editar A y B)"
+ }
+]

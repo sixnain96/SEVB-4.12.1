@@ -27,8 +27,11 @@
     const INDICADOR = { destino: 0, confirmar_destino: 0, origen: 1, confirmar_origen: 1, resumen: 2, calculando: 2, recomendacion: 2, viaje: 2 };
     const MUY_CERCA_M = 60;
 
-    const leerModo = () => { try { return localStorage.getItem(CLAVE_MODO) === 'guiado' ? 'guiado' : 'avanzado'; } catch { return 'avanzado'; } };
-    const guardarModo = (m) => { try { localStorage.setItem(CLAVE_MODO, m); } catch { /* sin almacenamiento */ } };
+    // El planificador con A y B es el ÚNICO que ve la persona: el paso a paso ya no se ofrece ni se recuerda entre visitas. Solo la práctica del tutorial lo usa de forma temporal
+    // (su botón del menú queda oculto) y las pruebas pueden activarlo con la bandera de desarrollo 'spevb-guiado-habilitado' (nunca la pone la interfaz).
+    const habilitado = () => { try { return localStorage.getItem('spevb-guiado-habilitado') === '1'; } catch { return false; } };
+    const leerModo = () => { try { return habilitado() && localStorage.getItem(CLAVE_MODO) === 'guiado' ? 'guiado' : 'avanzado'; } catch { return 'avanzado'; } };
+    const guardarModo = (m) => { try { if (habilitado()) localStorage.setItem(CLAVE_MODO, m); } catch { /* sin almacenamiento */ } };
     let modo = leerModo(), paso = 'destino', escribiendoOrigen = false, montado = false, interaccion = false;
 
     const puntos = () => S.Planner.puntos();
@@ -67,6 +70,7 @@
     // Entrada APARTE en el menú lateral: «Planear paso a paso» (modo guiado) / «Usar el planificador con A y B» (el de siempre).
     const entrada = document.createElement('button');
     entrada.type = 'button'; entrada.id = 'menuPasoAPaso'; entrada.className = 'secondary menu-inicio';
+    entrada.hidden = true;      // sin entrada visible: el paso a paso ya no se ofrece (la práctica del tutorial pulsa este botón por código)
     if ($('menuInicio')) $('menuInicio').after(entrada);
     function pintarEntrada() {
         const guiado = modo === 'guiado';
@@ -137,9 +141,9 @@
     /** Resume TODO lo que cambia el contenido del paso actual: si la firma es igual, los botones actuales siguen siendo correctos. */
     function firmaVista(p) {
         const sel = S.Planner.seleccion, opts = document.querySelectorAll('#tripResults .trip-option');
-        const real = document.querySelector('#tripResults .trip-option.selected .reco-motivo');
+        const it = S.Planner.itinerario && S.Planner.itinerario(), real = it ? [it.el.querySelector('.itin-porque').textContent, it.pasos().map((x) => x.texto)] : null;
         return JSON.stringify([paso, escribiendoOrigen, !!($('useMyLocation') && $('useMyLocation').disabled), pt(p.origen), pt(p.destino), sel && sel.viaje ? [sel.codigos, sel.resumen] : null,
-            opts.length, document.body.classList.contains('g-todas'), navigator.onLine !== false, real ? real.textContent.trim() : '']);
+            opts.length, document.body.classList.contains('g-todas'), navigator.onLine !== false, real]);
     }
     function render() {
         if (modo !== 'guiado') return;
@@ -158,7 +162,9 @@
         const firma = firmaVista(p);
         if (firma === ultimaFirma && el.cuerpo.firstChild) { ocultarTodo(paso === 'viaje'); if (paso !== 'viaje') panelMedio(); return; }
         ultimaFirma = firma;
+        const activo = document.activeElement && el.cuerpo.contains(document.activeElement) ? (document.activeElement.id ? '#' + document.activeElement.id : document.activeElement.dataset.clave ? '[data-clave="' + document.activeElement.dataset.clave + '"]' : null) : null;
         el.cuerpo.replaceChildren();
+        if (activo) setTimeout(() => { const b = el.cuerpo.querySelector(activo); if (b && !el.cuerpo.contains(document.activeElement)) { try { b.focus({ preventScroll: true }); } catch { /* nada */ } } }, 0);
         const c = el.cuerpo;
         el.ayuda.hidden = false;
         ocultarTodo(paso === 'viaje');
@@ -236,7 +242,8 @@
             case 'recomendacion': {
                 const sel = S.Planner.seleccion, r = sel && sel.resumen;
                 el.titulo.textContent = 'Esta es nuestra recomendación';
-                el.ayuda.textContent = motivo(sel, r);
+                el.ayuda.textContent = motivo();
+                { const pasosRec = pasosRecomendacion(); if (pasosRec) c.append(pasosRec); }
                 if (sel) c.append(datosRecomendacion(sel, r));
                 const f = document.createElement('div'); f.className = 'guiado-botones';
                 f.append(boton('Empezar este viaje', 'primario', () => tocar('startTrip'), { id: 'gEmpezar' }));
@@ -265,13 +272,35 @@
         const b = document.createElement('b'); b.textContent = p ? p.nombre : '—'; d.append(b);
         return d;
     }
-    function motivo(sel, r) {
-        const real = document.querySelector('#tripResults .trip-option.selected .reco-motivo');
-        if (real && real.textContent.trim()) return real.textContent.trim();       // la razón real que dio el servidor
-        if (!r) return '';
-        if (r.pasajes > 1) return 'Necesitas tomar dos buses para llegar.';
-        if (r.caminaMetros != null && r.caminaMetros <= 400) return 'Es la que menos tienes que caminar.';
-        return 'Es la forma más directa de llegar.';
+    /** «Por qué la recomendamos»: la frase armada con los datos ESTRUCTURADOS del servidor (etiquetas de comparación y buses). Sin ella no se inventa un criterio. */
+    function motivo() {
+        const c = document.querySelector('#tripResults .trip-option.selected');
+        const q = c && c.dataset.porque ? c.dataset.porque.trim() : '';
+        return q ? 'Por qué la recomendamos: ' + q : '';
+    }
+    /** Los pasos de la opción seleccionada (el MISMO modelo que la tarjeta del planificador), con «Ver subida / Ver bajada» que solo centran el mapa. */
+    function pasosRecomendacion() {
+        const it = S.Planner.itinerario && S.Planner.itinerario();
+        if (!it) return null;
+        const caja = document.createElement('div'); caja.className = 'guiado-itinerario';
+        const enc = document.createElement('p'); enc.className = 'guiado-itin-titulo';
+        enc.textContent = it.modelo.titulo + ' · ' + it.modelo.detalle;
+        caja.append(enc);
+        if (it.modelo.aviso) { const a = document.createElement('p'); a.className = 'itin-aviso'; a.textContent = it.modelo.aviso; caja.append(a); return caja; }
+        const ol = document.createElement('ol'); ol.className = 'guiado-pasos-ruta';
+        it.pasos().forEach((p) => {
+            const li = document.createElement('li');
+            const t = document.createElement('span'); t.textContent = p.texto; li.append(t);
+            if (p.foco) {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'guiado-ver'; b.textContent = p.foco.etiqueta; b.dataset.clave = p.foco.clave;
+                b.setAttribute('aria-label', p.foco.etiqueta + ' en el mapa');
+                b.addEventListener('click', () => S.Planner.verPunto(p.foco.clave));      // centra el mapa: no empieza el viaje ni cambia de opción
+                li.append(b);
+            }
+            ol.append(li);
+        });
+        caja.append(ol);
+        return caja;
     }
     function datosRecomendacion(sel, r) {
         const ul = document.createElement('ul'); ul.className = 'guiado-datos';
@@ -402,6 +431,7 @@
     });
 
     // La llegada: acción opcional para planear otro trayecto.
+    window.addEventListener('spevb-itinerario', () => { if (modo === 'guiado' && paso === 'recomendacion') render(); });
     window.addEventListener('spevb-viaje-llegada', () => {
         const tarjeta = $('viajeCard'); if (!tarjeta || $('viajeOtro')) return;
         const b = document.createElement('button');

@@ -133,7 +133,7 @@ def un_recorrido_nuevo_se_ofrece_con_una_pregunta_y_nada_cambia_hasta_aceptar(na
     cuerpo = json.loads(pedidos[-1].post_data)
     assert abs(cuerpo['destino']['lat'] - plan0['destino']['lat']) < 1e-4 and abs(cuerpo['destino']['lng'] - plan0['destino']['lng']) < 1e-4, 'usa el destino GUARDADO del viaje'
     pr = p.evaluate("(() => { const q = document.getElementById('viajePregunta'); return q.hidden ? null : [q.dataset.id, document.getElementById('viajePreguntaTexto').textContent, document.getElementById('viajeSi').textContent, document.getElementById('viajeNo').textContent]; })()")
-    assert pr and pr[0] == 'recalculo' and 'recorrido nuevo' in pr[1] and pr[2] == 'Sí, cambiar' and pr[3] == 'No, seguir con el actual', pr
+    assert pr and pr[0] == 'recalculo' and 'otra forma de llegar' in pr[1] and pr[2] == 'Sí, cambiar' and pr[3] == 'No, seguir con el actual', pr
     assert estado(p)['guardado']['plan'] == plan0, 'hasta aceptar no se cambió nada'
     p.click('#viajeNo'); p.wait_for_timeout(300)
     d = estado(p)

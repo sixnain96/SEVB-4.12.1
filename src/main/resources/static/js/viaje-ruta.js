@@ -5,6 +5,9 @@
      (caminata, bus, [caminata de transbordo, bus,] caminata final), los puntos de subida/bajada y el destino. Al terminar, destruir() libera todo (capas, animación).
    · El avance de cada etapa sale de ViajeNucleo.posicionMonotona (mismo algoritmo que el núcleo): nunca retrocede por ruido y los saltos exigen confirmación. Solo recibe
      lecturas YA filtradas por el núcleo: una lectura rechazada nunca llega aquí, así que no puede recortar la ruta.
+   · El conector de desvío y la parada que quedó atrás salen del MISMO estado que cuenta la tarjeta (info.desvio del núcleo): el mapa y el texto no pueden contradecirse. El conector es solo la unión de la
+     posición con el recorrido registrado; nunca se presenta como el camino del bus. Si la parada quedó atrás, el tramo hasta ella se da por consumido, su punto se atenúa y la caminata del plan (que parte de
+     esa parada) se oculta: el mapa nunca lleva a la persona a la parada original. La caminata nueva desde la bajada real llega con caminataReal().
    · Con movimiento reducido el corte se actualiza al instante. Sin movimiento reducido el extremo pendiente se acerca a la persona en 350–800 ms (una sola animación
      para todas las etapas; actualiza las polilíneas existentes con setPath, no crea capas nuevas por cuadro). Solo hay dos polilíneas por etapa de bus (borde y color) y una por caminata. */
 (() => {
@@ -38,10 +41,10 @@
             const sig = plan.buses[i + 1];
             etapas.push(sig ? caminata(1, b.bajada, sig.subida) : caminata(2, b.bajada, plan.destino));
         });
-        etapas.forEach((e) => { e.st = { avanceMax: 0, avanceT: null, avanceSalto: null }; e.objetivo = 0; e.visual = 0; e.anim = null; e.lineas = []; e.consumida = false; });
+        etapas.forEach((e) => { e.st = { avanceMax: 0, avanceT: null, avanceSalto: null }; e.objetivo = 0; e.visual = 0; e.anim = null; e.lineas = []; e.consumida = false; e.oculta = false; });
 
         const grupo = m.group().addTo(m);
-        const puntos = [];
+        const puntos = [], puntosBajada = [];
         let conector = null, activa = 0, raf = 0, destruida = false, ultimaPos = null, desviada = false;
 
         // ---------- dibujo
@@ -51,6 +54,7 @@
         };
         function pintar(e) {
             if (destruida) return;
+            if (e.oculta) { quitarLineas(e); return; }      // etapa que no debe verse (la caminata que parte de una parada que quedó atrás)
             const pend = N.dividirLinea(e.linea, e.visual).pendiente;
             if (pend.length < 2) { quitarLineas(e); e.consumida = true; return; }
             e.consumida = false;
@@ -61,7 +65,8 @@
         etapas.forEach(pintar);
         plan.buses.forEach((b) => {
             puntos.push(m.dot([b.subida.lat, b.subida.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#176650', fillOpacity: 1, tooltip: 'Subes a la ruta ' + (b.etiqueta || b.codigo) }).addTo(grupo));
-            puntos.push(m.dot([b.bajada.lat, b.bajada.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#c62828', fillOpacity: 1, tooltip: 'Bajas de la ruta ' + (b.etiqueta || b.codigo) }).addTo(grupo));
+            const pb = m.dot([b.bajada.lat, b.bajada.lng], { radius: 7, color: '#fff', weight: 3, fillColor: '#c62828', fillOpacity: 1, tooltip: 'Bajas de la ruta ' + (b.etiqueta || b.codigo) }).addTo(grupo);
+            puntos.push(pb); puntosBajada.push(pb);
         });
         puntos.push(m.dot([plan.destino.lat, plan.destino.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#1e5fbf', fillOpacity: 1, tooltip: 'Tu destino' }).addTo(grupo));
 
@@ -163,14 +168,38 @@
             activa = etapaDe(info);
             for (let i = 0; i < Math.min(activa, etapas.length); i++) mover(etapas[i], etapas[i].linea.total, true);       // lo anterior se consume por completo
             if (activa >= etapas.length) { quitarConector(); return; }
-            const e = etapas[activa];
+            const e = etapas[activa], dv = e.tipo === 'bus' && info && info.desvio ? info.desvio : null;
+            if (dv && dv.estado === 'atras') {      // la parada quedó atrás: nada que consumir ni conector; el tramo hasta ella se da por recorrido y la caminata del plan (que sale de ella) se oculta
+                desviada = false; quitarConector(); mover(e, e.linea.total, true);
+                const pb = puntosBajada[Math.min(info.leg || 0, puntosBajada.length - 1)]; if (pb) { try { pb.setStyle({ fillColor: '#9aa5ab' }); } catch { /* sin estilo */ } }
+                const sig = etapas[activa + 1]; if (sig && sig.tipo === 'caminata' && !sig.propia) { sig.oculta = true; quitarLineas(sig); }
+                return;
+            }
+            if (e.oculta) { quitarConector(); return; }
             if (!L || !Number.isFinite(L.lat) || !Number.isFinite(L.lng)) return;
             ultimaPos = [L.lat, L.lng];
+            if (dv && (dv.estado === 'posible' || dv.estado === 'confirmado')) {      // el núcleo dice que el bus se apartó: el conector sale de ESE estado (la misma historia que la tarjeta)
+                desviada = true; ponerConector(ultimaPos, N.dividirLinea(e.linea, Math.max(e.visual, e.objetivo)).corte); return;
+            }
             const r = N.posicionMonotona(e.linea, e.st, L, e.cfg);
             if (r.enRuta) { e.st.avanceMax = Math.max(e.st.avanceMax, r.avance); mover(e, e.st.avanceMax); desviada = false; quitarConector(); return; }
-            // Fuera de la línea: lo recorrido no se restaura; si hay desvío claro se muestra el conector hacia el punto de reincorporación (el corte actual).
+            if (dv) { desviada = false; quitarConector(); return; }      // el núcleo no ve desvío (p. ej. el bus siguió después de la bajada): no hay conector que contradiga a la tarjeta
+            // Sin información del núcleo (uso directo): fuera de la línea lo recorrido no se restaura; si hay desvío claro se muestra el conector hacia el punto de reincorporación (el corte actual).
             desviada = r.dist > e.cfg.DESVIO_BUS_M;
             if (desviada && !r.saltoPendiente) ponerConector(ultimaPos, N.dividirLinea(e.linea, Math.max(e.visual, e.objetivo)).corte); else if (!desviada) quitarConector();
+        }
+        /** Caminata NUEVA desde donde la persona se bajó de verdad (la etapa de caminata que corresponde a {@code info}). estado: 'calculando' | 'error' (no se dibuja nada: ni la parada vieja ni una recta)
+         *  o 'lista' con {@code coords} (GeoJSON [lng, lat] del servicio) y los extremos reales. La geometría del plan no se toca: es la referencia para reanudar. */
+        function caminataReal(info, o) {
+            if (destruida) return false;
+            const idx = etapaDe(info), e = etapas[idx];
+            if (!e || e.tipo !== 'caminata') return false;
+            if (o && o.estado === 'lista' && Array.isArray(o.coords) && o.coords.length > 1 && o.desde && o.hasta) {
+                const coords = [geo(o.desde)].concat(o.coords, [geo(o.hasta)]);
+                e.coords = coords; e.linea = N.prepararLinea(coords); e.st = { avanceMax: 0, avanceT: null, avanceSalto: null }; e.objetivo = e.visual = 0; e.anim = null; e.oculta = false; e.propia = true;
+                quitarLineas(e); pintar(e);
+            } else { e.oculta = true; e.propia = false; e.anim = null; quitarLineas(e); }
+            return true;
         }
 
         function serializar() { return { v: 1, avances: etapas.map((e) => Math.round(Math.max(e.objetivo, e.st.avanceMax))) }; }
@@ -184,7 +213,7 @@
         }
         /** Diagnóstico para pruebas y soporte (sin coordenadas privadas más allá del recorrido del propio plan). */
         function estado() {
-            return { activa, desviada, conector: !!conector, estela: !!estela, pulso: !!pulso, animando: !!raf || etapas.some((e) => !!e.anim), raf,
+            return { activa, desviada, conector: !!conector, ocultas: etapas.map((e) => !!e.oculta), propias: etapas.map((e) => !!e.propia), estela: !!estela, pulso: !!pulso, animando: !!raf || etapas.some((e) => !!e.anim), raf,
                 etapas: etapas.map((e) => ({ tipo: e.tipo, total: Math.round(e.linea.total), objetivo: Math.round(e.objetivo), visual: Math.round(e.visual), lineas: e.lineas.length, consumida: e.consumida,
                     pendientePts: N.dividirLinea(e.linea, e.visual).pendiente.length })) };
         }
@@ -198,7 +227,7 @@
         }
 
         if (o.estado) restaurar(o.estado);
-        return { actualizar, serializar, restaurar, estado, destruir, grupo };
+        return { actualizar, caminataReal, serializar, restaurar, estado, destruir, grupo };
     }
 
     S.ViajeRuta = { crear, vivas: () => vivas };

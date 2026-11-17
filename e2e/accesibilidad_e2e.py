@@ -183,7 +183,8 @@ def admin_html_inicial_oculto_y_respuesta_lenta_no_muestra_destello(nav):
     p.wait_for_timeout(2500)                                      # respuesta lenta: mientras tanto NO se muestra ningún enlace
     assert all(enlaces_admin_ocultos(p)), 'con la respuesta pendiente los enlaces siguen ocultos: ' + str(enlaces_admin_ocultos(p))
     retenidas[0].fulfill(status=200, content_type='application/json', body=json.dumps({'adminConfigurado': False}))
-    B.esperar(p, "[...document.querySelectorAll('.admin-only')].every((e) => !e.hidden)", 5000)   # compatibilidad histórica: sin administradores se ven
+    p.wait_for_timeout(800)
+    assert all(enlaces_admin_ocultos(p)), 'aunque no haya administradores configurados, solo una sesión de administrador verificada ve los enlaces'
     s.cerrar()
 
 

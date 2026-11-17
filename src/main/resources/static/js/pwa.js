@@ -7,23 +7,4 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
     });
 }
 
-// Botón «Instalar la aplicación» (menú). Android/Chrome/Edge usan el aviso del navegador; en iPhone se explica cómo hacerlo en Safari.
-(() => {
-    const boton = document.getElementById('installApp');
-    const ayuda = document.getElementById('installHint');
-    if (!boton) return;
-    const instalada = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-    if (instalada) return;
-    let evento = null;
-    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); evento = e; boton.hidden = false; });
-    window.addEventListener('appinstalled', () => { boton.hidden = true; if (ayuda) ayuda.hidden = true; });
-    boton.addEventListener('click', async () => {
-        if (!evento) return;
-        evento.prompt();
-        try { await evento.userChoice; } catch { /* nada */ }
-        evento = null;
-        boton.hidden = true;
-    });
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (ios && ayuda) ayuda.hidden = false;
-})();
+// La instalación (botón «Instalar ahora» y el paso a paso por navegador) vive en instalar.js, dentro del menú ☰ → «Instalar en tu celular».

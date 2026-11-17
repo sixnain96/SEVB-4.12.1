@@ -43,6 +43,7 @@ POST /api/cuenta/entrar
 POST /api/cuenta/google
 POST /api/cuenta/registro
 POST /api/cuenta/salir
+POST /api/cuenta/vinculo-anterior
 POST /api/editor/direcciones/corregir
 POST /api/editor/direcciones/importar-catastro
 POST /api/editor/direcciones/importar-osm

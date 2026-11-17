@@ -41,6 +41,8 @@
     }
     const leerCache = () => { try { return JSON.parse(localStorage.getItem(CLAVE_CACHE)); } catch { return null; } };
     const guardarCache = (c) => { try { localStorage.setItem(CLAVE_CACHE, JSON.stringify(c)); } catch { /* sin almacenamiento */ } };
+    /** Experimentos de carga SOLO para medir con una clave real (apagados por defecto): localStorage 'spevb-mapa-exp' = 'map_ids,preconnect'. Ver docs/RENDIMIENTO-MAPA.md. */
+    const experimento = (n) => { try { return (localStorage.getItem('spevb-mapa-exp') || '').split(',').map((x) => x.trim()).includes(n); } catch { return false; } };
     const depurando = () => { try { return /(^|[?&])mapa-debug=1/.test(location.search) || localStorage.getItem('spevb-mapa-debug') === '1'; } catch { return false; } };
 
     // ------------------------------------------------------------ errores clasificados
@@ -71,8 +73,10 @@
     async function cargarConfig() {
         const control = new AbortController();
         const t = setTimeout(() => control.abort(), 6000);
+        marca('sevb-config-inicio');      // diagnóstico local (no cambia ninguna señal existente)
         try {
             const r = await fetch('/api/config/mapa', { signal: control.signal, headers: { Accept: 'application/json' } });
+            marca('sevb-config-respuesta');
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const c = await r.json();
             if (!c || (c.proveedor !== 'leaflet' && c.proveedor !== 'google')) throw new Error('configuración inválida');
@@ -90,6 +94,7 @@
         config: null,
         proveedor: null,
         depurando,
+        experimento,
         cargarScript,
         marca,
         cargarCss,
@@ -104,6 +109,10 @@
                     Mapa.proveedor = config.proveedor;
                     document.documentElement.dataset.mapa = config.proveedor;           // para el CSS propio de cada proveedor
                     marca('sevb-config-lista');
+                    // Experimento (apagado por defecto): abrir la conexión con el origen del SDK mientras se descarga el adaptador. Solo con el proveedor Google, nunca en Leaflet.
+                    if (config.proveedor === 'google' && experimento('preconnect') && !document.querySelector('link[data-mapa-preconnect]')) {
+                        const l = document.createElement('link'); l.rel = 'preconnect'; l.href = 'https://maps.googleapis.com'; l.dataset.mapaPreconnect = '1'; document.head.append(l);
+                    }
                     await cargarScript(RAIZ + 'adaptador-' + config.proveedor + '.js');
                     marca('sevb-adaptador-listo');
                     if (!adaptadores[config.proveedor]) throw errorMapa('desconocido', 'adaptador no registrado');

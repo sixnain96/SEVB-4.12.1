@@ -87,7 +87,7 @@ class LugarServiceGoogleTest {
         when(google.activo()).thenReturn(true);
         when(hibrido.arcgisActivo()).thenReturn(true);
         when(google.resolver("ChIJabcdefghij123", "Unicentro", null)).thenReturn(new ResultadoLugares(List.of(
-                new LugarResponse(null, "Unicentro", "Cra. 33 #38-10", 4.1272, -73.6203, "Google Maps", false, "LUGAR")), 0));
+                new LugarResponse(null, "Unicentro", "Cra. 33 #38-10", 4.1272, -73.6203, "Google Maps", false, "LUGAR", "ChIJabcdefghij123")), 0));
         var r = servicio.buscarDetallado("Unicentro", "g:ChIJabcdefghij123");
         assertEquals(1, r.lugares().size());
         assertEquals("Google Maps", r.lugares().get(0).fuente());
@@ -102,7 +102,7 @@ class LugarServiceGoogleTest {
                 new LugarResponse(null, "Colegio Adventista", "x", 4.1, -73.6, "Catastro", false, "LUGAR"),
                 new LugarResponse(null, "Antonio Villavicencio", "x", 4.2, -73.6, "Catastro", false, "LUGAR")));
         when(google.resolver("ChIJabcdefghij123", "Aeropuerto Vanguardia", null)).thenReturn(new ResultadoLugares(List.of(
-                new LugarResponse(null, "Aeropuerto Vanguardia", "Villavicencio", 4.1644, -73.6184, "Google Maps", false, "LUGAR")), 0));
+                new LugarResponse(null, "Aeropuerto Vanguardia", "Villavicencio", 4.1644, -73.6184, "Google Maps", false, "LUGAR", "ChIJabcdefghij123")), 0));
         var r = servicio.buscarDetallado("Aeropuerto Vanguardia", "g:ChIJabcdefghij123");
         assertEquals(1, r.lugares().size(), "sin un segundo menú de coincidencias");
         assertEquals("Aeropuerto Vanguardia", r.lugares().get(0).nombre());

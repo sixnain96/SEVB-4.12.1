@@ -171,3 +171,6 @@ El modo viaje no depende del proveedor del mapa: `viaje-nucleo.js` no conoce nin
 - **Cierre único:** `Spevb.Viaje.detener()` (= `finalizar`). Lo usan «Terminar viaje», «Cerrar» de la llegada, «Volver al inicio» y el diálogo del guardián. `cerrarLlegada()` solo actúa si ya llegó (lo usa «Planear otro trayecto»).
 - **Pestañas:** `localStorage['spevb-viaje-bloqueo']` = `{tab, id, estado, t}` (latido 5 s, vida 20 s); la identidad de la pestaña vive en `sessionStorage` (sobrevive a recargar). `BroadcastChannel('spevb-viaje')` lleva `enfocar` y `terminar`. Sin servidor y sin sesión.
 - **Diagnóstico:** `Spevb.Viaje.diagnostico()` (ciclo, id, sesiones creadas/liberadas, GPS, temporizadores, capa, ruta, Wake Lock, latido, bloqueo) y `Spevb.ViajeRuta.vivas()`.
+
+## Desvío del bus y «Tu parada quedó atrás» (Fase A)
+El núcleo distingue circulación normal, desvío posible, desvío confirmado y parada atrás con una referencia del recorrido que continúa después de la bajada; el mapa y la tarjeta leen el mismo estado. Ver `docs/DESVIO-BUS.md` (umbrales, estados, caminata desde la bajada real y lo pendiente de probar en un bus).

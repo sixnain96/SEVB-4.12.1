@@ -31,7 +31,10 @@ Leyenda de las columnas de modo: ✅ configurable desde `.env`; 🔒 valor fijad
 | `EDITOR_TOKEN` | Clave de administración (≥ 32 caracteres) | vacía | Solo si `EDITOR_ENABLED=true` | ✅ | ✅ | ✅ | **Sí** |
 | `LIMITE_SOLICITUDES` | Limitador de solicitudes por cliente | `true` | No | ✅ | ✅ | ✅ | No |
 | `ADMIN_CORREOS` | Correos (coma) que administran entrando con Google | vacía | No | ✅ | ✅ | ✅ | Dato personal |
-| `GOOGLE_CLIENT_ID` | ID de cliente de Google (público) | vacío (el botón no aparece) | No | ✅ | ✅ | ✅ | No (público) |
+| `GOOGLE_CLIENT_ID` | ID de cliente de Google (público): sin él nadie puede abrir sesión (Fase B: única vía de acceso) | vacío (el diálogo dice que Google no está configurado) | No | ✅ | ✅ | ✅ | No (público) |
+| `DIRECCION_OFICIAL` | Dirección https oficial que se muestra al intentar entrar desde una dirección temporal de túnel | vacía (no se menciona ninguna) | No | ✅ | ✅ | ✅ | No (público) |
+| `SOPORTE_CORREO` | Correo al que se pide la recuperación de una cuenta anterior con contraseña | vacío («pide la recuperación al equipo de SEVB») | No | ✅ | ✅ | ✅ | Dato personal |
+| `CUENTA_VINCULO_ANTERIOR` | Habilita el vínculo explícito de cuentas antiguas con Google (`docs/CUENTAS.md` §4) | `false` | No | ✅ | ✅ | ✅ | No |
 | `GOOGLE_JWKS_URL` | Claves públicas para verificar tokens de Google | `https://www.googleapis.com/oauth2/v3/certs` | No | ✅ | ✅ | ✅ | No |
 | `DEMO_DATA` | Carga las rutas DEMO (`db/demo`) | `false` (aplicación) · `true` en `.env.example` y Docker local | No | ✅ | ✅ (`true` si no se define) | 🔒 `false` siempre | No |
 | `GEOCODER_URL` | Nominatim (apagado por defecto; con `BUSQUEDA_SOLO_GOOGLE=true` nunca se consulta) | vacío | No | ✅ | ✅ | ✅ | No |

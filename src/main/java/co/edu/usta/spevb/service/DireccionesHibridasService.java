@@ -278,6 +278,11 @@ public class DireccionesHibridasService {
         return !teniaEspecifico && candidato.contains(normalizar(raw));
     }
 
+    /**
+     * ¿Una predicción sirve MIENTRAS la persona escribe? El último fragmento numérico sin cerrar (la consulta no termina en espacio) es un PREFIJO («Calle 3» admite Calle 30 y 31);
+     * los números ya cerrados se comparan exactos («Calle 30 » no admite 3 ni 30A). Calle≠Carrera, 30≠30A y Sur≠Norte; Bis y sentido escritos deben aparecer en la predicción.
+     * La placa completa se vuelve a comprobar, ya exacta, al pedir las coordenadas (búsqueda explícita).
+     */
     static boolean sugerenciaRelevante(String raw, String title) {
         String query = normalizar(raw);
         String candidato = normalizar(title);
@@ -285,20 +290,46 @@ public class DireccionesHibridasService {
         if (candidato.matches("^(VILLAVICENCIO|VILLAVICENCIO META|VILLAVICENCIO META COLOMBIA)$")
                 && busquedaEspecifica(raw)) return false;
         if (query.length() < 3) return false;
-        // Las direcciones parciales pueden tener abreviaturas distintas. Verificar
-        // la placa solamente al obtener coordenadas, no mientras se escribe.
         if (query.matches("^(CARRERA|CALLE|AVENIDA|DIAGONAL|TRANSVERSAL)\\s+.*")) {
-            if (!candidato.startsWith(query.split(" ")[0] + " ")) return false;
+            String via = query.split(" ")[0];
+            if (!candidato.startsWith(via + " ")) return false;
             List<String> consultados = numeros(query);
             List<String> vistos = numeros(candidato);
-            int comprobar = Math.min(2, consultados.size());
-            if (vistos.size() < comprobar) return false;
-            for (int i = 0; i < comprobar; i++) {
-                if (!consultados.get(i).equals(vistos.get(i))) return false;
+            if (vistos.size() < consultados.size()) return false;
+            boolean enCurso = !raw.isEmpty() && !Character.isWhitespace(raw.charAt(raw.length() - 1)) && !consultados.isEmpty()
+                    && query.endsWith(consultados.get(consultados.size() - 1));
+            for (int i = 0; i < consultados.size(); i++) {
+                boolean ultimo = i == consultados.size() - 1;
+                if (ultimo && enCurso ? !vistos.get(i).startsWith(consultados.get(i)) : !vistos.get(i).equals(consultados.get(i))) return false;
             }
+            List<String> tokensC = List.of(candidato.split(" "));
+            for (String escrito : List.of("BIS", "NORTE", "SUR", "ESTE", "OESTE"))
+                if (List.of(query.split(" ")).contains(escrito) && !tokensC.contains(escrito)) return false;      // lo que ya se escribió completo no puede faltar
+            for (String sentido : List.of("NORTE", "SUR", "ESTE", "OESTE"))
+                if (List.of(query.split(" ")).contains(sentido))
+                    for (String otro : List.of("NORTE", "SUR", "ESTE", "OESTE")) if (!otro.equals(sentido) && tokensC.contains(otro)) return false;      // Sur ≠ Norte
             return true;
         }
         return nombreRelevante(raw, title) || candidato.contains(query);
+    }
+
+    /** ¿La predicción es la coincidencia EXACTA de lo escrito (mismos números, sin completar)? Sirve para ponerla primera: «Calle 3» antes que «Calle 30». */
+    static boolean coincidenciaExacta(String raw, String title) {
+        String q = normalizar(raw), c = normalizar(title);
+        List<String> a = numeros(q), b = numeros(c);
+        if (a.isEmpty() || a.size() > b.size()) return false;
+        for (int i = 0; i < a.size(); i++) if (!a.get(i).equals(b.get(i))) return false;
+        return true;
+    }
+
+    /** ¿El lugar recibido está en la MISMA vía (tipo y número de vía) que la consulta numerada, aunque no tenga la placa? Distingue «encontramos la vía pero no ese número». */
+    static boolean mismaVia(String consulta, String recibida) {
+        String c = normalizar(consulta), r = normalizar(recibida == null ? "" : recibida);
+        List<String> a = numeros(c), b = numeros(r);
+        if (a.isEmpty() || b.isEmpty()) return false;
+        for (String tipo : List.of("CARRERA", "CALLE", "AVENIDA", "DIAGONAL", "TRANSVERSAL"))
+            if (c.startsWith(tipo + " ")) return r.startsWith(tipo + " ") && a.get(0).equals(b.get(0));
+        return false;
     }
 
     static String precisionEsri(String tipo) {
@@ -402,6 +433,7 @@ public class DireccionesHibridasService {
         for (String tipo : List.of("CARRERA", "CALLE", "AVENIDA", "DIAGONAL", "TRANSVERSAL")) {
             if (consulta.startsWith(tipo + " ")) {
                 if (!candidato.startsWith(tipo + " ")) return false;
+                if (List.of(consulta.split(" ")).contains("BIS") != List.of(candidato.split(" ")).contains("BIS")) return false;      // Calle 30 ≠ Calle 30 Bis
                 for (String sentido : List.of("NORTE", "SUR", "ESTE", "OESTE")) {
                     if (List.of(consulta.split(" ")).contains(sentido) != List.of(candidato.split(" ")).contains(sentido))
                         return false;

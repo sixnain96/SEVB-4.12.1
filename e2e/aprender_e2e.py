@@ -234,9 +234,7 @@ def ninguna_escena_ni_ayuda_rapida_presenta_a_y_b_o_el_planificador_como_flujo_p
             assert not m, f'la escena «{e["clave"]}» ({campo}) menciona «{m.group(0)}» como parte del flujo principal'
     temas = p.evaluate("Spevb.Guia.TEMAS.map(t => ({ t: t.t, escena: t.escena, titulo: t.titulo, texto: t.texto || '', tips: t.tips || [] }))")
     con_ab = [t['t'] for t in temas if re.search(r'planificador|\bA y B\b', t['t'] + t['texto'] + ' '.join(t['tips']))]
-    assert con_ab == ['El planificador con A y B (opcional)'], f'solo una ayuda rápida habla del planificador y dice que es opcional: {con_ab}'
-    opt = [t for t in temas if t['t'].startswith('El planificador')][0]
-    assert 'ya conoce' in ' '.join(opt['tips']) and 'mejor manera de empezar' in ' '.join(opt['tips']), 'se presenta como opción para quien ya conoce SEVB'
+    assert con_ab == [], f'ninguna ayuda rápida presenta el planificador o A y B como flujo: {con_ab} (el paso a paso ya no se ofrece, así que tampoco su tema)'
     s.limpio('sin A y B'); s.cerrar()
 
 
@@ -497,10 +495,10 @@ def la_ayuda_resalta_la_accion_recomendada_y_ofrece_una_demostracion_y_ayudas_ra
     assert p.inner_text('#bienPasoTexto') == 'Ayuda rápida' and p.inner_text('#bienSiguiente') == 'Entendido' and p.is_hidden('#bienAtras') and p.is_hidden('#bienPuntos') and p.is_hidden('#bienSaltar')
     p.click('#bienSiguiente'); p.wait_for_timeout(500)
     assert p.is_hidden('#bienvenida') and p.evaluate("localStorage.getItem('spevb-bienvenida')") is None, 'una ayuda rápida no marca la bienvenida como vista'
-    # ayudas rápidas: once temas (nueve con ilustración y dos con consejos, entre ellos el planificador con A y B como opción)
+    # ayudas rápidas: diez temas (nueve con ilustración y uno con consejos)
     p.click('#helpButton'); p.wait_for_timeout(300)
     p.click('.ayuda-temas summary'); p.wait_for_timeout(200)
-    assert p.locator('#ayudaTemas .tema-chip').count() == 11
+    assert p.locator('#ayudaTemas .tema-chip').count() == 10
     p.click('#ayudaTemas .tema-chip:has-text("Si no aparece una ruta")'); p.wait_for_timeout(300)
     assert p.inner_text('#ayudaTitulo') == 'Si no aparece una ruta' and p.locator('#ayudaLista li').count() == 3
     p.click('#ayudaCerrar'); p.wait_for_timeout(300)

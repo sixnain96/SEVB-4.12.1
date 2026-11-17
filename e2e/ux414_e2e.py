@@ -80,7 +80,7 @@ class GoogleSim:
             return self._json(route, {'lugares': [], 'avisos': [], 'estado': 'SIN_COINCIDENCIAS', 'proveedor': 'google', 'eleccionFallida': True})
         lat, lng = (4.1450, -73.6540) if 'Origen' in texto or 'origen' in texto else (4.1450, -73.6240)
         if 'Segundo' in texto: lat, lng = 4.1500, -73.6300
-        self._json(route, {'lugares': [{'id': None, 'nombre': texto, 'direccion': texto + ', Villavicencio', 'lat': lat, 'lng': lng, 'fuente': 'Google Maps', 'confirmado': False, 'precision': 'LUGAR'}],
+        self._json(route, {'lugares': [{'id': None, 'nombre': texto, 'direccion': texto + ', Villavicencio', 'lat': lat, 'lng': lng, 'fuente': 'Google Maps', 'confirmado': False, 'precision': 'LUGAR', 'googleId': magic[2:] if magic.startswith('g:') else None}],      # el contrato nuevo: el lugar lleva el identificador de la opción elegida
                            'avisos': [], 'estado': 'OK', 'proveedor': 'google'})
 
     def liberar(self, indice=0, tipo=None):
@@ -626,7 +626,7 @@ def la_tarjeta_del_viaje_y_los_controles_caben_en_todos_los_tamanos_con_nombres_
         assert r['desborde'] <= 0 and not r['problemas'], f'{nombre}: {r}'
         # máximo una superficie principal expandida: con el viaje activo el planificador no está expandido
         e = sup(p)
-        compacto = w < 560 or (w <= 860 and h >= 481)      # diseño de celular; el apaisado y el escritorio conviven con la tarjeta (sin ceder), como antes
+        compacto = w < 560 or (w <= 860 and h >= 481) or (h <= 480 and w > h and w <= 860)      # celular (también girado, de poca altura: allí se tapaban, ver docs/SUPERFICIES-MOVIL.md); el escritorio convive con la tarjeta
         assert e['principal'] == 'viaje' and p.evaluate("document.body.classList.contains('panel-oculto')") == compacto, (nombre, e)
         s.limpio('diseno ' + nombre); s.cerrar()
 
@@ -637,7 +637,8 @@ def texto_ampliado_y_modo_oscuro_no_rompen_la_tarjeta_ni_los_botones(nav):
         s = movil(nav, 360, 640, color_scheme=esquema); p = s.abrir()
         p.evaluate("document.documentElement.dataset.letra = 'enorme'; try { localStorage.setItem('spevb-confort', JSON.stringify({ letra: 'enorme' })); } catch (e) {}")
         p.click('#menuButton'); p.wait_for_timeout(300)
-        if p.locator('[data-letra="enorme"]').count(): p.click('[data-letra="enorme"]')
+        p.evaluate("document.getElementById('menuVista').open = true"); p.wait_for_timeout(200)
+        p.click('button[data-letra="enorme"]')      # el botón del menú (el selector sin «button» también coincidía con <html data-letra>)
         p.click('#closeMenu'); p.wait_for_timeout(300)
         V.planear(p); V.destino_lejos(p)
         p.evaluate("(l) => { Spevb.Planner.seleccion.viaje.buses.forEach((b) => { b.etiqueta = l; }); }", LARGO)

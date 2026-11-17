@@ -26,6 +26,11 @@ PNG = B.PNG_1PX
 TAMANOS = [('320x568', 320, 568), ('390x844', 390, 844), ('tableta 768x1024', 768, 1024)]
 
 
+def avatar_local(fondo):
+    """El avatar LOCAL (sin foto de Google): el avatar regional estable que asigna avatares.js o, si no hay imágenes en el manifiesto, el chigüiro de siempre. Nunca una imagen rota."""
+    return 'sevb-cabeza-96.png' in fondo or '/img/avatares/' in fondo
+
+
 def prueba(f):
     PRUEBAS.append(f)
     return f
@@ -52,6 +57,7 @@ def con_cuenta(s, u, admin_configurado=True):
     s.ctx.route('**/api/cuenta/config', lambda r: json_ok(r, {'adminConfigurado': admin_configurado}))
     s.ctx.route('**/api/cuenta/datos', lambda r: json_ok(r, {}))
     s.ctx.route('**/api/cuenta/datos/**', lambda r: json_ok(r, {'ok': True}))
+    s.ctx.route('**/api/cuenta/logros**', lambda r: json_ok(r, {'viajes': 0, 'transbordos': 0, 'rachaActual': 0, 'mejorRacha': 0, 'mejorEstricta': 0, 'madrugador': False, 'nocturno': False, 'practica': False, 'logros': [], 'insignia': None, 'hoy': '2026-03-02', 'ultimoDia': None, 'dias': [], 'nuevo': False, 'nuevos': []}))
 
 
 def toque(p, selector):
@@ -320,15 +326,15 @@ def la_pregunta_sobre_un_dialogo_de_cuenta_es_operable_y_el_dialogo_conserva_lo_
     p.click('#menuFlotante'); espera_menu(p)
     toque(p, '#accountLogin'); p.wait_for_timeout(500)
     assert sup(p)['overlay'] == 'modal', sup(p)
-    p.fill('#authEmail', 'persona@example.com')
+    p.focus('#authCancel')      # la persona está en el diálogo de «Continuar con Google» (Fase B: sin campos de texto)
     V.alimentar(p, ls, 0, 'pregunta'); p.wait_for_timeout(500)
     d = comprobar_pregunta_compacta(p, 'cuenta')
     assert d['foco'] == 'viajeSi', d
     assert set(recorrer_tab(p, 30)) <= {'viajeSi', 'viajeNo'}, 'Tab se queda en la pregunta, no en el diálogo de cuenta de abajo'
     p.keyboard.press('Escape'); p.wait_for_timeout(450)
-    r = p.evaluate("({ pregunta: document.getElementById('viajePregunta').hidden, modal: !document.getElementById('authModal').hidden, valor: document.getElementById('authEmail').value, foco: document.activeElement.id, inert: document.getElementById('authModal').inert })")
-    assert r['pregunta'] and r['modal'] and r['valor'] == 'persona@example.com' and not r['inert'], f'Escape resolvió la pregunta y NO cerró el diálogo: {r}'
-    assert r['foco'] == 'authEmail', f'el foco vuelve al campo que la persona usaba: {r}'
+    r = p.evaluate("({ pregunta: document.getElementById('viajePregunta').hidden, modal: !document.getElementById('authModal').hidden, foco: document.activeElement.id, inert: document.getElementById('authModal').inert })")
+    assert r['pregunta'] and r['modal'] and not r['inert'], f'Escape resolvió la pregunta y NO cerró el diálogo: {r}'
+    assert r['foco'] == 'authCancel', f'el foco vuelve al control que la persona usaba: {r}'
     assert V.card(p)['fase'] == 'esperando' and p.evaluate('window.__geo.escuchas') == 1
     s.limpio('pregunta/dialogo'); s.cerrar()
 
@@ -368,23 +374,23 @@ def el_menu_mide_menos_en_cada_fase_y_conserva_todas_las_funciones(nav):
     s = movil(nav, 320, 568); con_cuenta(s, usuario()); p = s.abrir()
     p.click('#menuButton'); espera_menu(p)
     inicial = p.evaluate(JS_MENU)
-    assert inicial <= 2.2, f'menú inicial a 320 × 568: {inicial} pantallas (antes ≈ 2,6)'
+    assert inicial <= 2.45, f'menú inicial a 320 × 568: {inicial} pantallas (antes ≈ 2,6; Fase C suma «Mis lugares» y compacta el perfil; «Instalar en tu celular» suma una fila plegada)'
     for sel in FUNCIONES:
         assert p.locator(sel).count() == 1, f'falta {sel} en el menú'
-    assert p.evaluate("document.getElementById('menuEspacio').open"), 'en planificación «Mi espacio» (Casa/Trabajo, historial, lugares) va abierto'
+    assert p.evaluate("document.getElementById('menuLugares').open"), 'en planificación «Mis lugares» (Casa, Trabajo y lugares con nombre) va abierto'
     assert p.is_visible('#closeMenu')
     p.click('#closeMenu'); espera_menu(p)
     iniciar_viaje(p)
     p.click('#menuFlotante'); espera_menu(p)
     viaje = p.evaluate(JS_MENU)
-    assert viaje <= 1.7 and viaje < inicial, f'menú durante el viaje: {viaje} pantallas (antes ≈ 3,6); inicial {inicial}'
+    assert viaje <= 2.0 and viaje < inicial, f'menú durante el viaje: {viaje} pantallas (antes ≈ 3,6; Fase J suma «Viaje en curso» y la nota de «Volver al inicio»); inicial {inicial}'
     orden = p.evaluate("[...document.getElementById('sideMenu').children].map(e => e.id).filter(Boolean)")
-    assert orden.index('menuVista') < orden.index('menuEspacio') and orden.index('menuOffline') < orden.index('menuEspacio'), f'en viaje lo que necesita el pasajero va primero: {orden}'
-    assert not p.evaluate("document.getElementById('menuEspacio').open"), 'en viaje lo de planear queda plegado (sigue disponible)'
+    assert orden.index('menuVista') < orden.index('menuLugares') and orden.index('menuOffline') < orden.index('menuLugares'), f'en viaje lo que necesita el pasajero va primero: {orden}'
+    assert not p.evaluate("document.getElementById('menuEspacio').open || document.getElementById('menuLugares').open"), 'en viaje lo de planear y los lugares quedan plegados (siguen disponibles)'
     for sel in FUNCIONES:
         assert p.locator(sel).count() == 1, f'durante el viaje falta {sel}'
     # lo plegado sigue disponible con un toque
-    p.evaluate("document.getElementById('menuEspacio').querySelector('summary').click()"); p.wait_for_timeout(200)
+    p.evaluate("document.getElementById('menuLugares').querySelector('summary').click()"); p.wait_for_timeout(200)
     assert p.is_visible('[data-atajo="Casa"]') and p.is_visible('#favorites summary')
     assert p.evaluate('window.__geo.escuchas') == 1 and p.evaluate('Spevb.Viaje.activo()')
     # al terminar el viaje el menú vuelve al orden de planificación
@@ -392,7 +398,7 @@ def el_menu_mide_menos_en_cada_fase_y_conserva_todas_las_funciones(nav):
     p.evaluate('Spevb.Viaje.detener()'); p.wait_for_timeout(400)
     p.click('#menuButton') if p.is_visible('#menuButton') else p.click('#menuFlotante'); espera_menu(p)
     orden = p.evaluate("[...document.getElementById('sideMenu').children].map(e => e.id).filter(Boolean)")
-    assert orden.index('menuEspacio') < orden.index('menuVista'), f'de nuevo el orden de planificación: {orden}'
+    assert orden.index('menuLugares') < orden.index('menuEspacio') < orden.index('menuVista'), f'de nuevo el orden de planificación: {orden}'
     s.limpio('menu fases'); s.cerrar()
 
 
@@ -427,7 +433,7 @@ def la_foto_de_google_se_ve_en_un_circulo_fijo_recortada_y_solo_al_ver_el_perfil
     assert pedidas and a['conFoto'] and a['img'] and a['natural'] > 0, f'la foto carga y se muestra: {a}'
     assert a['alt'] == '' and a['referrer'] == 'no-referrer', a
     assert a['ancho'] == 40 and a['alto'] == 40 and '50%' in a['radio'] and a['ajuste'] == 'cover' and a['opacidad'] == '1', f'círculo de tamaño fijo con recorte centrado: {a}'
-    assert 'sevb-cabeza-96.png' in a['fondo'], 'el chigüiro de respaldo queda debajo'
+    assert avatar_local(a['fondo']), 'el chigüiro de respaldo queda debajo'
     # «Ajustes de la cuenta» muestra el mismo perfil
     toque(p, '#accountSettings'); p.wait_for_timeout(600)
     a2 = p.evaluate(JS_AVATAR, 'setAvatar')
@@ -445,7 +451,7 @@ def sin_foto_o_con_una_foto_no_valida_se_ve_el_chiguiro_y_no_se_pide_nada(nav):
         s.ctx.route('http://lh3.googleusercontent.com/**', lambda r: (pedidas.append(r.request.url), r.abort()))
         p = s.abrir(espera=1000)
         a = abrir_menu_y_leer(p)
-        assert not a['img'] and not a['conFoto'] and 'sevb-cabeza-96.png' in a['fondo'] and a['ancho'] == 40, f'{nombre}: avatar local de inmediato: {a}'
+        assert not a['img'] and not a['conFoto'] and avatar_local(a['fondo']) and a['ancho'] == 40, f'{nombre}: avatar local de inmediato: {a}'
         assert not pedidas, f'{nombre}: una foto no válida no se pide nunca: {pedidas}'
         assert p.evaluate("!document.getElementById('accountUser').hidden"), f'{nombre}: la foto nunca es requisito para la sesión'
         s.limpio('foto ' + nombre); s.cerrar()
@@ -457,13 +463,13 @@ def si_la_foto_falla_al_cargar_o_no_hay_internet_queda_el_avatar_local_sin_image
     s.ctx.route('https://lh3.googleusercontent.com/**', lambda r: r.fulfill(status=404, content_type='text/plain', body='no'))
     p = s.abrir(espera=1000)
     a = abrir_menu_y_leer(p)
-    assert not a['conFoto'] and not a['img'] and 'sevb-cabeza-96.png' in a['fondo'], f'foto rota: se queda el chigüiro: {a}'
+    assert not a['conFoto'] and not a['img'] and avatar_local(a['fondo']), f'foto rota: se queda el chigüiro: {a}'
     s.cerrar()
     s = movil(nav, 390, 844); con_cuenta(s, usuario(foto=FOTO))
     s.ctx.route('https://lh3.googleusercontent.com/**', lambda r: r.abort('internetdisconnected'))
     p = s.abrir(espera=1000)
     a = abrir_menu_y_leer(p)
-    assert not a['conFoto'] and not a['img'] and 'sevb-cabeza-96.png' in a['fondo'], f'sin internet: {a}'
+    assert not a['conFoto'] and not a['img'] and avatar_local(a['fondo']), f'sin internet: {a}'
     s.limpio('foto falla'); s.cerrar()
 
 
@@ -477,7 +483,7 @@ def sesion_restaurada_sin_conexion_con_la_foto_guardada_no_rompe_el_avatar(nav):
     p.reload(wait_until='domcontentloaded'); p.wait_for_timeout(1500)
     a = abrir_menu_y_leer(p)
     assert p.evaluate("!document.getElementById('accountUser').hidden") and 'sin conexión' in p.inner_text('#accountEmail'), 'se muestra el último usuario conocido'
-    assert not a['conFoto'] and 'sevb-cabeza-96.png' in a['fondo'], a
+    assert not a['conFoto'] and avatar_local(a['fondo']), a
     s.limpio('sesion restaurada'); s.cerrar()
 
 
@@ -488,13 +494,13 @@ def al_cerrar_sesion_o_cambiar_de_cuenta_una_foto_tardia_nunca_se_muestra_en_otr
     s.ctx.route(FOTO, lambda r: retenida.append(r))
     s.ctx.route(FOTO_B, lambda r: r.fulfill(status=200, content_type='image/png', body=PNG))
     s.ctx.route('**/api/cuenta/salir', lambda r: json_ok(r, {'ok': True}))
-    s.ctx.route('**/api/cuenta/entrar', lambda r: json_ok(r, {'usuario': usuario('beto@example.com', 'Beto', FOTO_B)}))
+    s.ctx.route('**/api/cuenta/google', lambda r: json_ok(r, {'usuario': usuario('beto@example.com', 'Beto', FOTO_B)}))
     p = s.abrir(espera=1000)
     p.click('#menuButton'); p.wait_for_timeout(600)
     assert retenida, 'la foto de Ana está pendiente (la respuesta se retiene)'
     toque(p, '#accountLogout'); p.wait_for_timeout(700)          # cierra sesión mientras la foto de Ana aún no llegó
     assert p.evaluate(JS_AVATAR, 'accountAvatar')['img'] is False, 'al cerrar sesión se limpia el avatar'
-    p.evaluate("Spevb.Cuenta.entrar('beto@example.com', 'clave-larga-1')"); p.wait_for_timeout(500)
+    p.evaluate("Spevb.Cuenta.google('fake.credencial-de-prueba')"); p.wait_for_timeout(500)
     p.click('#menuButton'); p.wait_for_timeout(900)
     for r in retenida:           # ahora llega, tarde, la foto de Ana
         r.fulfill(status=200, content_type='image/png', body=PNG)

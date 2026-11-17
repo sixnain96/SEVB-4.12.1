@@ -29,7 +29,7 @@ El servidor **no** guarda direcciones IP en tablas. Los registros (logs) de la a
 
 ## Cómo eliminar datos
 
-**Una persona (con cuenta):** menú → *Ajustes de la cuenta* → *Eliminar mi cuenta* (pide la contraseña). Borra la fila de `usuarios` y, en cascada, sus `sesiones` y `usuario_datos`. *Borrar historial* y los botones de cada lugar o viaje borran esas entradas.
+**Una persona (con cuenta):** menú → *Ajustes de la cuenta* → *Eliminar mi cuenta…* (se confirma con Google: reautenticación reciente de la misma cuenta, y una confirmación final). Borra la fila de `usuarios` y, en cascada, sus `sesiones` y `usuario_datos`. *Borrar historial* y los botones de cada lugar o viaje borran esas entradas.
 
 **Una persona (sin cuenta):** *Borrar historial* en la página, o borrar los datos del sitio en el navegador (también vacía Cache Storage).
 
@@ -76,3 +76,15 @@ La posición del GPS se procesa **solo en el teléfono**: no se envía al servid
 | Token de escritura | `localStorage` (`spevb-compartir`) del dispositivo que viaja | Hasta que termina o se revoca | Solo ese dispositivo |
 
 No se guarda historial de posiciones ni se registran coordenadas ni tokens en los registros. Detalle y límites: `docs/COMPARTIR-VIAJE.md`.
+
+## Fases C y D · «Mis lugares», logros y racha
+
+| Dato | Dónde / qué se guarda | Retención | Quién lo ve |
+|---|---|---|---|
+| Lugares guardados (Casa, Trabajo y con nombre) | **Con sesión:** `usuario_datos` (clave `lugares`: nombre ≤ 40, coordenadas, tipo, lápidas de borrado). **Sin sesión:** `localStorage` del dispositivo. **Nunca se mezclan.** | Mientras exista la cuenta; lápidas 60 días | Solo la persona (y quien administre la base) |
+| Viajes terminados y racha | **Con sesión:** `logros_viaje` (V15): id aleatorio del viaje, momento de llegada, día de Bogotá, buses confirmados, hora local. **Sin coordenadas, direcciones ni trayectorias.** **Sin sesión:** `localStorage`. | Mientras exista la cuenta | Solo la persona |
+| Insignia destacada y «práctica terminada» | `logros_perfil` (V15) | Mientras exista la cuenta | Solo la persona |
+| Cola de envíos pendientes de logros, copia de la cuenta y resúmenes de la semana de una cuenta | `localStorage` (`spevb-logros-cola`, `spevb-logros-cuenta`, `spevb-viajes-resumen`) | **Se borran al cerrar sesión o cambiar de cuenta** | Solo ese dispositivo |
+
+Los logros tienen nivel de confianza recreativo (los envía el dispositivo). Eliminar la cuenta borra lugares y logros. Detalle: `docs/LUGARES.md` y `docs/LOGROS.md`.
+

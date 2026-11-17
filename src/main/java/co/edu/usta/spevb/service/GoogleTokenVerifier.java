@@ -31,13 +31,17 @@ import java.util.function.Function;
 @Component
 public class GoogleTokenVerifier {
     /** {@code foto}: URL HTTPS de la foto de perfil (campo opcional «picture» del token ya verificado) o null si falta o no es de un host de imágenes de Google. */
-    public record Identidad(String sub, String correo, String nombre, String foto) {
+    public record Identidad(String sub, String correo, String nombre, String foto, long emitidoS, long venceS, String huella) {
+        public Identidad(String sub, String correo, String nombre, String foto) { this(sub, correo, nombre, foto, 0, 0, null); }
         public Identidad(String sub, String correo, String nombre) { this(sub, correo, nombre, null); }
     }
     public static class TokenInvalido extends RuntimeException { public TokenInvalido(String m) { super(m); } }
 
     private static final Set<String> EMISORES = Set.of("https://accounts.google.com", "accounts.google.com");
     private static final long TOLERANCIA_S = 60;
+    /** Credenciales ya usadas (huella SHA-256 → vencimiento): una credencial de Google sirve UNA sola vez (evita repetirla para abrir otra sesión o para confirmar un borrado). */
+    private final Map<String, Long> usadas = new ConcurrentHashMap<>();
+    private static final int MAX_USADAS = 20_000;
     private final ObjectMapper mapper;
     private final String clientId;
     private final Function<String, PublicKey> claves;       // kid → clave pública (se puede sustituir en pruebas)
@@ -59,6 +63,25 @@ public class GoogleTokenVerifier {
 
     public Identidad verificar(String token) { return verificar(token, System.currentTimeMillis() / 1000); }
 
+    /** Como {@link #verificar(String)}, pero además exige que Google la haya emitido hace menos de {@code maxEdadS} segundos: la «reautenticación reciente» que confirma acciones delicadas (borrar la cuenta). */
+    public Identidad verificarReciente(String token, long maxEdadS) { return verificarReciente(token, maxEdadS, System.currentTimeMillis() / 1000); }
+
+    Identidad verificarReciente(String token, long maxEdadS, long ahoraS) {
+        Identidad id = verificar(token, ahoraS);
+        if (id.emitidoS() <= 0 || ahoraS - id.emitidoS() > maxEdadS) throw new TokenInvalido("Para confirmarlo, vuelve a continuar con Google (la confirmación anterior ya es antigua).");
+        return id;
+    }
+
+    /** Marca la credencial como usada. Falla si ya se había usado (reenvío o repetición de una credencial robada). Sin huella (identidades de prueba) no hay nada que marcar. */
+    public void consumir(Identidad id) { consumir(id, System.currentTimeMillis() / 1000); }
+
+    void consumir(Identidad id, long ahoraS) {
+        if (id == null || id.huella() == null) return;
+        if (usadas.size() >= MAX_USADAS) usadas.values().removeIf(v -> v + TOLERANCIA_S < ahoraS);
+        Long previa = usadas.putIfAbsent(id.huella(), Math.max(id.venceS(), ahoraS));
+        if (previa != null) throw new TokenInvalido("Esa credencial de Google ya se usó. Vuelve a continuar con Google.");
+    }
+
     Identidad verificar(String token, long ahoraS) {
         if (!activo()) throw new TokenInvalido("El inicio de sesión con Google no está configurado en este servidor.");
         if (token == null || token.length() > 4096) throw new TokenInvalido("Credencial de Google no válida.");
@@ -76,16 +99,18 @@ public class GoogleTokenVerifier {
 
             if (!EMISORES.contains(c.path("iss").asString(""))) throw new TokenInvalido("La credencial no viene de Google.");
             if (!audiencia(c.get("aud"))) throw new TokenInvalido("La credencial no es para esta aplicación.");
-            long exp = c.path("exp").asLong(0), iat = c.path("iat").asLong(0);
+            // Si el token declara la parte autorizada (azp), tiene que ser esta aplicación (también cuando hay varios destinatarios).
+            if (c.has("azp") && !c.path("azp").asString("").isEmpty() && !clientId.equals(c.path("azp").asString(""))) throw new TokenInvalido("La credencial no es para esta aplicación.");
+            long exp = c.path("exp").asLong(0), iat = c.path("iat").asLong(0), nbf = c.path("nbf").asLong(0);
             if (exp + TOLERANCIA_S < ahoraS) throw new TokenInvalido("La credencial de Google venció. Inténtalo de nuevo.");
-            if (iat > ahoraS + TOLERANCIA_S * 5) throw new TokenInvalido("Credencial de Google no válida.");
+            if (iat > ahoraS + TOLERANCIA_S * 5 || (nbf > 0 && nbf > ahoraS + TOLERANCIA_S)) throw new TokenInvalido("Credencial de Google no válida.");
             String sub = c.path("sub").asString(""), correo = c.path("email").asString("").strip().toLowerCase();
             boolean verificado = c.path("email_verified").asBoolean(false) || "true".equals(c.path("email_verified").asString(""));
-            if (sub.isEmpty() || sub.length() > 40 || correo.isEmpty()) throw new TokenInvalido("Credencial de Google incompleta.");
+            if (sub.isEmpty() || sub.length() > 40 || correo.isEmpty() || correo.length() > 120 || correo.indexOf('@') < 1) throw new TokenInvalido("Credencial de Google incompleta.");
             if (!verificado) throw new TokenInvalido("Tu correo de Google no está verificado.");
             String nombre = c.path("name").asString("").replaceAll("[\\p{Cntrl}]", " ").strip();
             if (nombre.length() < 2) nombre = correo.substring(0, correo.indexOf('@'));
-            return new Identidad(sub, correo, nombre.length() > 60 ? nombre.substring(0, 60) : nombre, fotoSegura(c.path("picture").asString("")));
+            return new Identidad(sub, correo, nombre.length() > 60 ? nombre.substring(0, 60) : nombre, fotoSegura(c.path("picture").asString("")), iat, exp, huella(token));
         } catch (TokenInvalido e) {
             throw e;
         } catch (Exception e) {
@@ -117,6 +142,11 @@ public class GoogleTokenVerifier {
     }
 
     private static byte[] decodificar(String b64) { return Base64.getUrlDecoder().decode(b64); }
+
+    private static String huella(String token) {
+        try { return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8))); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
 
     /** Claves públicas de Google: se descargan una vez y se guardan según la caché que indica Google (máx. 12 h). */
     static final class JwksCache {

@@ -60,7 +60,7 @@ class MigracionesPostgisTest {
         var jdbc = new JdbcTemplate(ds(NUEVA));
         assertTrue(tablas(jdbc).containsAll(TABLAS), "faltan tablas: " + TABLAS);
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM rutas", Integer.class), "producción no carga rutas DEMO");
-        assertEquals(13, jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version IS NOT NULL AND version <> '0'", Integer.class));
+        assertEquals(15, jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version IS NOT NULL AND version <> '0'", Integer.class));
         // V4: el tipo PUENTE es válido y un tipo desconocido no
         jdbc.update("INSERT INTO pasos_peatonales (tipo, nombre, trazo) VALUES ('PUENTE','P',ST_GeomFromText('LINESTRING(-73.63 4.14,-73.629 4.14)',4326))");
         assertThrows(Exception.class, () -> jdbc.update("INSERT INTO pasos_peatonales (tipo, nombre, trazo) VALUES ('OTRO','P',ST_GeomFromText('LINESTRING(-73.63 4.14,-73.629 4.14)',4326))"));
@@ -70,6 +70,10 @@ class MigracionesPostgisTest {
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='rutas' AND column_name='nombre_popular'", Integer.class));
         // V12: foto de perfil opcional de las cuentas con Google
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='usuarios' AND column_name='foto_url'", Integer.class));
+        // V14: la identidad pública es el «sub» de Google; el correo solo es único entre cuentas locales (sin Google)
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'ux_usuarios_correo_local'", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'ux_usuarios_correo'", Integer.class));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='usuarios' AND column_name='vinculado_en'", Integer.class));
         // V13: «Compartir mi viaje» guarda solo hashes de los tokens y una fila con la última posición (sin historial)
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='viajes_compartidos' AND column_name='lectura_hash'", Integer.class));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='viajes_compartidos' AND column_name IN ('token','lectura','escritura')", Integer.class), "no hay columnas con el token en claro");

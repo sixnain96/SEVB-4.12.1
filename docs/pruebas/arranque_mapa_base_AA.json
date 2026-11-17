@@ -1,0 +1,862 @@
+{
+  "n": 5,
+  "fecha": "2026-11-16",
+  "nota": "SDK de Google SIMULADO; sin Google real. CPU 4x. Corridas alternadas antes/despues.",
+  "navegador": "chromium 157.0.4341.60",
+  "primera_normal": {
+    "antes": {
+      "cfg_inicio": {
+        "mediana": 980,
+        "min": 652,
+        "max": 1153,
+        "q1": 732,
+        "q3": 1102,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 986,
+        "min": 656,
+        "max": 1162,
+        "q1": 736,
+        "q3": 1110,
+        "n": 5
+      },
+      "config": {
+        "mediana": 1269,
+        "min": 995,
+        "max": 1892,
+        "q1": 1060,
+        "q3": 1693,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 1305,
+        "min": 1102,
+        "max": 1959,
+        "q1": 1144,
+        "q3": 1746,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 1358,
+        "min": 1147,
+        "max": 1982,
+        "q1": 1190,
+        "q3": 1772,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 1392,
+        "min": 1188,
+        "max": 2002,
+        "q1": 1227,
+        "q3": 1796,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 1451,
+        "min": 1213,
+        "max": 2024,
+        "q1": 1250,
+        "q3": 1820,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 1096,
+        "min": 753,
+        "max": 1534,
+        "q1": 826,
+        "q3": 1415,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 1225,
+        "min": 891,
+        "max": 1815,
+        "q1": 944,
+        "q3": 1618,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 64,
+        "min": 64,
+        "max": 64,
+        "q1": 64,
+        "q3": 64,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    },
+    "despues": {
+      "cfg_inicio": {
+        "mediana": 730,
+        "min": 689,
+        "max": 940,
+        "q1": 703,
+        "q3": 905,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 734,
+        "min": 693,
+        "max": 948,
+        "q1": 708,
+        "q3": 911,
+        "n": 5
+      },
+      "config": {
+        "mediana": 1075,
+        "min": 986,
+        "max": 1333,
+        "q1": 1007,
+        "q3": 1222,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 1137,
+        "min": 1023,
+        "max": 1388,
+        "q1": 1048,
+        "q3": 1270,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 1209,
+        "min": 1082,
+        "max": 1460,
+        "q1": 1124,
+        "q3": 1336,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 1242,
+        "min": 1110,
+        "max": 1482,
+        "q1": 1150,
+        "q3": 1362,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 1264,
+        "min": 1130,
+        "max": 1507,
+        "q1": 1170,
+        "q3": 1403,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 844,
+        "min": 793,
+        "max": 1069,
+        "q1": 810,
+        "q3": 1016,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 996,
+        "min": 921,
+        "max": 1212,
+        "q1": 930,
+        "q3": 1138,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 64,
+        "min": 64,
+        "max": 64,
+        "q1": 64,
+        "q3": 64,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    }
+  },
+  "recarga_normal": {
+    "antes": {
+      "cfg_inicio": {
+        "mediana": 439,
+        "min": 355,
+        "max": 502,
+        "q1": 376,
+        "q3": 485,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 445,
+        "min": 361,
+        "max": 508,
+        "q1": 382,
+        "q3": 492,
+        "n": 5
+      },
+      "config": {
+        "mediana": 750,
+        "min": 594,
+        "max": 924,
+        "q1": 664,
+        "q3": 857,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 818,
+        "min": 669,
+        "max": 967,
+        "q1": 730,
+        "q3": 912,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 834,
+        "min": 702,
+        "max": 974,
+        "q1": 756,
+        "q3": 932,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 851,
+        "min": 739,
+        "max": 998,
+        "q1": 784,
+        "q3": 956,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 859,
+        "min": 762,
+        "max": 1003,
+        "q1": 798,
+        "q3": 968,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 620,
+        "min": 476,
+        "max": 742,
+        "q1": 534,
+        "q3": 683,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 686,
+        "min": 540,
+        "max": 891,
+        "q1": 582,
+        "q3": 794,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 62,
+        "min": 62,
+        "max": 62,
+        "q1": 62,
+        "q3": 62,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    },
+    "despues": {
+      "cfg_inicio": {
+        "mediana": 489,
+        "min": 384,
+        "max": 715,
+        "q1": 394,
+        "q3": 657,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 496,
+        "min": 390,
+        "max": 721,
+        "q1": 400,
+        "q3": 664,
+        "n": 5
+      },
+      "config": {
+        "mediana": 712,
+        "min": 561,
+        "max": 889,
+        "q1": 634,
+        "q3": 852,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 792,
+        "min": 614,
+        "max": 944,
+        "q1": 683,
+        "q3": 904,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 822,
+        "min": 652,
+        "max": 960,
+        "q1": 708,
+        "q3": 920,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 854,
+        "min": 678,
+        "max": 978,
+        "q1": 730,
+        "q3": 939,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 858,
+        "min": 688,
+        "max": 984,
+        "q1": 738,
+        "q3": 944,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 650,
+        "min": 493,
+        "max": 814,
+        "q1": 520,
+        "q3": 762,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 679,
+        "min": 530,
+        "max": 843,
+        "q1": 573,
+        "q3": 792,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 62,
+        "min": 62,
+        "max": 62,
+        "q1": 62,
+        "q3": 62,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    }
+  },
+  "primera_lenta": {
+    "antes": {
+      "cfg_inicio": {
+        "mediana": 4132,
+        "min": 4129,
+        "max": 4292,
+        "q1": 4129,
+        "q3": 4250,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 4440,
+        "min": 4337,
+        "max": 4590,
+        "q1": 4347,
+        "q3": 4528,
+        "n": 5
+      },
+      "config": {
+        "mediana": 4444,
+        "min": 4352,
+        "max": 4601,
+        "q1": 4362,
+        "q3": 4540,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 7482,
+        "min": 7451,
+        "max": 7664,
+        "q1": 7461,
+        "q3": 7616,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 7501,
+        "min": 7470,
+        "max": 7696,
+        "q1": 7480,
+        "q3": 7642,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 7542,
+        "min": 7505,
+        "max": 7759,
+        "q1": 7508,
+        "q3": 7696,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 7571,
+        "min": 7534,
+        "max": 7793,
+        "q1": 7538,
+        "q3": 7725,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 7296,
+        "min": 7247,
+        "max": 7391,
+        "q1": 7272,
+        "q3": 7387,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 7569,
+        "min": 7532,
+        "max": 7716,
+        "q1": 7536,
+        "q3": 7660,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 64,
+        "min": 64,
+        "max": 64,
+        "q1": 64,
+        "q3": 64,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    },
+    "despues": {
+      "cfg_inicio": {
+        "mediana": 4146,
+        "min": 4098,
+        "max": 4206,
+        "q1": 4112,
+        "q3": 4198,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 4388,
+        "min": 4365,
+        "max": 4577,
+        "q1": 4373,
+        "q3": 4501,
+        "n": 5
+      },
+      "config": {
+        "mediana": 4400,
+        "min": 4377,
+        "max": 4595,
+        "q1": 4382,
+        "q3": 4517,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 7535,
+        "min": 7457,
+        "max": 8324,
+        "q1": 7464,
+        "q3": 7944,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 7568,
+        "min": 7478,
+        "max": 8404,
+        "q1": 7483,
+        "q3": 7994,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 7616,
+        "min": 7507,
+        "max": 8511,
+        "q1": 7509,
+        "q3": 8071,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 7646,
+        "min": 7533,
+        "max": 8670,
+        "q1": 7540,
+        "q3": 8166,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 7346,
+        "min": 7210,
+        "max": 7432,
+        "q1": 7267,
+        "q3": 7400,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 7591,
+        "min": 7501,
+        "max": 8480,
+        "q1": 7536,
+        "q3": 8036,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 64,
+        "min": 64,
+        "max": 64,
+        "q1": 64,
+        "q3": 64,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    }
+  },
+  "recarga_lenta": {
+    "antes": {
+      "cfg_inicio": {
+        "mediana": 4530,
+        "min": 2197,
+        "max": 8361,
+        "q1": 2814,
+        "q3": 6683,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 4545,
+        "min": 2213,
+        "max": 8381,
+        "q1": 2834,
+        "q3": 6704,
+        "n": 5
+      },
+      "config": {
+        "mediana": 7931,
+        "min": 3259,
+        "max": 10535,
+        "q1": 4000,
+        "q3": 9324,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 9058,
+        "min": 3415,
+        "max": 10772,
+        "q1": 4652,
+        "q3": 10262,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 9158,
+        "min": 3429,
+        "max": 10814,
+        "q1": 4834,
+        "q3": 10326,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 9284,
+        "min": 3449,
+        "max": 10857,
+        "q1": 4897,
+        "q3": 10364,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 9520,
+        "min": 3458,
+        "max": 10889,
+        "q1": 5060,
+        "q3": 10396,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 6491,
+        "min": 2888,
+        "max": 9831,
+        "q1": 3580,
+        "q3": 8250,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 7030,
+        "min": 3111,
+        "max": 10188,
+        "q1": 3840,
+        "q3": 8645,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 62,
+        "min": 62,
+        "max": 62,
+        "q1": 62,
+        "q3": 62,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    },
+    "despues": {
+      "cfg_inicio": {
+        "mediana": 3787,
+        "min": 552,
+        "max": 4076,
+        "q1": 2012,
+        "q3": 4041,
+        "n": 5
+      },
+      "cfg_fin": {
+        "mediana": 3801,
+        "min": 558,
+        "max": 4091,
+        "q1": 2024,
+        "q3": 4057,
+        "n": 5
+      },
+      "config": {
+        "mediana": 4705,
+        "min": 731,
+        "max": 5407,
+        "q1": 2496,
+        "q3": 5217,
+        "n": 5
+      },
+      "adaptador": {
+        "mediana": 6363,
+        "min": 913,
+        "max": 7460,
+        "q1": 2622,
+        "q3": 7185,
+        "n": 5
+      },
+      "sdk": {
+        "mediana": 6485,
+        "min": 942,
+        "max": 7843,
+        "q1": 2644,
+        "q3": 7788,
+        "n": 5
+      },
+      "mapa": {
+        "mediana": 7213,
+        "min": 974,
+        "max": 8209,
+        "q1": 2669,
+        "q3": 8082,
+        "n": 5
+      },
+      "planificador": {
+        "mediana": 7335,
+        "min": 978,
+        "max": 8509,
+        "q1": 2673,
+        "q3": 8296,
+        "n": 5
+      },
+      "dcl": {
+        "mediana": 4063,
+        "min": 653,
+        "max": 4634,
+        "q1": 2272,
+        "q3": 4624,
+        "n": 5
+      },
+      "carga": {
+        "mediana": 4202,
+        "min": 675,
+        "max": 4783,
+        "q1": 2436,
+        "q3": 4782,
+        "n": 5
+      },
+      "solicitudes": {
+        "mediana": 62,
+        "min": 62,
+        "max": 62,
+        "q1": 62,
+        "q3": 62,
+        "n": 5
+      },
+      "cfg_peticiones": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "sdk_cargas": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      },
+      "instancias": {
+        "mediana": 1,
+        "min": 1,
+        "max": 1,
+        "q1": 1,
+        "q3": 1,
+        "n": 5
+      }
+    }
+  }
+}

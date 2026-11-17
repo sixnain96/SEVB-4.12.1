@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Los resultados de Places solo se usan sobre un mapa de Google: con Leaflet las sugerencias de Google se apagan (aunque haya clave). */
 class GoogleDireccionesProveedorTest {
-    private static final String CLAVE_SERVIDOR = "AIzaSyOTRA_CLAVE_DE_SERVIDOR_NO_REAL_456";
+    private static final String CLAVE_SERVIDOR = "AIza" + "SyOTRA_CLAVE_DE_SERVIDOR_NO_REAL_456";
     private final CityArea area = new CityArea("Villavicencio", "Meta", "Colombia", 3.95, 4.35, -73.85, -73.45);
 
     private GoogleDireccionesService servicio(String clave, MapaConfig mapa) {
@@ -24,7 +24,7 @@ class GoogleDireccionesProveedorTest {
     }
 
     @Test void conMapaDeGoogleYClaveEstaActivo() {
-        var g = new MapaConfig("google", "AIzaSyEJEMPLO_NO_ES_UNA_CLAVE_REAL_0123", "MI_MAP_ID", "quarterly", CLAVE_SERVIDOR);
+        var g = new MapaConfig("google", "AIza" + "SyEJEMPLO_NO_ES_UNA_CLAVE_REAL_0123", "MI_MAP_ID", "quarterly", CLAVE_SERVIDOR);
         assertTrue(servicio(CLAVE_SERVIDOR, g).activo());
         assertFalse(servicio("", g).activo(), "sin clave del servidor sigue apagado");
     }

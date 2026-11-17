@@ -62,6 +62,7 @@
             const limite = setTimeout(() => fallo(M.errorMapa('tiempo', 'el SDK no respondió en ' + TIEMPO_SDK_MS + ' ms')), TIEMPO_SDK_MS);
             window[nombre] = () => { clearTimeout(limite); delete window[nombre]; ok(); };
             const q = new URLSearchParams({ key: g.claveNavegador, v: g.version || 'weekly', language: g.idioma || 'es', region: g.region || 'CO', loading: 'async', callback: nombre });
+            if (M.experimento && M.experimento('map_ids')) q.set('map_ids', g.mapId);      // experimento (apagado por defecto): precarga la configuración del Map ID que ya usa el mapa
             const el = document.createElement('script');
             el.src = 'https://maps.googleapis.com/maps/api/js?' + q; el.async = true; el.dataset.mapaSdk = '1';
             el.onerror = () => {
@@ -420,7 +421,7 @@
             const sinTiles = () => { if (this._tilesOk || navigator.onLine === false || document.hidden) return; this.emitir('salud', { estado: 'incompleto', motivo: 'tiles' }); };
             const cambio = () => { this._tilesOk = false; clearTimeout(this._vig); this._vig = setTimeout(sinTiles, 9000); };
             this._escuchar('bounds_changed', cambio);
-            this._escuchar('tilesloaded', () => { this._tilesOk = true; clearTimeout(this._vig); this.emitir('salud', { estado: 'ok' }); });
+            this._escuchar('tilesloaded', () => { if (!performance.getEntriesByName('sevb-calles-visibles').length) M.marca('sevb-calles-visibles'); this._tilesOk = true; clearTimeout(this._vig); this.emitir('salud', { estado: 'ok' }); });
             if (this._domSalud) return;      // los eventos DOM del contenedor se instalan una sola vez (sobreviven a la reconstrucción)
             const perdido = () => this.emitir('salud', { estado: 'incompleto', motivo: 'webgl' });
             const restaurado = () => { setTimeout(() => { this.recuperar('suave').catch(() => {}); }, 300); };

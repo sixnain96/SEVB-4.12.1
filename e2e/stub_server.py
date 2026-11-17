@@ -28,7 +28,7 @@ def _csp(proveedor):
 
 # Proveedor de mapa del servidor simulado (como MAP_PROVIDER): SEVB_STUB_MAPA=leaflet|google. Con google se usan claves de PRUEBA (no reales).
 PROVEEDOR_MAPA = os.environ.get('SEVB_STUB_MAPA', 'leaflet')
-CLAVE_NAVEGADOR_STUB = os.environ.get('SEVB_STUB_CLAVE_NAVEGADOR', 'AIzaSyEJEMPLO_NO_ES_UNA_CLAVE_REAL_0123')
+CLAVE_NAVEGADOR_STUB = os.environ.get('SEVB_STUB_CLAVE_NAVEGADOR', 'AIza' 'SyEJEMPLO_NO_ES_UNA_CLAVE_REAL_0123')
 MAP_ID_STUB = os.environ.get('SEVB_STUB_MAP_ID', 'DEMO_MAP_ID')
 CSP = _csp(PROVEEDOR_MAPA)
 
@@ -461,6 +461,106 @@ def _planificar(cuerpo):
 
 # Gancho de pruebas del service worker: /__fallo/<código> hace que /api/rutas y /api/rutas/{id} respondan con ese estado (0 = normal).
 FORZAR = {'estado': 0}
+
+# ---------------------------------------------------------------- cuentas (Fase B): «Continuar con Google» SIMULADO, con el mismo contrato que CuentaController
+# Solo hay una vía para tener sesión: POST /api/cuenta/google con una credencial «de mentira» (nunca un token real de Google): "fake." + base64url(JSON con sub, email, name, aud, iat, exp,
+# email_verified). El stub exige lo que exige el servidor: audiencia, vigencia, correo verificado, UN solo uso y, para borrar, una credencial de menos de 5 minutos del MISMO sub.
+# registro / entrada / clave responden 410. Ganchos de prueba: /__cuenta/estado, /__cuenta/reiniciar, /__cuenta/antigua (sesión de una cuenta con contraseña), /__cuenta/config.
+CUENTA_CLIENT = 'stub-client.apps.googleusercontent.com'
+CUENTAS = {'logros': {}, 'usuarios': {}, 'sesiones': {}, 'datos': {}, 'usadas': set(), 'siguiente': 1, 'antiguas': set(), 'borradas': 0, 'config': {}, 'intentos': 0}
+
+
+def _cuentas_reiniciar():
+    CUENTAS.update({'logros': {}, 'usuarios': {}, 'sesiones': {}, 'datos': {}, 'usadas': set(), 'siguiente': 1, 'antiguas': set(), 'borradas': 0, 'config': {}, 'intentos': 0})
+
+
+# ---------------------------------------------------------------------------------------------------------------- logros y racha (Fase D): mismas reglas que LogrosService / Racha.java
+import datetime as _dt
+_CATALOGO_LOGROS = ['primero', 'cinco', 'veinte', 'transbordo', 'racha3', 'racha7', 'madrugador', 'noche', 'practica', 'llano']
+
+
+def _dia_bogota(ms):
+    return (_dt.datetime.fromtimestamp(ms / 1000, _dt.timezone.utc) - _dt.timedelta(hours=5)).date()
+
+
+def _hora_bogota(ms):
+    return (_dt.datetime.fromtimestamp(ms / 1000, _dt.timezone.utc) - _dt.timedelta(hours=5)).hour
+
+
+def _racha(dias, hoy):
+    d = sorted(set(dias))
+    if not d:
+        return 0, 0, 0, None
+    cadena = estricta = mejor = mejor_e = 0
+    previo = None
+    for x in d:
+        hueco = 0 if previo is None else (x - previo).days
+        cadena = 1 if previo is None or hueco > 2 else cadena + 1
+        estricta = 1 if previo is None or hueco != 1 else estricta + 1
+        mejor, mejor_e, previo = max(mejor, cadena), max(mejor_e, estricta), x
+    return (cadena if (hoy - previo).days <= 2 else 0), mejor, mejor_e, previo
+
+
+def _logros_estado(sesion, ahora_ms):
+    import time
+    L = CUENTAS['logros'].setdefault(sesion, {'viajes': {}, 'practica': False, 'insignia': None})
+    hoy = _dia_bogota(ahora_ms)
+    viajes = list(L['viajes'].values())
+    dias = [_dia_bogota(v['llegadaMs']) for v in viajes]
+    actual, mejor, estricta, ultimo = _racha(dias, hoy)
+    m = {'viajes': len(viajes), 'transbordos': sum(1 for v in viajes if v['buses'] >= 2), 'madrugador': any(_hora_bogota(v['llegadaMs']) < 7 for v in viajes),
+         'nocturno': any(_hora_bogota(v['llegadaMs']) >= 19 for v in viajes), 'practica': L['practica']}
+    logros = []
+    if m['viajes'] >= 1: logros.append('primero')
+    if m['viajes'] >= 5: logros.append('cinco')
+    if m['viajes'] >= 20: logros.append('veinte')
+    if m['transbordos'] >= 1: logros.append('transbordo')
+    if estricta >= 3: logros.append('racha3')
+    if estricta >= 7: logros.append('racha7')
+    if m['madrugador']: logros.append('madrugador')
+    if m['nocturno']: logros.append('noche')
+    if m['practica']: logros.append('practica')
+    if m['viajes'] >= 30 and mejor >= 7: logros.append('llano')
+    insignia = L['insignia'] if L['insignia'] in logros else None
+    return {'viajes': m['viajes'], 'transbordos': m['transbordos'], 'rachaActual': actual, 'mejorRacha': mejor, 'mejorEstricta': estricta, 'madrugador': m['madrugador'], 'nocturno': m['nocturno'],
+            'practica': m['practica'], 'logros': logros, 'insignia': insignia, 'hoy': hoy.isoformat(), 'ultimoDia': ultimo.isoformat() if ultimo else None,
+            'dias': [x.isoformat() for x in sorted(set(dias))][-120:]}
+
+
+def _credencial(c, reciente=False):
+    """(identidad, None) o (None, mensaje) con los mismos mensajes del servidor real."""
+    import base64
+    import time
+    try:
+        tipo, cuerpo = (c or '').split('.', 1)
+        if tipo != 'fake':
+            raise ValueError
+        d = json.loads(base64.urlsafe_b64decode(cuerpo + '=' * (-len(cuerpo) % 4)))
+    except Exception:  # noqa: BLE001
+        return None, 'Credencial de Google no válida.'
+    ahora = time.time()
+    if d.get('aud', CUENTA_CLIENT) != CUENTA_CLIENT:
+        return None, 'La credencial no es para esta aplicación.'
+    if d.get('exp', ahora + 3000) + 60 < ahora:
+        return None, 'La credencial de Google venció. Inténtalo de nuevo.'
+    if not d.get('email_verified', True):
+        return None, 'Tu correo de Google no está verificado.'
+    if not d.get('sub') or not d.get('email'):
+        return None, 'Credencial de Google incompleta.'
+    if reciente and ahora - d.get('iat', 0) > 300:
+        return None, 'Para confirmarlo, vuelve a continuar con Google (la confirmación anterior ya es antigua).'
+    if c in CUENTAS['usadas']:
+        return None, 'Esa credencial de Google ya se usó. Vuelve a continuar con Google.'
+    CUENTAS['usadas'].add(c)
+    return d, None
+
+
+def _vista_usuario(u):
+    v = {'id': u['id'], 'nombre': u['nombre'], 'correo': u['correo'], 'conGoogle': True, 'admin': False}
+    if u.get('foto'):
+        v['foto'] = u['foto']
+    return v
+
 LOG = []      # peticiones de búsqueda recibidas (para comprobar sesion=, magicKey y cuántas consultas hizo la página): GET /__log/busqueda
 
 
@@ -539,6 +639,163 @@ class H(BaseHTTPRequestHandler):
             cuerpo_r['etaMin'] = fila['eta']
         return self._enviar(200, json.dumps(cuerpo_r), 'application/json', extra)
 
+
+    def _cookie_sesion(self):
+        for parte in (self.headers.get('Cookie') or '').split(';'):
+            k, _, v = parte.strip().partition('=')
+            if k == 'spevb_sesion':
+                return v
+        return None
+
+    def _cuenta(self, ruta, cuerpo):
+        import secrets
+        try:
+            q = json.loads(cuerpo or b'{}') if cuerpo else {}
+        except ValueError:
+            q = {}
+        sesion = CUENTAS['sesiones'].get(self._cookie_sesion())
+        poner = lambda t, vida: {'Set-Cookie': 'spevb_sesion=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax' % (t, vida), 'Cache-Control': 'no-store'}
+        if ruta in ('/api/cuenta/registro', '/api/cuenta/entrar', '/api/cuenta/clave'):
+            return self._json({'status': 410, 'message': 'El acceso con correo y contraseña ya no está disponible. Usa «Continuar con Google».'}, 410)
+        if ruta == '/api/cuenta/config':
+            cfg = {'google': CUENTA_CLIENT, 'modo': 'google', 'adminConfigurado': False}
+            cfg.update(CUENTAS['config'])
+            return self._json({k: v for k, v in cfg.items() if v is not None})
+        if ruta == '/api/cuenta/yo':
+            if sesion == 'antigua':
+                return self._json({'autenticado': False, 'motivo': 'cuenta-anterior'})
+            if not sesion:
+                return self._json({'autenticado': False})
+            u = CUENTAS['usuarios'][sesion]
+            r = {'autenticado': True, 'usuario': _vista_usuario(u)}
+            if u['correo'] in CUENTAS['antiguas']:
+                r['cuentaAnterior'] = True
+            return self._json(r)
+        if ruta == '/api/cuenta/google' and self.command == 'POST':
+            CUENTAS['intentos'] += 1
+            d, error = _credencial(q.get('credential'))
+            if error:
+                return self._json({'status': 401, 'message': error}, 401)
+            u = CUENTAS['usuarios'].get(d['sub'])
+            if not u:
+                u = CUENTAS['usuarios'][d['sub']] = {'id': CUENTAS['siguiente'], 'nombre': d.get('name') or d['email'].split('@')[0], 'correo': d['email'].lower(), 'foto': d.get('picture')}
+                CUENTAS['siguiente'] += 1
+            else:
+                u['correo'] = d['email'].lower()
+            token = secrets.token_urlsafe(32)
+            CUENTAS['sesiones'][token] = d['sub']
+            r = {'usuario': _vista_usuario(u)}
+            if u['correo'] in CUENTAS['antiguas']:
+                r['cuentaAnterior'] = True
+            return self._enviar(200, json.dumps(r), 'application/json', poner(token, 2592000))
+        if ruta == '/api/cuenta/salir' and self.command == 'POST':
+            CUENTAS['sesiones'].pop(self._cookie_sesion(), None)
+            return self._enviar(200, json.dumps({'ok': True}), 'application/json', poner('', 0))
+        if ruta == '/api/cuenta/eliminar' and self.command == 'POST':
+            if not sesion or sesion == 'antigua':
+                return self._json({'status': 401, 'message': 'Inicia sesión para continuar.'}, 401)
+            d, error = _credencial(q.get('credential'), reciente=True)
+            if error:
+                return self._json({'status': 401, 'message': error}, 401)
+            if d['sub'] != sesion:
+                return self._json({'status': 403, 'message': 'Esa confirmación es de otra cuenta de Google. Confirma con la misma cuenta con la que entraste.'}, 403)
+            CUENTAS['usuarios'].pop(sesion, None)
+            CUENTAS['datos'].pop(sesion, None)
+            CUENTAS['logros'].pop(sesion, None)
+            for t in [t for t, v in CUENTAS['sesiones'].items() if v == sesion]:
+                del CUENTAS['sesiones'][t]
+            CUENTAS['borradas'] += 1
+            return self._enviar(200, json.dumps({'ok': True}), 'application/json', poner('', 0))
+        if ruta.startswith('/api/cuenta/logros'):
+            import re as _re, time as _t
+            if not sesion or sesion == 'antigua':
+                return self._json({'status': 401, 'message': 'Inicia sesión para continuar.'}, 401)
+            ahora = int(_t.time() * 1000)
+            L = CUENTAS['logros'].setdefault(sesion, {'viajes': {}, 'practica': False, 'insignia': None})
+            if ruta == '/api/cuenta/logros' and self.command == 'GET':
+                return self._json({**_logros_estado(sesion, ahora), 'nuevo': False, 'nuevos': []})
+            if self.command != 'POST':
+                return self._json({'status': 405}, 405)
+            antes = _logros_estado(sesion, ahora)
+            if ruta == '/api/cuenta/logros/viaje':
+                vid, ms, b = q.get('viajeId'), q.get('llegadaMs'), q.get('buses')
+                if not isinstance(vid, str) or not _re.fullmatch(r'[A-Za-z0-9_-]{6,40}', vid):
+                    return self._json({'status': 400, 'message': 'Identificador de viaje no válido.'}, 400)
+                if not isinstance(b, int) or b < 1 or b > 6:
+                    return self._json({'status': 400, 'message': 'Un viaje cuenta solo con al menos una subida a un bus confirmada.'}, 400)
+                if not isinstance(ms, int) or ms > ahora + 300000 or ms < ahora - 30 * 86400000:
+                    return self._json({'status': 400, 'message': 'La hora de llegada no es válida.'}, 400)
+                nuevo = vid not in L['viajes']
+                if nuevo:
+                    L['viajes'][vid] = {'llegadaMs': ms, 'buses': b}
+                despues = _logros_estado(sesion, ahora)
+                return self._json({**despues, 'nuevo': nuevo, 'nuevos': [x for x in despues['logros'] if x not in antes['logros']] if nuevo else []})
+            if ruta == '/api/cuenta/logros/practica':
+                L['practica'] = True
+                despues = _logros_estado(sesion, ahora)
+                return self._json({**despues, 'nuevo': 'practica' not in antes['logros'], 'nuevos': [x for x in despues['logros'] if x not in antes['logros']]})
+            if ruta == '/api/cuenta/logros/insignia':
+                i = q.get('id') or None
+                if i is not None and i not in _CATALOGO_LOGROS:
+                    return self._json({'status': 400, 'message': 'Esa insignia no existe.'}, 400)
+                if i is not None and i not in antes['logros']:
+                    return self._json({'status': 409, 'message': 'Todavía no has ganado esa insignia.'}, 409)
+                L['insignia'] = i
+                return self._json({**_logros_estado(sesion, ahora), 'nuevo': False, 'nuevos': []})
+            return self._json({'status': 404}, 404)
+        if ruta == '/api/cuenta/datos' and self.command == 'GET':
+            if not sesion or sesion == 'antigua':
+                return self._json({'status': 401, 'message': 'Inicia sesión para continuar.'}, 401)
+            return self._json(CUENTAS['datos'].get(sesion, {}))
+        m = re.fullmatch(r'/api/cuenta/datos/([a-z]+)', ruta)
+        if m and self.command == 'POST':
+            if not sesion or sesion == 'antigua':
+                return self._json({'status': 401, 'message': 'Inicia sesión para continuar.'}, 401)
+            # Como el servidor real: con «base» la escritura es CONDICIONAL (409 si otro dispositivo cambió el documento) y devuelve el nuevo «actualizadoEn».
+            import time
+            docs = CUENTAS['datos'].setdefault(sesion, {})
+            actual = docs.get(m.group(1))
+            base = q.get('base')
+            if base is not None and actual is not None and int(base) != actual['actualizadoEn']:
+                return self._json({'status': 409, 'message': 'Tus datos cambiaron en otro dispositivo. Se actualizaron; vuelve a intentarlo.'}, 409)
+            if base is not None and actual is None and int(base) != 0 and False:
+                pass
+            if CUENTAS.get('fallo_datos'):
+                return self._json({'status': 503, 'message': 'Fallo simulado.'}, 503)
+            t = max(int(time.time() * 1000), (actual['actualizadoEn'] + 1) if actual else 0)
+            valor = q.get('valor')
+            if m.group(1) == 'lugares' and isinstance(valor, list):      # límites del validador real: 30 vivos, a lo sumo una casa y un trabajo
+                vivos = [x for x in valor if isinstance(x, dict) and not x.get('borrado') and x.get('nombre') and isinstance(x.get('lat'), (int, float)) and isinstance(x.get('lng'), (int, float))]
+                lapidas = [x for x in valor if isinstance(x, dict) and x.get('borrado')]
+                valor = vivos[:30] + lapidas[:30]
+            docs[m.group(1)] = {'valor': valor, 'actualizadoEn': t}
+            return self._json({'ok': True, 'actualizadoEn': t})
+        return self._json({'status': 401, 'message': 'Inicia sesión para continuar.'}, 401)
+
+    def _gancho_cuenta(self, ruta, consulta):
+        if ruta == '/__cuenta/fallo-datos':      # pruebas: los guardados de datos fallan con 503 (1) o vuelven a funcionar (0)
+            CUENTAS['fallo_datos'] = bool(int((consulta.get('v') or ['1'])[0]))
+            return self._json({'ok': True})
+        if ruta == '/__cuenta/escribir':      # pruebas: otro dispositivo cambia un documento de la cuenta con sesión de ESTE navegador
+            return self._json({'status': 404}, 404)
+        if ruta == '/__cuenta/reiniciar':
+            _cuentas_reiniciar()
+            return self._json({'ok': True})
+        if ruta == '/__cuenta/estado':
+            return self._json({'usuarios': [u['id'] for u in CUENTAS['usuarios'].values()], 'borradas': CUENTAS['borradas'], 'sesiones': len(CUENTAS['sesiones']), 'intentos': CUENTAS['intentos'],
+                               'datos': {str(k): list(v) for k, v in CUENTAS['datos'].items()}})
+        if ruta == '/__cuenta/antigua':      # una sesión nacida de una contraseña antigua; opcionalmente un correo que tiene cuenta anterior
+            CUENTAS['sesiones']['A' * 43] = 'antigua'
+            if consulta.get('correo'):
+                CUENTAS['antiguas'].add(consulta['correo'][0].lower())
+            return self._enviar(200, json.dumps({'ok': True}), 'application/json', {'Set-Cookie': 'spevb_sesion=%s; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax' % ('A' * 43), 'Cache-Control': 'no-store'})
+        if ruta == '/__cuenta/config':
+            for k in ('direccionOficial', 'soporte'):
+                if consulta.get(k):
+                    CUENTAS['config'][k] = consulta[k][0]
+            return self._json(CUENTAS['config'])
+        return self._json({'status': 404}, 404)
+
     def _json(self, obj, codigo=200):
         self._enviar(codigo, json.dumps(obj), 'application/json', {'Cache-Control': 'no-store'})
 
@@ -563,6 +820,19 @@ class H(BaseHTTPRequestHandler):
                     items[0]['magicKey'] = 'g:fallo1'
                 if low.startswith('goosust'):
                     items[0]['magicKey'] = 'g:sust1'
+                if low.startswith('goovia'):      # una vía (sin placa) y una puerta con placa
+                    base = dict(items[0]); base['secundario'] = 'Villavicencio, Meta'
+                    items = [{**base, 'principal': 'Carrera 27', 'texto': 'Carrera 27, Villavicencio, Meta', 'magicKey': 'g:via000001'},
+                             {**base, 'principal': 'Carrera 27 #35A-50', 'texto': 'Carrera 27 #35A-50, Villavicencio, Meta', 'magicKey': 'g:dir000001'}]
+                if low.startswith('goodir'):
+                    items[0]['magicKey'] = 'g:dir000001'
+                if low.startswith('gooid'):
+                    items[0]['magicKey'] = 'g:otro1'      # el detalle devolverá OTRA sede del mismo proveedor (otro googleId)
+                if low.startswith('goosedes'):      # dos sedes con el mismo nombre y distinto identificador
+                    base = dict(items[0]); base['principal'] = 'Clínica Meta'; base['texto'] = 'Clínica Meta, Calle 38 #31-10, Villavicencio'
+                    a2 = {**base, 'secundario': 'Calle 38 #31-10, Villavicencio', 'magicKey': 'g:sedeCentro1'}
+                    b2 = {**base, 'texto': 'Clínica Meta, Carrera 40 #5-20, Villavicencio', 'secundario': 'Carrera 40 #5-20, Villavicencio', 'magicKey': 'g:sedeNorte01'}
+                    items = [a2, b2]
                 return self._json({'arcgisConfigurado': True, 'direccionesLocales': True, 'sugerencias': items, 'estado': 'OK', 'proveedor': 'google',
                                    'intentos': [{'proveedor': 'google', 'estado': 'OK'}]})
             items = [{'texto': q + ' (prueba)', 'detalle': 'Villavicencio', 'lat': 4.145, 'lng': -73.654, 'fuente': 'Stub', 'precision': 'DIRECCION_PUNTUAL', 'id': None}]
@@ -575,10 +845,19 @@ class H(BaseHTTPRequestHandler):
             if mk.startswith('g:sust'):      # backend defectuoso: devuelve un lugar de OTRO proveedor sin avisar
                 return self._json({'lugares': [{'id': None, 'nombre': 'OTRO LUGAR (ArcGIS)', 'direccion': 'otro', 'lat': 4.1530, 'lng': -73.6510, 'fuente': 'ArcGIS World Geocoding',
                                                 'confirmado': False, 'precision': 'DIRECCION_PUNTUAL'}], 'avisos': [], 'estado': 'OK', 'proveedor': 'arcgis', 'intentos': []})
+            if mk.startswith('g:dir') or mk.startswith('g:via'):      # lugar con la dirección formateada de Google / solo la vía
+                via = mk.startswith('g:via')
+                return self._json({'lugares': [{'id': None, 'nombre': q if not via else 'Carrera 27', 'direccion': 'Carrera 27, Villavicencio, Meta' if via else 'Cra. 27 #35A-50, Villavicencio, Meta', 'lat': 4.1462, 'lng': -73.6528,
+                                                'fuente': 'Google Maps', 'confirmado': False, 'precision': 'VIA' if via else 'DIRECCION_PUNTUAL', 'googleId': mk[2:], 'nomenclatura': None if via else 'Carrera 27 # 35A-50'}],
+                                   'avisos': [], 'estado': 'OK', 'proveedor': 'google', 'intentos': [{'proveedor': 'google', 'estado': 'OK'}]})
             prov = 'google' if mk.startswith('g:') else 'arcgis'
+            gid = (mk[2:] if prov == 'google' else None) if not mk.startswith('g:otro') else 'ChIJotraSedeDistinta'
             return self._json({'lugares': [{'id': None, 'nombre': q, 'direccion': q, 'lat': 4.1462, 'lng': -73.6528, 'fuente': 'Google Maps' if prov == 'google' else 'ArcGIS World Geocoding',
-                                            'confirmado': False, 'precision': 'DIRECCION_PUNTUAL'}], 'avisos': [], 'estado': 'OK', 'proveedor': prov,
+                                            'confirmado': False, 'precision': 'DIRECCION_PUNTUAL', 'googleId': gid}], 'avisos': [], 'estado': 'OK', 'proveedor': prov,
                                'intentos': [{'proveedor': prov, 'estado': 'OK'}]})
+        if low.startswith('vianum'):      # la vía existe pero no ese número: no se confirma otra puerta
+            return self._json({'lugares': [], 'avisos': ['Encontramos la carrera, pero no ese número. Puedes marcar el punto en el mapa con «Elegir en el mapa».'], 'estado': 'SIN_COINCIDENCIAS', 'proveedor': 'ninguno',
+                               'intentos': [{'proveedor': 'google', 'estado': 'SIN_COINCIDENCIAS'}]})
         for pref, est in estados.items():
             if low.startswith(pref):
                 return self._json({'lugares': [], 'avisos': [], 'estado': est, 'proveedor': 'ninguno', 'intentos': [{'proveedor': 'google', 'estado': est}]})
@@ -671,12 +950,8 @@ class H(BaseHTTPRequestHandler):
             return self._json({'lugares': [], 'sugerencias': [], 'dirigida': False})
         if ruta == '/api/compartir':
             return self._compartir(cuerpo)
-        if ruta == '/api/cuenta/yo':
-            return self._json({'autenticado': False})
-        if ruta == '/api/cuenta/config':
-            return self._json({'adminConfigurado': False})
         if ruta.startswith('/api/cuenta'):
-            return self._json({'status': 401, 'message': 'Inicia sesión para continuar.'}, 401)
+            return self._cuenta(ruta, cuerpo)
         return self._json({'status': 404, 'message': 'stub: sin respuesta para ' + ruta}, 404)
 
     def _guardar_ruta(self, rid, d):
@@ -745,6 +1020,8 @@ class H(BaseHTTPRequestHandler):
             for f in COMPARTIDOS.values():
                 f['exp'] = 0
             return self._json({'ok': True})
+        if u.path.startswith('/__cuenta/'):
+            return self._gancho_cuenta(u.path, parse_qs(u.query))
         if u.path == '/__log/limpiar':
             LOG.clear()
             COMPARTIR_LOG.clear()

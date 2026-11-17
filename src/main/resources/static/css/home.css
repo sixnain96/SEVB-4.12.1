@@ -613,3 +613,148 @@ body.home-sevb .sheet-body { overflow-y: auto; overscroll-behavior-y: contain; -
         bottom: var(--map-toast-bottom, calc(var(--sheet-visible, 0px) + 12px + env(safe-area-inset-bottom, 0px))); }
 }
 @media (prefers-reduced-motion: reduce) { body.home-sevb .sheet-body { scroll-behavior: auto; } }
+
+/* ===== Fase B · acceso solo con Google ===== */
+.account-buttons { grid-template-columns: minmax(0, 1fr); }
+.account-anterior { padding: 8px 10px; border-radius: 10px; background: #fff7e0; border: 1px solid #ecd28a; color: #5a4a10; }
+.account-anterior a { color: inherit; font-weight: 700; overflow-wrap: anywhere; }
+.auth-estado { margin: 4px 0; padding: 10px 12px; border-radius: 12px; background: #eaf2ef; color: #123f31; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.auth-estado[data-estado='cargando'], .auth-estado[data-estado='entrando'] { background: #eef1f4; color: #25303c; }
+.auth-estado[data-estado='cargando']::before, .auth-estado[data-estado='entrando']::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: auth-giro .8s linear infinite; }
+.auth-estado:is([data-estado='error'], [data-estado='sin-conexion'], [data-estado='sin-servidor'], [data-estado='no-configurado'], [data-estado='bloqueado'], [data-estado='origen']) { background: #fff3d6; color: #5c3b00; }
+.auth-ayuda { margin: 0; overflow-wrap: anywhere; }
+.auth-ayuda a { font-weight: 700; }
+#setDelPaso { display: grid; gap: 8px; margin-top: 8px; }
+#setDelPaso[hidden] { display: none; }
+#setDelTexto { margin: 0; }
+#setDelPaso .modal-actions { grid-template-columns: 1fr; }
+#setDelPaso .modal-actions button { min-height: 44px; }
+@keyframes auth-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .auth-estado::before { animation: none !important; } }
+html[data-motion="reduce"] .auth-estado::before { animation: none !important; }
+
+/* ===== Fase C · menú ☰ reordenado y «Mis lugares» ===== */
+.menu-volver-viaje { width: 100%; min-height: 48px; margin: 6px 0 4px; }
+.menu-volver-viaje[hidden] { display: none; }
+.side-menu .menu-inicio { min-height: 44px; padding-block: 6px; font-size: 14px; }
+.side-menu .menu-account { padding: 10px 12px; margin: 4px 0; }
+.side-menu #accountUser .account-buttons { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.side-menu #accountUser .account-buttons button { min-height: 44px; font-size: 14px; padding-inline: 8px; }
+.menu-lugares > summary { font-size: 17px; font-weight: 800; }
+.side-menu .atajos { grid-template-columns: 1fr; gap: 6px; margin: 6px 0 4px; }
+@media (min-width: 380px) { .side-menu .atajos { grid-template-columns: 1fr 1fr; } }
+.atajo-fila { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 6px; align-items: stretch; }
+.atajo-fila .atajo { min-width: 0; min-height: 56px; justify-content: flex-start; text-align: left; overflow-wrap: anywhere; }
+.atajo-mas, .lugar-mas { min-width: 44px; min-height: 44px; border: 2px solid #c9d3d0; border-radius: 12px; background: #fff; color: #1b2430; font: inherit; font-size: 20px; font-weight: 800; cursor: pointer; }
+.atajo-mas[hidden], .atajo-acciones[hidden] { display: none; }
+.lugar-acciones { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; padding: 4px 0 6px; }
+.lugar-accion { min-height: 44px; font-size: 14px; }
+.lugares-lista { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
+.lugares-lista[hidden] { display: none; }
+.lugar-fila { display: grid; gap: 4px; }
+.lugar-cab { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.lugar-usar { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 12px; border: 2px solid #c9d3d0; border-radius: 14px; background: #fff; color: #1b2430; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
+.lugar-usar svg { flex: none; color: #176650; }
+.lugar-nombre { min-width: 0; overflow-wrap: anywhere; }
+.lugar-agregar { width: 100%; min-height: 48px; margin: 4px 0; font-weight: 800; }
+.side-menu .favorites > summary { min-height: 48px; }
+
+/* modo de mapa «Marca el lugar»: pin fijo en el centro del mapa y una barra propia (abajo; arriba si hay un viaje, para no tapar su tarjeta ni sus alertas) */
+.lugar-pin { position: absolute; z-index: 700; width: 40px; height: 53px; margin: -53px 0 0 -20px; pointer-events: none; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .35)); border-radius: 12px; }
+.lugar-pin:focus-visible { outline: 3px solid #1e5fbf; outline-offset: 6px; }
+.lugar-modo { position: fixed; z-index: 2200; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); max-width: 460px; margin-inline: auto; display: grid; gap: 6px; padding: 12px 14px;
+    background: #fff; color: #1b2430; border: 1px solid #c9d3d0; border-radius: 18px; box-shadow: 0 8px 28px rgba(0, 0, 0, .28); max-height: 52dvh; overflow-y: auto; overscroll-behavior: contain; }
+.lugar-modo[hidden] { display: none; }
+.lugar-modo[data-viaje='1'] { bottom: auto; top: calc(64px + env(safe-area-inset-top, 0px)); }
+.lugar-modo h2 { margin: 0; font-size: 19px; line-height: 1.2; }
+.lugar-ayuda, .lugar-cerca, .lugar-estado { margin: 0; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.lugar-cerca { color: #3d4a44; }
+.lugar-estado { font-weight: 700; color: #5c3b00; }
+.lugar-estado:empty, .lugar-cerca:empty { display: none; }
+#lugarNombreFila { display: grid; gap: 4px; }
+#lugarNombreFila[hidden] { display: none; }
+@media (max-height: 640px) { .lugar-modo { padding: 10px 12px; gap: 4px; } .lugar-modo h2 { font-size: 17px; } .lugar-ayuda { font-size: 13px; } }
+#lugarNombre { min-height: 46px; font-size: 16px; }
+.lugar-botones { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+.lugar-botones .primary-plan-button { grid-column: 1 / -1; min-height: 52px; }
+.lugar-botones button { min-height: 46px; }
+.lugar-botones button[hidden] { display: none; }
+@media (max-height: 480px) and (orientation: landscape) { .lugar-modo, .lugar-modo[data-viaje='1'] { left: auto; right: 10px; top: 8px; bottom: 8px; width: min(260px, 45vw); max-width: none; max-height: none; } }
+body.modo-lugar .menu-flotante { display: none; }
+.lugar-dialogo { display: grid; gap: 8px; }
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]) .lugar-modo { background: #1c2430; color: #eef2f1; border-color: #3b4a58; }
+    html:not([data-theme="light"]) .lugar-cerca { color: #b4c7bd; }
+    html:not([data-theme="light"]) .lugar-estado { color: #ffd9a8; }
+}
+html[data-theme="dark"] .lugar-modo { background: #1c2430; color: #eef2f1; border-color: #3b4a58; }
+
+/* Fase C: perfil compacto en el menú (con sesión): foto y nombre arriba, dos acciones en una sola fila; sin el rótulo «Mi cuenta» (la foto y el nombre ya lo dicen). */
+#accountUser > .eyebrow { display: none; }
+#accountUser .account-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#accountUser .account-buttons button { min-height: 44px; padding: 6px 8px; font-size: 14px; }
+
+/* ===== Fase D · racha, medallas y recompensas visuales ===== */
+.menu-logros > summary { flex-wrap: wrap; row-gap: 4px; }
+.racha-chip { display: inline-flex; align-items: center; gap: 6px; flex-basis: 100%; font-size: 14px; font-weight: 800; color: #8a3b00; line-height: 1.25; }
+.racha-chip.sin-racha { color: #4d5b54; font-weight: 600; }
+.racha-llama { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; }
+.racha-llama svg { display: block; color: #c2570c; fill: rgba(240, 140, 40, .30); }
+.racha-chip.sin-racha .racha-llama svg { color: #8b9a93; fill: none; }
+.racha-chip[data-nivel='3'] .racha-llama svg, .racha-chip[data-nivel='4'] .racha-llama svg { color: #b8430a; fill: rgba(240, 120, 30, .40); }
+.racha-llama { position: relative; }
+.racha-llama::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid #f0a020; opacity: 0; pointer-events: none; }
+.racha-chip.chispa .racha-llama::after { animation: llama-chispa 1.7s ease-out 1; }
+@keyframes llama-chispa { 0% { opacity: 0; transform: scale(.8); } 30% { opacity: 1; transform: scale(1.25); } 100% { opacity: 0; transform: scale(1.5); } }
+@media (prefers-reduced-motion: reduce) { .racha-chip.chispa .racha-llama::after { animation: none; opacity: 1; transform: none; } }
+html[data-motion='reduce'] .racha-chip.chispa .racha-llama::after { animation: none; opacity: 1; transform: none; }
+.racha-detalle { margin: 2px 0 10px; font-size: 14px; line-height: 1.4; color: #3d4a44; }
+.logro { padding: 0; }
+.logro-boton { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; width: 100%; min-height: 52px; padding: 6px 10px; border: 0; border-radius: 12px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.logro-boton:focus-visible { outline: 3px solid #1e5fbf; outline-offset: 2px; }
+.logro-boton .logro-ico { grid-row: 1 / span 2; }
+.logro-estado { font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.logro:not(.ganado) { outline: 1.5px dashed #9aa8a1; outline-offset: -2px; }
+.logro-detalle { display: grid; gap: 4px; margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1.5px solid #c9d3d0; font-size: 14px; line-height: 1.4; color: #1b2430; }
+.logro-detalle[hidden] { display: none; }
+.medallas-perfil { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.medalla-perfil { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 12px; background: #f1f3f2; color: #123f31; font-size: 14px; font-weight: 700; }
+.medalla-perfil.puesta { box-shadow: inset 0 0 0 1.5px #176650; background: #e3efe9; }
+.medalla-perfil .logro-ico { color: #176650; }
+.medalla-boton { min-height: 44px; padding: 4px 12px; font-size: 14px; }
+/* Recompensas en la foto de perfil: marcos (5 viajes, Viajero del Llano) y una insignia pequeña en la esquina; los colores se quedan en el marco, la medalla o el detalle. */
+.account-avatar[data-insignia]::after { content: ''; position: absolute; pointer-events: none; }
+.account-avatar[data-marco]::after { inset: 0; border-radius: 50%; background-size: 100% 100%; }
+.account-avatar[data-marco='cinco']::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='18.2' fill='none' stroke='%23176650' stroke-width='3' stroke-dasharray='5 3'/%3E%3Ccircle cx='20' cy='2.2' r='3' fill='%23176650' stroke='white' stroke-width='1.2'/%3E%3Ccircle cx='38' cy='20' r='2' fill='white' stroke='%23176650' stroke-width='1.2'/%3E%3C/svg%3E"); }
+.account-avatar[data-marco='llano']::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='18.3' fill='none' stroke='%23176650' stroke-width='3'/%3E%3Ccircle cx='20' cy='20' r='16.4' fill='none' stroke='%23e0a21b' stroke-width='1' stroke-dasharray='1.2 3'/%3E%3Ccircle cx='31' cy='7.5' r='3.2' fill='%23e0a21b' stroke='white' stroke-width='1'/%3E%3Cpath d='M3.5 28.5c4-2.4 7-2.4 10.5 0M26 33.5c3.5-2.2 7-2.2 10 0' fill='none' stroke='%23e0a21b' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"); }
+.account-avatar[data-insignia]:not([data-marco])::after { right: 0; bottom: 0; width: 46%; height: 46%; border-radius: 50%; border: 1.5px solid #fff; background: #176650 var(--insignia-img) center / 72% no-repeat; }
+@media (max-width: 420px) {
+    .menu-logros .logros-lista { grid-template-columns: 1fr; }
+    .menu-logros .logro-boton { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .menu-logros .logro-boton .logro-ico { grid-row: auto; }
+    .menu-logros .logro-estado { grid-column: 3; text-align: right; white-space: nowrap; }
+}
+.menu-logros > summary > span:first-child { flex: 1 1 auto; }
+.menu-logros > summary::after { order: 2; }
+.menu-logros .racha-chip { order: 3; }
+.menu-logros .logro-boton { position: static; }
+.menu-logros .logro-txt { min-width: 0; overflow-wrap: anywhere; }
+
+/* ===== Instalar en tu celular (instalar.js) ===== */
+.menu-instalar { margin: 8px 0; }
+.instalar-intro { margin: 4px 0 10px; font-size: 15px; line-height: 1.45; }
+.instalar-detectado { margin: 0 0 10px; padding: 8px 12px; border-radius: 12px; background: #e3efe9; color: #123f31; font-size: 15px; font-weight: 800; }
+.instalar-ahora { margin: 0 0 10px; }
+.instalar-ahora .primary-plan-button { width: 100%; min-height: 52px; }
+.instalar-pasos { list-style: none; counter-reset: paso; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.instalar-pasos li { counter-increment: paso; position: relative; padding: 10px 12px 10px 48px; border-radius: 12px; background: #f1f3f2; color: #1b2430; font-size: 15px; line-height: 1.45; }
+.instalar-pasos li::before { content: counter(paso); position: absolute; left: 10px; top: 9px; width: 28px; height: 28px; border-radius: 50%; background: #176650; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+.instalar-ico { display: inline-block; vertical-align: -3px; margin: 0 2px; padding: 3px; width: 26px; height: 26px; border-radius: 8px; background: #fff; border: 1.5px solid #c9d3d0; color: #176650; box-sizing: border-box; }
+.instalar-nota { margin: 0 0 10px; font-size: 14px; color: #3d4a44; }
+.instalar-nota:empty { display: none; }
+.instalar-otro { display: grid; gap: 6px; }
+.instalar-otro label { font-size: 14px; font-weight: 700; }
+.instalar-otro select { min-height: 48px; font-size: 16px; border-radius: 12px; border: 2px solid #c9d3d0; padding: 6px 10px; background: #fff; color: #1b2430; }
+
+/* «Instalar en tu celular» no se ofrece durante un viaje (el menú del viaje se mantiene corto). */
+body.viaje-activo .menu-instalar { display: none; }

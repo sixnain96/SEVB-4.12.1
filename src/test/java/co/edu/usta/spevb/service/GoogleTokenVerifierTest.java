@@ -108,4 +108,46 @@ class GoogleTokenVerifierTest {
         assertFalse(v.activo());
         assertThrows(GoogleTokenVerifier.TokenInvalido.class, () -> v.verificar(token(par, Map.of()), AHORA));
     }
+
+    // ------------------------------------------------------------------ Fase B: controles adicionales
+    @Test
+    void rechazaDestinatarioAutorizadoAjenoCorreoDemasiadoLargoYTokenAunNoValido() throws Exception {
+        rechaza(token(par, Map.of("azp", "otra-app.apps.googleusercontent.com")), "esta aplicación");
+        rechaza(token(par, Map.of("aud", java.util.List.of(CLIENT, "otra"), "azp", "otra")), "esta aplicación");
+        assertEquals("1098765", verificador().verificar(token(par, Map.of("aud", java.util.List.of(CLIENT, "otra"), "azp", CLIENT)), AHORA).sub());
+        rechaza(token(par, Map.of("email", "a".repeat(115) + "@x.com")), "incompleta");
+        rechaza(token(par, Map.of("email", "sin-arroba")), "incompleta");
+        rechaza(token(par, Map.of("nbf", AHORA + 3600)), "no válida");
+        rechaza(token(par, Map.of("iat", AHORA + 3600)), "no válida");
+    }
+
+    @Test
+    void unaCredencialDeGoogleSoloSirveUnaVez() throws Exception {
+        var v = verificador();
+        String t = token(par, Map.of());
+        var id = v.verificar(t, AHORA);
+        assertNotNull(id.huella());
+        assertFalse(id.huella().contains("."), "la huella es un hash, no el token");
+        assertDoesNotThrow(() -> v.consumir(id, AHORA));
+        var e = assertThrows(GoogleTokenVerifier.TokenInvalido.class, () -> v.consumir(v.verificar(t, AHORA), AHORA));
+        assertTrue(e.getMessage().contains("ya se usó"), e.getMessage());
+        // otra credencial (otro iat) sí sirve
+        assertDoesNotThrow(() -> v.consumir(v.verificar(token(par, Map.of("iat", AHORA - 5)), AHORA), AHORA));
+    }
+
+    @Test
+    void laReautenticacionRecienteExigeUnaCredencialDeHaceMenosDeCincoMinutos() throws Exception {
+        var v = verificador();
+        assertEquals("1098765", v.verificarReciente(token(par, Map.of("iat", AHORA - 120)), 300, AHORA).sub());
+        var e = assertThrows(GoogleTokenVerifier.TokenInvalido.class, () -> v.verificarReciente(token(par, Map.of("iat", AHORA - 900)), 300, AHORA));
+        assertTrue(e.getMessage().contains("vuelve a continuar con Google"), e.getMessage());
+        assertThrows(GoogleTokenVerifier.TokenInvalido.class, () -> v.verificarReciente(token(par, Map.of("iat", 0)), 300, AHORA), "sin iat no hay forma de saber si es reciente");
+    }
+
+    @Test
+    void ningunMensajeDeErrorRepiteElTokenNiElCorreo() throws Exception {
+        String t = token(otro, Map.of());
+        var e = assertThrows(GoogleTokenVerifier.TokenInvalido.class, () -> verificador().verificar(t, AHORA));
+        assertFalse(e.getMessage().contains(t.substring(0, 20)) || e.getMessage().toLowerCase().contains("ana@gmail.com"));
+    }
 }

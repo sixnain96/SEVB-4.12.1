@@ -582,7 +582,7 @@ def si_la_busqueda_falla_siguen_a_mano_buscar_usar_mi_ubicacion_y_elegir_en_el_m
 def los_cinco_mensajes_honestos_dicen_exactamente_lo_acordado(nav):
     s, p = sesion_instrumentada(nav)
     esperado = {'sinconfig x': 'La búsqueda de Google no está configurada', 'cuota x': 'Google no pudo responder. Intenta de nuevo',
-                'nada x': 'Google no encontró ese lugar', 'fuera x': 'Ese lugar queda fuera del área disponible', 'tiempo x': 'Google no pudo responder. Intenta de nuevo'}
+                'nada x': 'Todavía no encontramos ese lugar', 'fuera x': 'Ese lugar queda fuera del área disponible', 'tiempo x': 'Google no pudo responder. Intenta de nuevo'}
     for consulta, inicio in esperado.items():
         p.fill('#tripOrigin', consulta)
         B.esperar(p, "document.querySelector('#originResults .search-error') !== null", 6000)
@@ -591,6 +591,150 @@ def los_cinco_mensajes_honestos_dicen_exactamente_lo_acordado(nav):
     p.fill('#tripOrigin', 'goo sin red'); p.wait_for_timeout(700)
     assert p.inner_text('#originResults .search-error').startswith('No hay conexión para buscar lugares')
     s.limpio('mensajes'); s.cerrar()
+
+
+# ============================================================================================================== pertinencia (Villavicencio): identidad, sedes, vía sin número, una consulta por pausa
+@prueba
+def otra_sede_del_mismo_proveedor_no_se_acepta_aunque_el_proveedor_coincida(nav):
+    """El backend defectuoso devuelve OTRA sede de Google (otro googleId) para la opción tocada: el navegador compara la identidad, no solo el proveedor."""
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'gooid clinica meta'); esperar_lista(p, 'destination')
+    lista(p, 'destination').first.click()
+    B.esperar(p, "document.querySelector('#destinationResults [data-accion=\"reintentar\"], #destinationResults .search-error') !== null", 6000)
+    assert punto(p, 'destination') is None, 'no se pone en el mapa un lugar con otra identidad'
+    assert 'reintent' in p.locator('#destinationResults').inner_text().lower()
+    assert p.input_value('#tripDestination').lower().startswith('gooid'), 'se conserva lo escrito'
+    s.limpio('otra sede'); s.cerrar()
+
+
+@prueba
+def dos_sedes_con_el_mismo_nombre_se_distinguen_y_se_resuelve_exactamente_la_tocada(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'goosedes clinica meta'); esperar_lista(p, 'destination')
+    assert lista(p, 'destination').count() == 2
+    t = p.evaluate("[...document.querySelectorAll('#destinationResults .autosuggest-option')].map(b => [b.querySelector('strong').textContent, b.querySelector('small').textContent])")
+    assert t[0][0] == t[1][0] == 'Clínica Meta' and t[0][1] != t[1][1] and '#31-10' in t[0][1] and '#5-20' in t[1][1], t
+    lista(p, 'destination').nth(1).click()
+    B.esperar(p, "!!Spevb.Planner.puntos().destino", 6000)
+    reg = [r for r in consultas('lugares') if r['magicKey']]
+    assert reg[-1]['magicKey'] == 'g:sedeNorte01', f'se resolvió la sede tocada: {reg}'
+    s.limpio('dos sedes'); s.cerrar()
+
+
+@prueba
+def una_via_sin_el_numero_pedido_se_explica_ofrece_el_mapa_y_conserva_el_texto(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'vianum Carrera 22 #38-10')
+    p.keyboard.press('Escape')
+    p.click('#searchDestination')
+    B.esperar(p, "document.getElementById('destinationResults').innerText.includes('Encontramos la carrera, pero no ese número')", 8000)
+    assert punto(p, 'destination') is None, 'nunca se confirma otra puerta como esa'
+    assert p.input_value('#tripDestination') == 'vianum Carrera 22 #38-10', 'se conserva lo escrito'
+    assert p.is_visible('#pickDestination'), '«Elegir en el mapa» sigue a la mano'
+    s.limpio('vía sin número'); s.cerrar()
+
+
+@prueba
+def escribir_letra_por_letra_hace_pocas_consultas_y_pegar_hace_una(nav):
+    s, p = sesion(nav)
+    p.click('#tripDestination')
+    p.keyboard.type('goo carrera 22 #38', delay=70)      # ≈ 1,3 s tecleando: el debounce de 220 ms junta las teclas
+    esperar_lista(p, 'destination')
+    n = len(consultas('sugerencias'))
+    assert 1 <= n <= 3, f'una consulta por pausa, no una por tecla: {n}'
+    limpiar_log()
+    p.fill('#tripDestination', ''); p.wait_for_timeout(300)
+    p.fill('#tripDestination', 'goo calle 30 # 38-10'); esperar_lista(p, 'destination'); p.wait_for_timeout(500)
+    assert len(consultas('sugerencias')) == 1, 'pegar la dirección completa hace una sola consulta'
+    s.limpio('letra por letra'); s.cerrar()
+
+
+@prueba
+def escape_cierra_la_lista_sin_borrar_y_enter_sin_opcion_activa_ejecuta_buscar(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'goo calle 30'); esperar_lista(p, 'destination')
+    p.keyboard.press('Escape')
+    assert lista(p, 'destination').count() == 0 and p.input_value('#tripDestination') == 'goo calle 30', 'Escape cierra sin borrar'
+    limpiar_log()
+    p.keyboard.press('Enter'); p.wait_for_timeout(900)
+    reg = consultas('lugares')
+    assert reg and not reg[-1]['magicKey'], f'sin opción activa, Enter es «Buscar» (búsqueda explícita): {reg}'
+    s.limpio('escape y enter'); s.cerrar()
+
+
+@prueba
+def con_el_teclado_las_flechas_recorren_y_enter_confirma_solo_la_opcion_resaltada(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'goosedes clinica'); esperar_lista(p, 'destination')
+    assert punto(p, 'destination') is None, 'perder el foco o dejar de escribir no elige el primer resultado'
+    p.keyboard.press('ArrowDown'); p.keyboard.press('ArrowDown'); p.keyboard.press('Enter')
+    B.esperar(p, "!!Spevb.Planner.puntos().destino", 6000)
+    assert [r for r in consultas('lugares') if r['magicKey']][-1]['magicKey'] == 'g:sedeNorte01', 'Enter confirmó la segunda (resaltada)'
+    s.limpio('flechas'); s.cerrar()
+
+
+# ============================================================================================================== nomenclatura colombiana: lo escrito se conserva y la dirección de Google se ve
+@prueba
+def lo_escrito_se_conserva_en_origen_y_destino_y_el_numeral_viaja_codificado(nav):
+    """La versión normalizada («Carrera 27 # 35A-50») la arma el SERVIDOR para consultar a Google: el campo no se reescribe con cada tecla y el # llega a la API sin perderse."""
+    s, p = sesion(nav)
+    for modo, escrito in (('origin', 'goo Kra 27 #35A - 50'), ('destination', 'goo carrera 27 número 35A 50')):
+        limpiar_log()
+        p.fill('#' + ID[modo], '')
+        p.click('#' + ID[modo])
+        p.keyboard.type(escrito, delay=25)      # tecla a tecla
+        esperar_lista(p, modo)
+        assert p.input_value('#' + ID[modo]) == escrito, 'el campo muestra lo que la persona escribió, sin normalizar'
+        q = [r['q'] for r in consultas('sugerencias')][-1]
+        assert q == escrito, f'el servidor recibe lo escrito (con el # intacto): {q!r}'
+        assert p.evaluate("(m) => document.activeElement.id === m", ID[modo]) and p.evaluate("document.activeElement.selectionStart") == len(escrito), 'el cursor sigue en su sitio'
+        p.keyboard.press('Escape')
+    s.limpio('conserva lo escrito'); s.cerrar()
+
+
+@prueba
+def pegar_una_direccion_y_editar_en_medio_hacen_una_consulta_por_pausa(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'goo carrera 27 numero 35A 50'); esperar_lista(p, 'destination'); p.wait_for_timeout(500)
+    assert len(consultas('sugerencias')) == 1, 'pegar = una consulta'
+    limpiar_log()
+    p.evaluate("(() => { const i = document.getElementById('tripDestination'); i.focus(); i.setSelectionRange(14, 14); })()")      # en medio de «goo carrera 27 …»
+    p.keyboard.type('X', delay=10); p.wait_for_timeout(700)
+    assert p.input_value('#tripDestination') == 'goo carrera 27X numero 35A 50' and len(consultas('sugerencias')) == 1, 'editar en medio: el texto queda donde se editó y sale una sola consulta'
+    s.limpio('pegar y editar'); s.cerrar()
+
+
+@prueba
+def una_via_se_ve_como_via_y_una_puerta_muestra_su_placa(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'goovia carrera 27'); esperar_lista(p, 'destination')
+    t = p.evaluate("[...document.querySelectorAll('#destinationResults .autosuggest-option')].map(b => [b.querySelector('strong').textContent, b.querySelector('small').textContent, b.getAttribute('aria-label')])")
+    assert t[0][0] == 'Carrera 27' and t[0][1].startswith('Vía ·') and t[0][2].startswith('Vía,'), f'sin placa: se ve como vía y no aparenta una puerta: {t}'
+    assert t[1][0] == 'Carrera 27 #35A-50' and not t[1][1].startswith('Vía'), f'con placa: la placa se ve: {t}'
+    s.limpio('vía y placa'); s.cerrar()
+
+
+@prueba
+def al_elegir_se_ve_la_direccion_que_devolvio_google_y_el_punto_es_ese(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'goodir carrera 27'); esperar_lista(p, 'destination')
+    lista(p, 'destination').first.click()
+    B.esperar(p, "!!Spevb.Planner.puntos().destino", 6000)
+    B.esperar(p, "!document.getElementById('destinationCompleto').hidden", 3000)
+    assert 'Cra. 27 #35A-50, Villavicencio, Meta' in p.inner_text('#destinationCompleto'), p.inner_text('#destinationCompleto')
+    assert [r for r in consultas('lugares') if r['magicKey']][-1]['magicKey'] == 'g:dir000001'
+    s.limpio('dirección de Google'); s.cerrar()
+
+
+@prueba
+def si_google_solo_ubico_la_via_se_dice_y_se_ofrece_ajustar_en_el_mapa(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'goovia carrera 27'); esperar_lista(p, 'destination')
+    lista(p, 'destination').first.click()      # la opción «Carrera 27» (solo la vía)
+    B.esperar(p, "!!Spevb.Planner.puntos().destino", 6000)
+    B.esperar(p, "document.getElementById('tripStatus').textContent.includes('Google ubicó la vía')", 3000)
+    assert 'Elegir en el mapa' in p.inner_text('#tripStatus') and p.is_visible('#pickDestination')
+    s.limpio('solo vía'); s.cerrar()
 
 
 def correr(filtro=None):

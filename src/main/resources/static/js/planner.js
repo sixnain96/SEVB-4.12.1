@@ -61,6 +61,8 @@
         destino: { lat: finish.lat, lng: finish.lng },
         buses: tramos.map((l) => ({
             codigo: l.codigo, etiqueta: Spevb.rutaNombre(l.codigo), nombre: l.nombre, color: l.color,
+            // Para pedir después (una sola vez) el recorrido que continúa tras la bajada y comprobar que es el de ESTE bus y ESTE tramo (modo viaje, desvío del bus).
+            rutaId: l.rutaId ?? null, sentidoRuta: l.sentidoRuta ?? null, sentidoViaje: l.sentidoViaje ?? null,
             subida: { lat: l.puntoSubida.coordinates[1], lng: l.puntoSubida.coordinates[0] },
             bajada: { lat: l.puntoBajada.coordinates[1], lng: l.puntoBajada.coordinates[0] },
             paraderoSubida: l.paraderoSubida || null, paraderoBajada: l.paraderoBajada || null,
@@ -241,6 +243,7 @@
         releasePlannerRoute();
         tripLayers.clear();
         $('tripResults').replaceChildren();
+        $('tripItinerario').replaceChildren();
         planning = false;
         $('planTrip').disabled = false;
     }
@@ -413,8 +416,11 @@
         input.title = texto;
         requestAnimationFrame(() => {
             if (!el.isConnected || endpointInput(mode).value !== point.nombre) return;      // ya cambió: no se muestra un texto viejo
-            const trunca = input.scrollWidth > input.clientWidth + 1;      // solo cuando el texto NO cabe en el campo (no agrega una fila de más)
-            el.textContent = trunca ? texto : ''; el.hidden = !trunca;
+            const trunca = input.scrollWidth > input.clientWidth + 1;      // el texto NO cabe en el campo
+            // Un lugar de Google muestra SIEMPRE la dirección que Google devolvió para ese lugar (así la persona comprueba que es la que quería, p. ej. la placa); el resto, solo si no cabe.
+            const deGoogle = point.fuente === 'Google Maps' && point.direccion && point.direccion.trim() && point.direccion.trim() !== point.nombre;
+            const visible = trunca || deGoogle;
+            el.textContent = visible ? texto : ''; el.hidden = !visible;      // «nombre — dirección de Google» (el mismo texto del tooltip del campo)
         });
     }
 
@@ -447,11 +453,14 @@
         setTimeout(showBothPoints, 350);      // espera a que el panel termine de bajar para medir el espacio libre
         const approximate = ['PREDIO_APROXIMADO', 'CALLE_APROXIMADA', 'VIA', 'SECTOR', 'INTERPOLADA', 'VECINA_APROXIMADA',
             'VIA_APROXIMADA', 'ESQUINA_APROXIMADA', 'BARRIO'].includes(point.precision);
-        status(approximate
+        const soloVia = point.precision === 'VIA' && point.fuente === 'Google Maps', soloSector = point.precision === 'SECTOR' && point.fuente === 'Google Maps';
+        status(soloVia ? 'Google ubicó la vía, no una puerta. Comprueba el marcador y ajústalo con «Elegir en el mapa» si hace falta.'
+            : soloSector ? 'Google ubicó el sector o barrio, no una dirección exacta. Comprueba el marcador y ajústalo con «Elegir en el mapa» si hace falta.'
+            : approximate
             ? 'Punto ubicado aproximadamente. Comprueba el marcador: puede ser el centro del predio o un lugar sobre la vía, no la entrada exacta.'
             : origin && destination
                 ? 'Origen y destino listos. Pulsa «Encontrar rutas cercanas».'
-                : 'Punto seleccionado. Ahora selecciona el otro extremo.', approximate ? 'info' : 'success');
+                : 'Punto seleccionado. Ahora selecciona el otro extremo.', approximate || soloVia || soloSector ? 'info' : 'success');
     }
 
 
@@ -553,7 +562,7 @@
         PAUSADO: 'Google no pudo responder. Intenta de nuevo. Está en pausa unos segundos por fallos seguidos.',
         RESPUESTA_INVALIDA: 'Google no pudo responder. Intenta de nuevo. No pude leer su respuesta.',
         CLAVE: 'La búsqueda de Google no está bien configurada. Avisa a quien administra la aplicación y, mientras tanto, usa «Elegir en el mapa».',
-        SIN_COINCIDENCIAS: 'Google no encontró ese lugar. Prueba con otra dirección o usa «Elegir en el mapa».',
+        SIN_COINCIDENCIAS: 'Todavía no encontramos ese lugar. Prueba con el barrio o marca el punto en el mapa.',
         FUERA_DE_CIUDAD: 'Ese lugar queda fuera del área disponible. Revisa la dirección.',
     };
     const sinConexion = () => navigator.onLine === false;
@@ -688,7 +697,10 @@
                 // La persona ya eligió: se ubica ESE lugar, sin un segundo menú de coincidencias. Si el servidor avisa que falló, si no devolvió nada o si el lugar viene
                 // de un proveedor distinto del que se eligió, NO se acepta lugares[0]: se informa y se permite reintentar o elegir otra.
                 const esperado = suggestion.magicKey.startsWith('g:') ? 'google' : 'arcgis';
-                const distinto = !!data.proveedor && data.proveedor !== esperado && data.proveedor !== 'ninguno';
+                // Además del proveedor, la IDENTIDAD: el lugar que llegó debe llevar el identificador de Google de la opción que se tocó (otra sede del mismo proveedor NO sirve).
+                const idPedido = esperado === 'google' ? suggestion.magicKey.slice(2) : null;
+                const otraIdentidad = !!idPedido && lugares.length > 0 && lugares[0].googleId !== idPedido;
+                const distinto = (!!data.proveedor && data.proveedor !== esperado && data.proveedor !== 'ninguno') || otraIdentidad;
                 const fallo = data.eleccionFallida || (data.estado && data.estado !== 'OK') || !lugares.length || distinto;
                 if (fallo) { falloEleccion(mode, suggestion, distinto ? 'RESPUESTA_INVALIDA' : (data.estado && data.estado !== 'OK' ? data.estado : 'TIMEOUT'), distinto); return; }
                 choose(mode, lugares[0]);
@@ -718,7 +730,7 @@
             if (lugares.length) {
                 status('Selecciona una coincidencia y comprueba su precisión. La vía o el barrio no equivalen al número de casa.', 'info');
             } else {
-                status('No encontré la dirección con su número en las fuentes disponibles. Revisa los avisos y usa «Elegir en mapa» si es necesario.', 'info');
+                status('Todavía no encontramos ese lugar. Prueba con el barrio o marca el punto en el mapa con «Elegir en el mapa». Lo que escribiste se conserva.', 'info');
             }
         } catch (error) {
             if (vigente()) { setCampo(mode, 'error'); status(error.message, 'error'); }
@@ -880,8 +892,9 @@
                 const label = document.createElement('strong');
                 label.textContent = item.principal || item.texto;      // nombre principal (Google: structuredFormat) y, debajo, la referencia
                 const meta = document.createElement('small');
-                meta.textContent = item.principal ? (item.secundario || '') : item.lat != null ? (item.detalle || '') : (item.detalle || 'ArcGIS') + ' · seleccionar y ubicar en el mapa';
-                if (item.principal) button.setAttribute('aria-label', item.principal + (item.secundario ? ', ' + item.secundario : ''));
+                const esVia = /^(Carrera|Calle|Avenida|Diagonal|Transversal)\s+\d+[A-Za-z]?(\s+Bis)?(\s+(Norte|Sur|Este|Oeste))?\s*$/i.test(item.principal || '');      // sin placa: es una vía, no una puerta
+                meta.textContent = item.principal ? (esVia ? 'Vía · ' : '') + (item.secundario || (esVia ? 'sin número de puerta' : '')) : item.lat != null ? (item.detalle || '') : (item.detalle || 'ArcGIS') + ' · seleccionar y ubicar en el mapa';
+                if (item.principal) button.setAttribute('aria-label', (esVia ? 'Vía, ' : '') + item.principal + (item.secundario ? ', ' + item.secundario : ''));
                 button.append(label, meta);
                 activarUnaVez(button, mode, () => lookup(mode, item));
                 box.append(button);
@@ -1115,6 +1128,7 @@
             gpsSay('Ubicación encontrada (' + gpsQuality(fix) + '). Confirmando el punto…', 'info', 0);
             await reversePoint('origin', fix.lat, fix.lng);
             if (obsoleto()) return;
+            if (origin) origin.deGps = true;      // este origen salió de la ubicación actual: las indicaciones dicen «tu ubicación»
             gpsSay('Tu ubicación quedó como origen · ' + gpsQuality(fix)
                 + (fix.precision > 150 ? '. Es aproximada (común en computadores sin GPS): si no coincide, usa «Elegir en el mapa».' : '.'),
                 fix.precision > 150 ? 'info' : 'success');
@@ -1438,6 +1452,18 @@
     function esperarDetalle(promesa) {
         return Promise.race([Promise.resolve(promesa).catch(() => false), new Promise((ok) => setTimeout(() => ok('lento'), 3000))]);
     }
+    /** «Ver subida / Ver bajada / Ver cambio»: centra el mapa en ese punto de la opción seleccionada. No inicia el viaje ni cambia de opción. */
+    function verPunto(card, foco) {
+        if (!foco || !card.classList.contains('selected')) return;
+        Spevb.centrarEn(map, [foco.lat, foco.lng], Math.max(map.getZoom(), 17));
+    }
+    /** Mensaje corto de la línea de estado al elegir una opción: qué es y dónde están los pasos (nada de explicar colores ni repetir los pasos). */
+    function resumenSeleccion(card, titulo) {
+        const reco = card.dataset.recomendada === 'true';
+        const m = card._itin && card._itin.modelo;
+        return (reco ? 'Recomendada: ' : 'Opción seleccionada: ') + titulo + (m ? ' · ' + m.detalle : '') + '. Sigue los pasos de abajo; «Ver subida» y «Ver bajada» centran el mapa en esos puntos.';
+    }
+
     function showOption(option, start, finish, current, card, scroll) {
         if (current !== sequence) return Promise.resolve();
         // 4.14: elegir la opción (y poder tocar «Iniciar viaje») NO espera al detalle de la ruta: si /api/rutas/{id} tarda o falla, la opción se muestra igual con los datos
@@ -1449,6 +1475,7 @@
             tripLayers.clear();
             document.querySelectorAll('.trip-option.selected').forEach((c) => c.classList.remove('selected'));
             card.classList.add('selected');
+            if (card._itin) { card._itin.encabezado(card.dataset.recomendada === 'true'); $('tripItinerario').replaceChildren(card._itin.el); }      // las indicaciones de la opción vigente van junto al estado, a la vista
             const a = option.puntoSubida.coordinates;
             const b = option.puntoBajada.coordinates;
             setSeleccion({ codigos: [option.codigo], paradas: [{ lat: b[1], lng: b[0], texto: 'Bájate de la ruta ' + Spevb.rutaNombre(option.codigo) }], viaje: viajeDe(start, finish, [option]), resumen: resumenOpcion(option, minDirecto(coordinates(start), coordinates(finish))) });
@@ -1469,13 +1496,11 @@
             [[option.caminataInicioRuta, coordinates(start), [a[1], a[0]]], [option.caminataFinRuta, [b[1], b[0]], coordinates(finish)]].forEach(([leg, from, to]) => {
                 if (leg?.coordinates?.length) walkCache.set(walkKey(from, to), Promise.resolve({ coordinates: leg.coordinates, metros: leg.metros, minutos: leg.minutos }));
             });
-            const metricValues = card.querySelectorAll('.result-metrics strong');
             const setWalk = (index) => (data) => {
                 // Para poder reconstruir el itinerario si el viaje se reanuda (4.14): la geometría de la caminata se guarda en la opción elegida.
                 const sel = Planner.seleccion;
                 if (sel && sel.viaje && Array.isArray(data.coordinates)) (sel.viaje.caminatas ||= {})[index] = { coordinates: data.coordinates, metros: data.metros, minutos: data.minutos };
-                if (metricValues[index]) metricValues[index].textContent = distance(data.metros) + ' · ' + data.minutos + ' min';
-                if (metricValues[index]) metricValues[index].title = 'Caminata por calles peatonales';
+                if (card.isConnected && current === sequence && card._itin) card._itin.actualizar(index, data);      // solo el paso de ESTA tarjeta y de la selección vigente
             };
             walkIn._onPuentes = walkOut._onPuentes = (lista) => notaPuentes(card, lista);
             streetWalk(walkIn, coordinates(start), [a[1], a[0]], tripLayers, setWalk(0));
@@ -1484,7 +1509,7 @@
                 punto(tipo, [pt[1], pt[0]], label).addTo(tripLayers);
             });
             etiqueta([a[1], a[0]], 'Sube aquí · ' + Spevb.rutaNombre(option.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
-            etiqueta([b[1], b[0]], 'Bájate aquí', 'tag-down', [-4, 34]).addTo(tripLayers);
+            etiqueta([b[1], b[0]], 'Baja aquí', 'tag-down', [-4, 34]).addTo(tripLayers);
             const bounds = Geo.limites([...segment.getPath(), coordinates(start), coordinates(finish)]);
             Spevb.fitMap(map, bounds, { maxZoom: 17 });
             const tokenParadas = revealToken, extremos = [[a[1], a[0]], [b[1], b[0]]];
@@ -1493,7 +1518,7 @@
             paraderosCercanos(coordinates(finish), tripLayers, tokenParadas);
             puentesCerca([coordinates(start), extremos[0], extremos[1], coordinates(finish)], tripLayers, tokenParadas);
             setTimeout(acomodarRotulos, 60);
-            status('Ruta ' + Spevb.rutaNombre(option.codigo) + ': camina por la línea punteada hasta el punto de subida, toma el bus por el tramo rojo y bájate en el otro punto.', 'success');
+            status(resumenSeleccion(card, 'Ruta ' + Spevb.rutaNombre(option.codigo)), 'success');
             setTimeout(() => { if (tokenParadas === revealToken) avisoParaderoA(start, tripLayers, tokenParadas, !!option.paraderoSubida); }, 0);
             if (scroll) window.dispatchEvent(new CustomEvent('spevb-focus-map'));
         });
@@ -1546,21 +1571,9 @@
 
         const body = document.createElement('div');
         body.className = 'opt-body';
-        // Pasos al estilo de un itinerario: caminar → bus → caminar. Los <strong> 0 y 2 se actualizan con la caminata por calles.
-        const steps = document.createElement('ol');
-        steps.className = 'result-metrics steps';
-        [
-            ['walk', 'Camina ', distance(option.acercamientoInicioMetros), option.paraderoSubida ? ' hasta el paradero «' + option.paraderoSubida + '»' : ' hasta el punto de subida'],
-            ['bus', 'Ruta ' + Spevb.rutaNombre(option.codigo) + ' · ', option.recorridoKm.toLocaleString('es-CO', { maximumFractionDigits: 2 }) + ' km', ' en bus'],
-            ['walk', 'Camina ', distance(option.acercamientoFinMetros), option.paraderoBajada ? ' desde el paradero «' + option.paraderoBajada + '» hasta tu destino' : ' hasta tu destino'],
-        ].forEach(([kind, before, value, after]) => {
-            const li = document.createElement('li');
-            li.className = kind;
-            const st = document.createElement('strong'); st.textContent = value;
-            li.append(document.createTextNode(before), st, document.createTextNode(after));
-            steps.append(li);
-        });
-        const metrics = steps;
+        // Indicaciones paso a paso: modelo COMPARTIDO con el flujo guiado (itinerario.js), armado con los datos de ESTA opción (paraderos, puntos y distancias de cada tramo).
+        const itin = Spevb.Itinerario.crear(Spevb.Itinerario.deOpcion(option, origin, destination), { alVer: (foco) => verPunto(card, foco) });
+        card._itin = itin;
 
         const direction = document.createElement('p');
         direction.className = 'result-direction';
@@ -1617,7 +1630,7 @@
         body.append(lineaTiempo([
             { tipo: 'walk', min: minCaminata(option.acercamientoInicioMetros), metros: option.acercamientoInicioMetros },
             { tipo: 'bus', min: minBus(option.recorridoKm), etiqueta: Spevb.rutaNombre(option.codigo) },
-            { tipo: 'walk', min: minCaminata(option.acercamientoFinMetros), metros: option.acercamientoFinMetros }]), metrics, direction, ...(avisoCaminar ? [avisoCaminar] : []), button);
+            { tipo: 'walk', min: minCaminata(option.acercamientoFinMetros), metros: option.acercamientoFinMetros }]), itin.el, direction, ...(avisoCaminar ? [avisoCaminar] : []), button);
         card.append(summary, body);
         return card;
     }
@@ -1634,6 +1647,7 @@
             tripLayers.clear();
             document.querySelectorAll('.trip-option.selected').forEach((c) => c.classList.remove('selected'));
             card.classList.add('selected');
+            if (card._itin) { card._itin.encabezado(card.dataset.recomendada === 'true'); $('tripItinerario').replaceChildren(card._itin.el); }
             // Modo para daltónicos: azul y naranja (distinguibles para todos) y el segundo tramo con trazo discontinuo; además cada tramo lleva su número.
             const dalt = daltonico();
             const color1 = dalt ? '#D55E00' : '#e53935', color2 = dalt ? '#0072B2' : BUS2_COLOR;
@@ -1664,14 +1678,16 @@
                 const walk = map.polyline([from, to], { ...walkStyle, tooltip: Spevb.text(label + ' · ' + distance(leg.metros)) }).addTo(tripLayers);
                 if (leg?.coordinates?.length) walkCache.set(walkKey(from, to), Promise.resolve({ coordinates: leg.coordinates, metros: leg.metros, minutos: leg.minutos }));
                 walk._onPuentes = (lista) => notaPuentes(card, lista);
-                streetWalk(walk, from, to, tripLayers, (data) => { const sel = Planner.seleccion; if (sel && sel.viaje && Array.isArray(data.coordinates)) (sel.viaje.caminatas ||= {})[indiceLeg] = { coordinates: data.coordinates, metros: data.metros, minutos: data.minutos }; });
+                streetWalk(walk, from, to, tripLayers, (data) => { const sel = Planner.seleccion; if (sel && sel.viaje && Array.isArray(data.coordinates)) (sel.viaje.caminatas ||= {})[indiceLeg] = { coordinates: data.coordinates, metros: data.metros, minutos: data.minutos }; if (card.isConnected && current === sequence && card._itin) card._itin.actualizar(indiceLeg, data); });
             });
             punto('sube', board1, 'Aquí tomas la ruta ' + Spevb.rutaNombre(t.primerBus.codigo) + (t.primerBus.paraderoSubida ? ' (paradero ' + t.primerBus.paraderoSubida + ')' : '')).addTo(tripLayers);
             punto('baja', out1, 'Aquí te bajas de la ruta ' + Spevb.rutaNombre(t.primerBus.codigo)).addTo(tripLayers);
             punto('cambio', board2, 'Cambio de bus: aquí tomas la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo) + ' (transbordo)', [color1, color2]).addTo(tripLayers);
             punto('baja', out2, 'Aquí te bajas de la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo)).addTo(tripLayers);
-            etiqueta(board1, 'Sube aquí · ' + Spevb.rutaNombre(t.primerBus.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
-            etiqueta(out2, 'Bájate aquí', 'tag-down', [-4, 34]).addTo(tripLayers);
+            etiqueta(board1, 'Sube al primer bus · ' + Spevb.rutaNombre(t.primerBus.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
+            etiqueta(out1, 'Baja del primer bus', 'tag-down', [-4, 34]).addTo(tripLayers);
+            etiqueta(board2, 'Sube al segundo bus · ' + Spevb.rutaNombre(t.segundoBus.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
+            etiqueta(out2, 'Bajada final', 'tag-down', [-4, 34]).addTo(tripLayers);
             // Aviso grande en el punto del cambio: de qué bus a cuál (se ubica en el punto medio entre donde bajas y donde subes).
             avisoCambio([(out1[0] + board2[0]) / 2, (out1[1] + board2[1]) / 2], Spevb.rutaNombre(t.primerBus.codigo), Spevb.rutaNombre(t.segundoBus.codigo), color1, color2).addTo(tripLayers);
             const bounds = Geo.limites([...seg1.getPath(), ...seg2.getPath(), coordinates(start), coordinates(finish)]);
@@ -1683,7 +1699,7 @@
             paraderosCercanos(coordinates(finish), tripLayers, tokenT);
             puentesCerca([coordinates(start), board1, out1, board2, out2, coordinates(finish)], tripLayers, tokenT);
             setTimeout(acomodarRotulos, 60);
-            status('Transbordo: toma la ruta ' + Spevb.rutaNombre(t.primerBus.codigo) + ' (tramo rojo), baja, camina hasta la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo) + ' (tramo azul) y bájate cerca de tu destino.', 'success');
+            status(resumenSeleccion(card, 'Ruta ' + Spevb.rutaNombre(t.primerBus.codigo) + ' + Ruta ' + Spevb.rutaNombre(t.segundoBus.codigo)), 'success');
             if (scroll) window.dispatchEvent(new CustomEvent('spevb-focus-map'));
         });
     }
@@ -1737,23 +1753,8 @@
 
         const body = document.createElement('div');
         body.className = 'opt-body';
-        const steps = document.createElement('ol');
-        steps.className = 'result-metrics steps';
-        [
-            ['walk', 'Camina ', distance(t.caminataInicio.metros), t.primerBus.paraderoSubida ? ' hasta el paradero «' + t.primerBus.paraderoSubida + '»' : ' hasta la ruta ' + Spevb.rutaNombre(t.primerBus.codigo)],
-            ['bus one', 'Ruta ' + Spevb.rutaNombre(t.primerBus.codigo) + ' · ', t.primerBus.recorridoKm.toLocaleString('es-CO', { maximumFractionDigits: 2 }) + ' km', ' en bus'],
-            ['walk swap', 'Transbordo: camina ', distance(t.caminataCambio.metros), ' hasta la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo) + (t.segundoBus.paraderoSubida ? ' (paradero «' + t.segundoBus.paraderoSubida + '»)' : '')],
-            ['bus two', 'Ruta ' + Spevb.rutaNombre(t.segundoBus.codigo) + ' · ', t.segundoBus.recorridoKm.toLocaleString('es-CO', { maximumFractionDigits: 2 }) + ' km', ' en bus'],
-            ['walk', 'Camina ', distance(t.caminataFin.metros), ' hasta tu destino'],
-        ].forEach(([kind, before, value, after]) => {
-            const li = document.createElement('li');
-            li.className = kind;
-            if (kind === 'bus one') li.style.setProperty('--route-color', t.primerBus.color);
-            if (kind === 'bus two') li.style.setProperty('--route-color', t.segundoBus.color);
-            const st = document.createElement('strong'); st.textContent = value;
-            li.append(document.createTextNode(before), st, document.createTextNode(after));
-            steps.append(li);
-        });
+        const itin = Spevb.Itinerario.crear(Spevb.Itinerario.deTransbordo(t, origin, destination), { alVer: (foco) => verPunto(card, foco) });
+        card._itin = itin;
         const note = document.createElement('p');
         note.className = 'result-direction';
         note.textContent = t.advertencia;
@@ -1778,7 +1779,7 @@
             { tipo: 'bus', min: minBus(t.primerBus.recorridoKm), etiqueta: Spevb.rutaNombre(t.primerBus.codigo) },
             { tipo: 'walk', min: minCaminata(t.caminataCambio.metros), metros: t.caminataCambio.metros },
             { tipo: 'bus', min: minBus(t.segundoBus.recorridoKm), etiqueta: Spevb.rutaNombre(t.segundoBus.codigo) },
-            { tipo: 'walk', min: minCaminata(t.caminataFin.metros), metros: t.caminataFin.metros }]), steps, note, button);
+            { tipo: 'walk', min: minCaminata(t.caminataFin.metros), metros: t.caminataFin.metros }]), itin.el, note, button);
         card.append(summary, body);
         return card;
     }
@@ -1887,8 +1888,14 @@
         marcarMejor(cardInicial, inicial.tipo, {
             recomendada: esReco,
             texto: esReco ? 'Recomendada' : inicial.tipo === 'contraria' ? 'Mejor en sentido contrario (verifica que el bus regrese por ahí)' : 'Mejor opción disponible',
-            motivo: esReco ? (rec.motivo || null) : null,
+            motivo: null,
         });
+        if (esReco && cardInicial._itin) {
+            const q = Spevb.Itinerario.porQue(items.get(inicial.id), cardInicial._itin.modelo);      // SOLO datos estructurados del servidor (etiquetas y buses), nunca palabras sueltas de rec.motivo
+            cardInicial._itin.porQue(q);
+            cardInicial.dataset.porque = q;
+            if (rec.motivo) cardInicial.dataset.motivoServidor = rec.motivo;
+        }
         const mejores = [cardInicial];
         const usados = new Set([inicial.id]);
         // Si lo recomendado lleva transbordo, la mejor directa se muestra al lado para poder compararlas de un vistazo.
@@ -2152,7 +2159,8 @@
                 const best = options[0] || alternatives[0];
                 const total = options.length + alternatives.length + transfers.length;
                 // Con recomendación: se dice POR QUÉ (frase del servidor con las cifras reales) junto con las instrucciones de la opción dibujada.
-                if (rec && rec.motivo && rec.idRecomendada) status(rec.motivo + ' ' + $('tripStatus').textContent + (total > 1 ? ' Toca otra tarjeta para ver las demás opciones.' : ''), 'success');
+                if (rec && rec.idRecomendada) status($('tripStatus').textContent + (total > 1 ? ' Toca otra tarjeta para ver las demás opciones.' : ''), 'success');
+                else if (rec && !rec.idRecomendada) status('No hay una opción recomendada que respete el sentido de las rutas. Estas son las opciones disponibles: revisa cada una antes de salir.', 'info');
                 // Sin ruta directa, el mensaje lo dejó ya la tarjeta de transbordo que se acaba de dibujar.
                 else if (best && !transfers.length) status('La ruta más cercana es ' + Spevb.rutaNombre(best.codigo) + ': caminas ' + distance(best.acercamientoInicioMetros)
                     + ' hasta ella y ' + distance(best.acercamientoFinMetros) + ' desde ella hasta tu destino. '
@@ -2188,6 +2196,13 @@
         buscar() { $('planTrip').click(); },
         limpiar() { clearBothEndpoints({ focus: false }); },
         /** Flujo guiado: ¿hay una búsqueda en curso? */
+        /** Fase C: el modo «Marca tu casa/trabajo en el mapa» cede el selector de A/B si estaba activo (devuelve cuál) y lo restaura al terminar solo si sigue siendo pertinente. No toca A, B ni resultados. */
+        cederSeleccion() { const m = picking; if (m) pickMode(null); return m; },
+        reanudarSeleccion(m) { if (m && !picking && !(m === 'origin' ? origin : destination)) pickMode(m); },
+        /** Modelo de indicaciones de la opción seleccionada (el mismo que dibuja la tarjeta): { modelo, pasos(), el } o null. */
+        itinerario() { const c = document.querySelector('#tripResults .trip-option.selected'); return c && c._itin ? c._itin : null; },
+        /** Centra el mapa en un punto de la opción seleccionada por su clave (sube, baja, sube1, baja1, sube2, baja2). */
+        verPunto(clave) { const c = document.querySelector('#tripResults .trip-option.selected'), it = c && c._itin; const p = it && it.modelo.pasos.find((x) => x.foco && x.foco.clave === clave); if (p) verPunto(c, p.foco); return !!p; },
         buscando: () => planning,
         /** Flujo guiado: cancela la búsqueda en curso SIN borrar el origen ni el destino. */
         cancelarBusqueda() {

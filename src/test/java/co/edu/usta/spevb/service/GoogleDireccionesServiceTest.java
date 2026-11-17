@@ -72,7 +72,7 @@ class GoogleDireccionesServiceTest {
             String clave = "CLAVE-SECRETA-NO-DEBE-SALIR-123", token = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0", texto = "Calle ultrasecreta 99 99";
             var g = servicio(clave);
             g.sugerir(texto, token);
-            respuestaLugar.set("{\"formattedAddress\":\"Cra. 33, Villavicencio\",\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[]}");
+            respuestaLugar.set("{\"id\":\"ChIJabcdefghij123\",\"formattedAddress\":\"Cra. 33, Villavicencio\",\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[]}");
             g.resolver("ChIJabcdefghij123", texto, token);
             estado = 403;
             try { g.sugerir(texto, token); } catch (RuntimeException ignorada) { /* el fallo también se revisa */ }
@@ -111,7 +111,7 @@ class GoogleDireccionesServiceTest {
     }
 
     @Test void ubicaElLugarElegidoSoloDentroDeVillavicencioYMarcaLaFuente() {
-        respuestaLugar.set("{\"id\":\"x\",\"displayName\":{\"text\":\"Unicentro\"},\"formattedAddress\":\"Cra. 33 #38-10, Villavicencio, Meta\","
+        respuestaLugar.set("{\"id\":\"ChIJabcdefghij123\",\"displayName\":{\"text\":\"Unicentro\"},\"formattedAddress\":\"Cra. 33 #38-10, Villavicencio, Meta\","
                 + "\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[\"shopping_mall\",\"point_of_interest\"]}");
         var g = servicio("k");
         var r = g.buscar("ChIJabcdefghij123");
@@ -121,7 +121,7 @@ class GoogleDireccionesServiceTest {
         assertEquals("LUGAR", r.get(0).precision());
         assertFalse(r.get(0).confirmado(), "lo de Google nunca se da por verificado");
 
-        respuestaLugar.set("{\"formattedAddress\":\"Bogotá\",\"location\":{\"latitude\":4.71,\"longitude\":-74.07},\"types\":[\"locality\"]}");
+        respuestaLugar.set("{\"id\":\"ChIJabcdefghij123\",\"formattedAddress\":\"Bogotá\",\"location\":{\"latitude\":4.71,\"longitude\":-74.07},\"types\":[\"locality\"]}");
         assertTrue(g.buscar("ChIJabcdefghij123").isEmpty(), "fuera de la ciudad no se devuelve");
         assertTrue(g.buscar("../../etc/passwd").isEmpty(), "un identificador inválido no llega a Google");
     }
@@ -170,7 +170,7 @@ class GoogleDireccionesServiceTest {
         g.sugerir("Unicentro");
         assertFalse(cuerpoRecibido.get().contains("sessionToken"));
 
-        respuestaLugar.set("{\"formattedAddress\":\"Cra. 33 #38-10, Villavicencio, Meta\",\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[\"shopping_mall\"]}");
+        respuestaLugar.set("{\"id\":\"ChIJabcdefghij123\",\"formattedAddress\":\"Cra. 33 #38-10, Villavicencio, Meta\",\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[\"shopping_mall\"]}");
         g.resolver("ChIJabcdefghij123", "Unicentro Villavicencio, Cra. 33, Meta", token);
         assertTrue(pedidos.get(pedidos.size() - 1).contains("sessionToken=" + token), "el detalle cierra la sesión con el mismo token");
         g.resolver("ChIJabcdefghij123", null, null);
@@ -180,10 +180,10 @@ class GoogleDireccionesServiceTest {
     }
 
     @Test void elDetallePideSoloCamposEssentialsYElNombreSaleDeLaSugerenciaElegida() {
-        respuestaLugar.set("{\"formattedAddress\":\"Cra. 33 #38-10, Villavicencio, Meta\",\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[\"shopping_mall\"]}");
+        respuestaLugar.set("{\"id\":\"ChIJabcdefghij123\",\"formattedAddress\":\"Cra. 33 #38-10, Villavicencio, Meta\",\"location\":{\"latitude\":4.1272,\"longitude\":-73.6203},\"types\":[\"shopping_mall\"]}");
         var g = servicio("k");
         var r = g.resolver("ChIJabcdefghij123", "Unicentro Villavicencio, Cra. 33 #38-10, Meta", null);
-        assertEquals("id,formattedAddress,location,types", mascaraCampos.get(), "sin displayName (nivel Pro): el detalle se factura en Essentials");
+        assertEquals("id,formattedAddress,addressComponents,location,types", mascaraCampos.get(), "sin displayName (nivel Pro): el detalle se factura en Essentials");
         assertFalse(mascaraCampos.get().contains("displayName"));
         assertEquals("Unicentro Villavicencio", r.lugares().get(0).nombre());
         assertEquals("Cra. 33 #38-10, Villavicencio, Meta", r.lugares().get(0).direccion());
@@ -195,7 +195,7 @@ class GoogleDireccionesServiceTest {
     }
 
     @Test void cuentaLosLugaresDescartadosPorEstarFueraDeLaCiudad() {
-        respuestaLugar.set("{\"formattedAddress\":\"Bogotá\",\"location\":{\"latitude\":4.71,\"longitude\":-74.07},\"types\":[\"locality\"]}");
+        respuestaLugar.set("{\"id\":\"ChIJabcdefghij123\",\"formattedAddress\":\"Bogotá\",\"location\":{\"latitude\":4.71,\"longitude\":-74.07},\"types\":[\"locality\"]}");
         var r = servicio("k").resolver("ChIJabcdefghij123", null, null);
         assertTrue(r.lugares().isEmpty());
         assertEquals(1, r.fueraDeCiudad());

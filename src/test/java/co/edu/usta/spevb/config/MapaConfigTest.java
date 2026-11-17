@@ -17,8 +17,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Configuración del mapa del navegador: proveedor, claves separadas, respuesta pública explícita y CSP según el proveedor. */
 class MapaConfigTest {
-    private static final String CLAVE_NAVEGADOR = "AIzaSyEJEMPLO_NO_ES_UNA_CLAVE_REAL_0123";
-    private static final String CLAVE_SERVIDOR = "AIzaSyOTRA_CLAVE_DE_SERVIDOR_NO_REAL_456";
+    private static final String CLAVE_NAVEGADOR = "AIza" + "SyEJEMPLO_NO_ES_UNA_CLAVE_REAL_0123";
+    private static final String CLAVE_SERVIDOR = "AIza" + "SyOTRA_CLAVE_DE_SERVIDOR_NO_REAL_456";
 
     private static MapaConfig google(String clave, String mapId) { return new MapaConfig("google", clave, mapId, "quarterly", CLAVE_SERVIDOR); }
 

@@ -415,6 +415,31 @@ def una_busqueda_sin_resultados_lo_dice_y_deja_corregir(nav):
 
 
 @prueba
+def en_el_flujo_guiado_otra_sede_no_se_acepta_y_el_texto_se_conserva(nav):
+    s, p = abrir_guiado(nav)
+    p.fill('#tripDestination', 'gooid clinica meta')
+    B.esperar(p, "document.querySelectorAll('#destinationResults .autosuggest-option').length > 0", 8000)
+    p.locator('#destinationResults .autosuggest-option').first.click()
+    B.esperar(p, "document.querySelector('#destinationResults [data-accion=\"reintentar\"], #destinationResults .search-error') !== null", 8000)
+    assert paso(p) == 'destino', 'no avanza a «¿Este es el lugar…?» con un lugar de otra identidad'
+    assert p.input_value('#tripDestination').lower().startswith('gooid'), 'se conserva lo escrito'
+    s.limpio('guiado otra sede'); s.cerrar()
+
+
+@prueba
+def en_el_flujo_guiado_lo_escrito_se_conserva_y_la_direccion_de_google_se_ve_al_elegir(nav):
+    s, p = abrir_guiado(nav)
+    p.fill('#tripDestination', 'goodir carrera 27 numero 35A 50')
+    B.esperar(p, "document.querySelectorAll('#destinationResults .autosuggest-option').length > 0", 8000)
+    assert p.input_value('#tripDestination') == 'goodir carrera 27 numero 35A 50', 'el campo no se reescribe'
+    p.keyboard.press('ArrowDown'); p.keyboard.press('Enter')
+    esperar_paso(p, 'confirmar_destino')
+    B.esperar(p, "!document.getElementById('destinationCompleto').hidden", 3000)
+    assert 'Cra. 27 #35A-50' in p.inner_text('#destinationCompleto'), p.inner_text('#destinationCompleto')
+    s.limpio('guiado nomenclatura'); s.cerrar()
+
+
+@prueba
 def campo_vacio_pide_escribir_antes_de_buscar(nav):
     s, p = abrir_guiado(nav)
     pulsar(p, '#gBuscarDestino')
@@ -469,10 +494,10 @@ def el_planificador_con_a_y_b_es_el_predeterminado_y_el_paso_a_paso_es_una_entra
     assert p.evaluate("document.getElementById('guiado').hidden && document.getElementById('guiadoAcciones').hidden") and not visible(p, '#guiadoTitulo'), '«¿A dónde quieres ir?» no aparece solo'
     assert visible(p, '.endpoint-letter'), 'las letras A y B siguen ahí'
     abrir_menu(p)
-    assert p.inner_text('#menuPasoAPaso').strip() == 'Planear paso a paso', 'la entrada aparte está en el menú'
-    pulsar(p, '#menuPasoAPaso')
-    p.wait_for_timeout(600)
-    assert p.evaluate("document.body.classList.contains('guiado')") and paso(p) == 'destino' and titulo(p) == '¿A dónde quieres ir?', 'desde el menú se entra al paso a paso'
+    assert p.evaluate("document.getElementById('menuPasoAPaso').hidden") and not visible(p, '#menuPasoAPaso'), 'el paso a paso ya no se ofrece en el menú'
+    p.evaluate("localStorage.setItem('spevb-modo-planificador', 'guiado')")
+    p.reload(); B.esperar(p, "!!(window.Spevb && Spevb.Guiado && Spevb.Planner.puntos)", 20000); p.wait_for_timeout(800)
+    assert not p.evaluate("document.body.classList.contains('guiado')") and visible(p, '#tripOrigin'), 'una preferencia vieja de paso a paso no se aplica: siempre el planificador con A y B'
     s.limpio('predeterminado')
     s.cerrar()
 
@@ -494,11 +519,7 @@ def el_planificador_con_a_y_b_comparte_los_mismos_puntos_y_la_eleccion_se_recuer
     p.reload()
     B.esperar(p, "!!(Spevb.Guiado && Spevb.Planner.puntos)", 20000)
     p.wait_for_timeout(800)
-    assert not p.evaluate("document.body.classList.contains('guiado')"), 'la preferencia se recuerda'
-    abrir_menu(p)
-    pulsar(p, '#menuPasoAPaso')
-    p.wait_for_timeout(500)
-    assert p.evaluate("document.body.classList.contains('guiado')") and paso(p) == 'destino' and titulo(p) == '¿A dónde quieres ir?'
+    assert not p.evaluate("document.body.classList.contains('guiado')"), 'se queda en el planificador con A y B'
     s.limpio('avanzado')
     s.cerrar()
 

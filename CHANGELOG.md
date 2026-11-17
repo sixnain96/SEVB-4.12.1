@@ -1,3 +1,90 @@
+## Fase L (sin publicar, sobre 4.15.0) · Reparto de espacio entre superficies en celular
+
+- Celular girado (poca altura) con viaje: el planificador cede como en vertical y, con «Editar A y B», la tarjeta compacta queda a la derecha sin taparlo. Panel A y B y menús sin cambios de diseño. Sonda `e2e/rendimiento/sonda_superficies.py`; ver `docs/SUPERFICIES-MOVIL.md`.
+
+## Fase K (sin publicar, sobre 4.15.0) · Arranque del mapa, menú y limpieza del panel
+
+- Medición del arranque del mapa (`e2e/rendimiento/medir_arranque_mapa.py`, SDK simulado) y marcas de diagnóstico `sevb-config-inicio`, `sevb-config-respuesta`, `sevb-calles-visibles`. Adelantar `/api/config/mapa` se probó y se **retiró** (no adelanta ningún hito útil). Experimentos `map_ids` y `preconnect` apagados por defecto (`localStorage['spevb-mapa-exp']`). Ver `docs/RENDIMIENTO-ARRANQUE-MAPA.md`.
+- Menú ☰: la cabecera fija no se amplía con la letra grande (el botón de cerrar quedaba fuera de pantalla).
+- Se retiró el halo del campo de destino y el paso a paso ya no se ofrece (siempre el panel con A y B). «Planear viaje» sale del menú y los enlaces de administración solo los ve un administrador verificado.
+
+## Fase J (sin publicar, sobre 4.15.0) · Menú ☰, recuperación del viaje, Mis lugares y práctica del tutorial
+
+- Menú: cabecera fija, secciones con icono y color, «Viaje en curso», «Volver a mi viaje» primero y «Volver al inicio» separado, transición corta solo al tocar una sección.
+- Tarjeta de recuperación tras «Ya me bajé» con título e instrucción por estado («Sigue a pie», «Camina hasta el siguiente bus», «Esperando tu ubicación actual»…); la propuesta dice «Encontré otra forma de llegar».
+- Mis lugares: «Ir a casa/Ir al trabajo», etiqueta «Ir», «Mueve el mapa para ajustar el punto» y foco correcto al cancelar.
+- Tutorial: práctica «No encontramos esa dirección» → «Elegir en el mapa», aislada del buscador y de A/B.
+- Sin cambios de backend. Pruebas: `e2e/menu416_e2e.py`. Ver `docs/MENU-RECUPERACION-LUGARES.md`.
+
+## Fase I (sin publicar, sobre 4.15.0) · Indicaciones precisas de la ruta recomendada
+
+- Nuevo `js/itinerario.js`: modelo único de indicaciones (ruta, «por qué la recomendamos» solo con datos estructurados del servidor, pasos Camina / Toma la ruta / Bájate / Cambia de bus / Llega) compartido por el planificador A/B y el flujo guiado.
+- Solo la opción de `idRecomendada` dice «Recomendada»; las demás, «Opción seleccionada». Sentido contrario sin pasos de embarque; sin recomendada elegible se explica el estado.
+- «Ver subida / Ver bajada / Ver cambio» solo centran el mapa. Rótulos del mapa alineados con los pasos. Caminatas en línea recta marcadas como aproximadas; las tardías solo actualizan su propio paso.
+- Sin cambios en el backend. Pruebas: `e2e/indicaciones_e2e.py` (12). Ver `docs/INDICACIONES-RUTA.md`.
+
+## Fase H (sin publicar, sobre 4.15.0) · «Instalar en tu celular» (guía de instalación de la PWA)
+**Solo frontend.** Detalle: `docs/INSTALAR-APP.md`.
+- Menú ☰ → «Instalar en tu celular»: detecta el navegador (Chrome, Edge, Brave, Firefox, Safari, Samsung Internet, Opera) y el sistema (Android, iPhone/iPad, computador) y muestra un paso a paso numerado con iconos; lista para elegir otro navegador si la detección se equivoca; «Instalar ahora» cuando el navegador lo permite; avisa si ya está instalada o si falta HTTPS. Explica que no es un APK ni hace falta Play Store. Reemplaza el botón de instalación anterior (`pwa.js`). Oculta durante un viaje.
+- Pruebas nuevas: `e2e/instalar_e2e.py` (8). El script del halo pasó a llamarse `halo-campo.js` (el nombre con «destino» chocaba con la prueba de privacidad de la caché del service worker).
+
+## Fase G (sin publicar, sobre 4.15.0) · Nomenclatura colombiana en la búsqueda de direcciones
+**Backend + un poco de frontend (sin migración).** Detalle, patrones y ejemplos: `docs/BUSQUEDA-DIRECCIONES.md` (Fase G).
+- `CityArea.normalizeAddress` entiende «número», «numero», «nro», «num», «N.º», «N°», «Nº», «No.» y `#`, y la placa separada solo por espacios o con letras en ambos fragmentos: «carrera 27 número 35A 50» → «Carrera 27 # 35A-50». Solo con una vía con número (los nombres de establecimientos no se tocan); idempotente.
+- La búsqueda explícita compara por **componentes** (`Nomenclatura`: tipo, vía, Bis, sentido y placa con letras) usando `addressComponents` de Google cuando vienen; nunca confirma otra placa, otra vía ni solo la vía. Mensajes: «Encontramos la carrera, pero no ese número…» y «Falta un dato de la placa…».
+- El campo conserva lo escrito; la lista rotula las vías («Vía ·»); al elegir se ve la dirección formateada de Google y, si solo ubicó la vía o el sector, se dice. `LugarResponse.nomenclatura` (nuevo, compatible).
+- Pruebas nuevas: `NormalizacionDireccionTest` (9), `BusquedaNomenclaturaTest` (11), +5 en `busqueda_e2e` y +1 en `guiado_e2e`. Pendiente: Google real y teléfono.
+
+## Fase F (sin publicar, sobre 4.15.0) · Búsqueda de direcciones y halo de «¿A dónde quieres ir?»
+**Backend + frontend (sin migración).** Detalle, causas reproducidas y antes/después: `docs/BUSQUEDA-DIRECCIONES.md`.
+- Las sugerencias mientras se escribe tratan el último número sin cerrar como prefijo («Calle 3» admite Calle 30; la exacta va primero) y distinguen Calle/Carrera, 30/30A, Sur/Norte y Bis; la búsqueda explícita nunca confirma otra puerta, una vía sin número ni el barrio («Encontramos la vía, pero no ese número»).
+- Tocar una opción resuelve **ese** identificador de Google: `LugarResponse.googleId` (nuevo, compatible) se valida en el servidor y en el navegador; otra sede del mismo proveedor ya no se acepta. Deduplicación por identificador; la normalización no reescribe nombres comerciales.
+- (Retirado después por pedido del equipo: el panel principal con A y B queda exactamente como antes, sin halo.)
+- Pruebas nuevas: `BusquedaPertinenciaTest`, `ComparacionBusquedaTest`, +7 de navegador en `busqueda_e2e`/`guiado_e2e` (la prueba del halo se eliminó con el halo). Pendiente: Google real y teléfono.
+
+## Fase E (sin publicar, sobre 4.15.0) · Celebración al llegar
+**Solo frontend (`viaje.js`, `logros.js`, `viaje.css`).** Detalle y pruebas de campo pendientes: `docs/CELEBRACION-LLEGADA.md`.
+- Al llegar de verdad la tarjeta muestra de inmediato un sello de SEVB, «¡Llegaste a tu destino!» y un confeti breve (14 partículas, `transform`/`opacity`, sin canvas); «Cerrar» funciona en el primer cuadro aunque el guardado de logros siga pendiente. «Ganaste: …» y la racha llegan después como detalle de la misma tarjeta.
+- Idempotente por viaje lógico; con la página en segundo plano se ve una sola vez al volver; con movimiento reducido queda el sello estático; se limpia al cerrar, recargar o reemplazar el viaje. La práctica conserva su celebración.
+- Pruebas nuevas: `e2e/llegada_e2e.py` (11), incluido el recorrido integrado desvío → «Ya me bajé» → caminata → llegada.
+
+## Fase D (sin publicar, sobre 4.15.0) · Logros, medallas y racha de viajes
+**Frontend + backend; migración V15.** Detalle: `docs/LOGROS.md`.
+- **Un viaje cuenta al llegar de verdad con al menos una subida confirmada** (`spevb-viaje-llegada` trae `viajeId`, `llegadaMs`, `subidas`, `busConfirmado`); idempotente por id; no cuentan abandonar, «Cerrar», recargar, repetir el evento ni la práctica. El id lógico y las subidas sobreviven a reanudar y a recalcular.
+- **Racha** con días de Bogotá (UTC-5), un día vacío de gracia, mejor racha y racha estricta (los logros antiguos «3 días seguidos» y «Una semana» siguen pidiendo días consecutivos). Reloj controlable (`Spevb.Reloj`), sin intervalos frecuentes. Espejo exacto Java/JS con vectores compartidos.
+- **Menú:** «Mis viajes y logros» con la racha visible (llama propia en 4 niveles, número y texto), medallas como botones con requisito/progreso/recompensa, celebración única y destello con versión fija para «reducir movimiento».
+- **Recompensas visuales privadas** (marco de ruta, borde del Llano, insignias) que se destacan en «Ajustes de la cuenta → Mis medallas».
+- **Cuenta:** `GET /api/cuenta/logros`, `POST …/viaje`, `…/practica`, `…/insignia`; tablas `logros_viaje` y `logros_perfil`; estado derivado de los viajes (varios dispositivos no suman contadores); sin coordenadas ni direcciones; cola de reintentos por cuenta que se borra al salir. El progreso antiguo del dispositivo se conserva para el invitado y **no** se adjudica a la primera cuenta.
+- Pruebas nuevas: `RachaTest`, `LogrosPostgresTest`, `e2e/logros_e2e.py` (24).
+
+## Fase C (sin publicar, sobre 4.15.0) · Menú secundario y «Mis lugares» guardados en la cuenta
+**Frontend + backend (sin migración).** Detalle: `docs/LUGARES.md`.
+- **Menú reordenado y compacto:** perfil en una fila, «Mis lugares» arriba (Casa, Trabajo, «Agregar lugar», administrar), «Mis viajes» plegado, «Volver a mi viaje» primero durante un viaje.
+- **Guardar un lugar exige sesión** y se hace en un **modo de mapa propio** (pin en el área libre, teclado, GPS solo al pulsar) independiente de A/B; guarda las coordenadas exactas bajo el pin aunque la dirección tarde.
+- **Lugares con nombre** (hasta 30, ids estables, Casa/Trabajo únicos), cambiar ubicación/nombre y eliminar con confirmación.
+- **Datos:** lugares de la cuenta separados de los del invitado (nunca se fusionan); escritura confirmada por el servidor, condicionada a lo leído (`base`, 409) y con lápidas para que un borrado no reaparezca; respuestas tardías de otra cuenta se descartan.
+- `atajos.js` se reemplaza por `lugares.js`; `Planner.cederSeleccion/reanudarSeleccion`.
+- Pruebas nuevas: `DatosLugaresTest`, caso nuevo en `CuentaIdentidadPostgresTest`, `e2e/lugares_e2e.py` (22).
+
+## Fase B (sin publicar, sobre 4.15.0) · «Continuar con Google» como única vía de acceso y transición de cuentas existentes
+**Frontend + backend; migración V14 (sin tocar datos).** Detalle: `docs/CUENTAS.md` y `docs/GOOGLE.md`.
+- **Una sola vía pública.** El menú de invitado tiene un único botón «Continuar con Google» que abre un diálogo breve con el control oficial de Google (cargado solo al tocarlo), con estados claros (cargando, listo, entrando, no configurado, sin conexión, sin servidor, Google bloqueado, dirección temporal —con la dirección oficial si existe—, credencial rechazada) y siempre «Reintentar» / «Seguir sin cuenta». Se retiraron «Crear cuenta», correo, contraseña, mostrar contraseña, alternador de registro y crear/cambiar contraseña en Ajustes. La planeación y el modo viaje siguen para invitados.
+- **Servidor.** `/api/cuenta/registro`, `/entrar` y `/clave` responden **410** (no emiten sesiones ni habilitan contraseñas; siguen mapeados). `/google` verifica además `azp`, `nbf`, tamaño del correo y que la credencial **no se haya usado antes**. El borrado exige una credencial de Google de **menos de 5 minutos del mismo `sub`** (ya no depende de una contraseña ni de un hash antiguo). Cookie HttpOnly, CSRF, límites, expiración y autorización de administración sin cambios.
+- **Identidad = `sub`.** Un correo no demuestra propiedad de una cuenta antigua: **se eliminó** la rama de `CuentaService` que, al entrar con Google con el correo de una cuenta con contraseña, reemplazaba nombre y datos y borraba sesiones. Un `sub` nuevo crea su perfil de forma idempotente y nunca hereda datos por el correo; una cuenta ya vinculada vuelve a su mismo perfil. V14 relaja la unicidad del correo (solo entre cuentas locales). Las cuentas antiguas se conservan; sus sesiones dejan de valer sin borrar los datos del dispositivo; se explica cómo pedir la recuperación. Vínculo explícito `/vinculo-anterior` (apagado por defecto) con las dos pruebas, id conservado y sesiones cerradas.
+- **Sin carreras en el cliente.** Cada cambio de usuario sube una generación; las operaciones de sesión se serializan; un callback de Google tardío, una respuesta que llega después de cerrar o de cambiar de cuenta y una sincronización en vuelo no se aplican a la cuenta siguiente; entrar con otra persona limpia lo personal del dispositivo; la pestaña revisa la sesión al volver. La sincronización ya no mantiene bloqueado el diálogo.
+- **Para lugares privados:** `Spevb.Cuenta.requiere(motivo)` / `pedirEntrada({motivo})` abren el mismo diálogo y devuelven el usuario o `null`.
+- Pruebas nuevas: `CuentaControllerTest`, `CuentaIdentidadPostgresTest` (PostgreSQL real; Testcontainers o `SEVB_TEST_PG_URL`), más casos en `GoogleTokenVerifierTest`; `e2e/cuenta_google_e2e.py` (14 casos de navegador) y el stub simula `/api/cuenta/*` con el nuevo contrato. Los scripts `docs/pruebas/cuentas_e2e.py` y `google_e2e.py` quedaron obsoletos.
+
+## Fase A (sin publicar, sobre 4.15.0) · Desvío del bus y «Tu parada quedó atrás»
+**Solo frontend (`viaje-nucleo.js`, `viaje.js`, `viaje-ruta.js`, `planner.js`, `viaje.css`); sin cambios de backend ni de versión.** Detalle, umbrales y lo que falta probar en un bus real: `docs/DESVIO-BUS.md`.
+- **Una sola historia para el mapa y la tarjeta.** Antes el conector naranja (`viaje-ruta.js`, una lectura a > 150 m), el aviso `desvio_bus` (núcleo, 20 s) y `info()` («Todo va bien») eran tres mecanismos separados. Ahora el núcleo decide el estado (`info().desvio`: normal → posible → confirmado → atrás) y el conector, la tarjeta y la estimación leen ese mismo estado. Con incertidumbre se quita «Todo va bien» y tiempo/distancia pasan a «Estimación incierta».
+- **Referencia del recorrido DESPUÉS de la bajada.** `construirReferencia` comprueba que el tramo del plan es una parte contigua del recorrido completo (`/api/rutas/{id}`), en el sentido correcto (trazado, invertido o circular con la vuelta duplicada), y marca `ambigua` si el tramo cabe en más de un sitio. Se pide una vez por bus, en segundo plano, con tiempo máximo y 3 intentos, cancelable; el viaje no la espera. El plan ahora trae `rutaId`, `sentidoRuta` y `sentidoViaje`.
+- **Detector con umbrales distintos para salir (150 m) y volver (60 m)**, confirmación por lecturas/tiempo/movimiento y retorno por racha (4 lecturas, 12 s, 60 m de avance por la ruta, precisión ≤ 35 m, separación frente a otros tramos) más un margen mínimo configurable de 20 m sobre la parada. Un punto aislado, mala precisión, una vía paralela, un cruce, un bucle, el sentido contrario, un hueco de GPS o un semáforo no confirman el retorno.
+- **«Tu parada quedó atrás»**: reutiliza el recuadro de bajada (mismo foco, Escape, accesibilidad y compatibilidad con menú abierto/tarjeta minimizada), una sola alerta urgente por incidente, notificación sin nombres de lugares ni coordenadas, «Sigo en el bus» conserva `en_bus`. La heurística de distancia de «te pasaste» y la alerta «ahora» no se usan mientras el bus va fuera de su recorrido.
+- **«Ya me bajé» tras un desvío**: la caminata se calcula (`/api/caminata`) desde la ubicación real y vigente, conserva el destino original, y con transbordo solo conserva el siguiente bus si sigue siendo alcanzable; si falla la red o es poco razonable ofrece «Reintentar» / «Recalcular desde aquí» (confirmación de recálculo y único viaje intactos). El mapa nunca lleva a la parada original ni dibuja una recta.
+- **Persistencia**: se guarda solo el estado mínimo del desvío; un estado de versiones anteriores se acepta; al reanudar con ubicación vieja el caso incierto espera lecturas nuevas.
+- Pruebas nuevas: 14 en `e2e/viaje_logica_e2e.py` (referencia, R006, falsos positivos, hueco/semáforo/lento, sin referencia, persistencia), `e2e/desvio_bus_e2e.py` (14 de interfaz, incluido el caso R006 con capturas en `docs/capturas-viaje/`) y el escenario R006 en `e2e/simulador_gps.js`.
+
 ## 4.15.0 · Flujo guiado, ruta consumible, avatares regionales y «Compartir mi viaje» (incluye la UX móvil 4.14)
 **Frontend + backend; migraciones V12 y V13.** Detalle: `docs/FLUJO-GUIADO.md`, `docs/COMPARTIR-VIAJE.md`, `docs/AVATARES.md`, `docs/PRUEBAS-USABILIDAD-GUIADA.md`. Sin publicar ni desplegar.
 - **Rendimiento del pasajero (medido, no supuesto).** Herramientas `e2e/rendimiento/medir_pasajero.py` y `perfilar_pasajero.py`, línea base y comparación A/B alternada (`docs/RENDIMIENTO-PASAJERO.md`, `docs/pruebas/rendimiento_4.15.4_*.json`). Solo una optimización resultó demostrable y se conserva: `viewH()` del panel en caché invalidada por eventos (`sheet.js`), que baja las tareas largas al arrastrar el panel de ≈ 590 a ≈ 310 ms (−48 %, mejor en 3/3 rondas). Otras tres optimizaciones (caché de `Motion.reduced`, `ordenarMenu` sin mover nodos, `AudioContext` diferido) no mostraron mejora medible y se revirtieron. Sin fugas de oyentes, temporizadores ni GPS tras 5 viajes seguidos. Pendiente: medir contra el servidor real con Google y en un teléfono.

@@ -34,6 +34,16 @@
         mapa: '<path d="M3.5 6.5 9 4l6 2.5 5.5-2.5v13.5L15 20.5 9 18l-5.5 2.5zM9 4v14M15 6.5v14"/>',
         reloj: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
         bajar: '<path d="M12 4v13M6.5 12l5.5 5.5 5.5-5.5M5 20.5h14"/>',
+        // Fase D · llama de racha en cuatro tamaños (1–2, 3–6, 7–13 y 14+ días): misma cuadrícula, así caben en la misma fila. El número y el texto dicen la racha; el dibujo solo acompaña.
+        llamaN1: '<path d="M12 20.5a4.4 4.4 0 0 0 4.4-4.4c0-2.7-1.9-4.2-2.6-6.8-1.5.9-2 2.2-2 2.2s-1.5-.6-.7-3.2C8.6 9.1 7.6 12 7.6 16.1a4.4 4.4 0 0 0 4.4 4.4z"/>',
+        llamaN2: '<path d="M12 21a6 6 0 0 0 6-6c0-3.6-2.5-5.6-3.5-9-2 1.2-2.6 3-2.6 3S9.5 7 11 3C7.8 5.5 6 9.5 6 15a6 6 0 0 0 6 6z"/><path d="M12 20a2.4 2.4 0 0 0 2.4-2.4c0-1.6-1.2-2.4-1.8-3.8-.9.7-1 1.6-1 1.6s-1.3-.6-.9-2.2c-1.4 1.2-1.1 3.2-1.1 4.4A2.4 2.4 0 0 0 12 20z"/>',
+        llamaN3: '<path d="M12 21a6 6 0 0 0 6-6c0-3.6-2.5-5.6-3.5-9-2 1.2-2.6 3-2.6 3S9.5 7 11 3C7.8 5.5 6 9.5 6 15a6 6 0 0 0 6 6z"/><path d="M12 20a2.4 2.4 0 0 0 2.4-2.4c0-1.6-1.2-2.4-1.8-3.8-.9.7-1 1.6-1 1.6s-1.3-.6-.9-2.2c-1.4 1.2-1.1 3.2-1.1 4.4A2.4 2.4 0 0 0 12 20z"/><path d="M3.5 12.5l1.6 1.2M3 17h2M20.5 12.5l-1.6 1.2M21 17h-2"/>',
+        llamaN4: '<path d="M12 21.2a6 6 0 0 0 6-6c0-3.6-2.5-5.6-3.5-9-2 1.2-2.6 3-2.6 3S9.5 7.2 11 3.2C7.8 5.7 6 9.7 6 15.2a6 6 0 0 0 6 6z"/><path d="M12 20.2a2.4 2.4 0 0 0 2.4-2.4c0-1.6-1.2-2.4-1.8-3.8-.9.7-1 1.6-1 1.6s-1.3-.6-.9-2.2c-1.4 1.2-1.1 3.2-1.1 4.4a2.4 2.4 0 0 0 2.4 2.4z"/><path d="M3.5 12.5l1.6 1.2M3 17.5h2M20.5 12.5l-1.6 1.2M21 17.5h-2M4.5 7.5l1.4 1M19.5 7.5l-1.4 1M12 1.2v1.4"/>',
+        // Medallas (Fase D): cada una con su propio dibujo
+        ruta: '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5.5a3 3 0 0 0 0-6h-3a3 3 0 0 1 0-6H16"/>',
+        dosbuses: '<rect x="2.5" y="4.5" width="10" height="9" rx="2"/><rect x="11.5" y="10.5" width="10" height="9" rx="2"/><path d="M2.5 9h10M11.5 15h10M5.5 13.5v1.6M18.5 10.5V9"/>',
+        llano: '<circle cx="16.5" cy="7.5" r="2.6"/><path d="M2.5 17.5h19M4 17.5c2.2-3.2 4.7-4.3 7.2-4.3 2.2 0 3.6 1 5 2.2M5 20.5c2.5-1 5-1 7.5 0s5 1 7.5 0M8 13.4c-.2-1.6-.9-2.8-2-3.6M11 12.9c0-1.8.8-3.2 2-4"/>',
+        chispa: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
     };
     const marco = (nombre, tam, clase) => '<svg xmlns="' + NS + '" viewBox="0 0 24 24" width="' + tam + '" height="' + tam + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"'
         + (clase ? ' class="' + clase + '"' : '') + ' data-icono="' + nombre + '">' + (D[nombre] || '') + '</svg>';

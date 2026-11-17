@@ -80,3 +80,6 @@ body.guiado .sheet-head { padding-top: 2px; padding-bottom: 2px; min-height: 0; 
     html:not([data-theme="light"]) .guiado-pasos li, html:not([data-theme="light"]) .guiado-datos li, html:not([data-theme="light"]) .guiado-chip, html:not([data-theme="light"]) .guiado-mensaje { background: #22362d; color: #eef6f1; }
     html:not([data-theme="light"]) .guiado-enlace { color: #8fe0c0; }
 }
+
+/* En el flujo guiado las indicaciones las muestra el propio paso «recomendación» (mismo modelo): no se duplican en el panel. */
+body.guiado #tripItinerario { display: none; }

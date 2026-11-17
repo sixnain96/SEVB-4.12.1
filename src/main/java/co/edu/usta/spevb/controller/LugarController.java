@@ -61,7 +61,8 @@ public class LugarController {
             cuerpo.put("proveedor", "ninguno");
             cuerpo.put("intentos", List.of());
         } else {
-            var r = lugares.sugerirDetallado(q.strip(), sesion);
+            // Se conserva UN espacio final: «Calle 30 » (número cerrado) y «Calle 30» (todavía se escribe) filtran distinto.
+            var r = lugares.sugerirDetallado(q.stripLeading().stripTrailing() + (Character.isWhitespace(q.charAt(q.length() - 1)) ? " " : ""), sesion);
             cuerpo.put("sugerencias", r.sugerencias());
             cuerpo.put("estado", r.estado().name());
             cuerpo.put("proveedor", r.proveedor());

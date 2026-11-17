@@ -88,46 +88,7 @@
         setTimeout(() => P().buscar(), 500);
     }
 
-    // ------------------------------------------------------------------ mis lugares (favoritos)
-    const K_FAV = 'spevb-favoritos', MAX_FAV = 12;
-    const favoritos = () => (S.Datos ? S.Datos.leer('lugares') : leer(K_FAV, []));
-    const guardarFavoritos = (lista) => (S.Datos ? S.Datos.escribir('lugares', lista) : escribir(K_FAV, lista));
-    function pintarFavoritos() {
-        const lista = $('favList'), fav = favoritos();
-        lista.replaceChildren();
-        $('favCount').textContent = fav.length ? String(fav.length) : '';
-        if (!fav.length) { const p = document.createElement('p'); p.className = 'fav-empty'; p.textContent = 'Aún no guardas lugares. Elige A o B y guárdalo aquí con un nombre.'; lista.append(p); return; }
-        fav.forEach((f) => {
-            const fila = document.createElement('div');
-            fila.className = 'fav-row';
-            const nombre = document.createElement('span');
-            nombre.className = 'fav-name';
-            nombre.textContent = f.nombre;
-            const mk = (txt, etiqueta, fn, cls = '') => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fav-btn ' + cls; b.textContent = txt; b.setAttribute('aria-label', etiqueta + ' ' + f.nombre); b.onclick = fn; return b; };
-            const punto = () => ({ id: null, lat: f.lat, lng: f.lng, nombre: f.nombre, direccion: null, fuente: 'Favorito', confirmado: true });
-            fila.append(nombre,
-                mk('A', 'Usar como origen', () => P().poner('origin', punto())),
-                mk('B', 'Usar como destino', () => P().poner('destination', punto())),
-                mk('×', 'Quitar', () => { guardarFavoritos(favoritos().filter((x) => x.id !== f.id)); }, 'fav-del'));
-            lista.append(fila);
-        });
-    }
-    function guardarFavorito(modo) {
-        const p = P().puntos()[modo === 'origin' ? 'origen' : 'destino'];
-        const nombre = $('favName').value.trim().slice(0, 40);
-        if (!p) return S.toast('Primero elige el punto ' + (modo === 'origin' ? 'A' : 'B') + '.', { tipo: 'info', ms: 3000 });
-        if (!nombre) { $('favName').focus(); return S.toast('Escribe un nombre (Casa, Trabajo, Universidad…).', { tipo: 'info', ms: 3500 }); }
-        const lista = favoritos().filter((f) => f.nombre.toLowerCase() !== nombre.toLowerCase());
-        if (lista.length >= MAX_FAV) return S.toast('Máximo ' + MAX_FAV + ' lugares. Quita alguno para añadir otro.', { tipo: 'info', ms: 4000 });
-        lista.unshift({ id: Date.now().toString(36), nombre, lat: p.lat, lng: p.lng });
-        guardarFavoritos(lista);
-        $('favName').value = '';
-        S.toast('«' + nombre + '» guardado.', { tipo: 'success', ms: 2500, clave: 'fav' });
-    }
-    $('favSaveA').onclick = () => guardarFavorito('origin');
-    $('favSaveB').onclick = () => guardarFavorito('destination');
-    window.addEventListener('spevb-datos', (e) => { if (e.detail.clave === 'lugares') pintarFavoritos(); });
-    pintarFavoritos();
+    // «Mis lugares» (Casa, Trabajo y lugares con nombre) vive ahora en lugares.js: se guarda en la cuenta y tiene su propio modo de mapa (Fase C).
 
     // ------------------------------------------------------------------ avisarme al bajar
     const RADIO_CERCA = 600, RADIO_YA = 220, RADIO_LLEGO = 60;
