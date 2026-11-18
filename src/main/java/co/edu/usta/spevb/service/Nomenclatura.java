@@ -37,6 +37,51 @@ public record Nomenclatura(String tipo, String via, boolean bis, String sentido,
     /** «carrera», «calle»… para decir «Encontramos la carrera, pero no ese número». */
     public String sustantivo() { return tipo.toLowerCase(Locale.ROOT); }
 
+    /** Solo la vía («Carrera 27», «Calle 15 Bis Sur»), sin placa: para ubicar la calle cuando no se pudo ubicar el número. */
+    public String textoVia() {
+        return tipo + " " + via + (bis ? " Bis" : "") + (sentido.isEmpty() ? "" : " " + sentido);
+    }
+
+    /**
+     * ¿Es la MISMA vía (tipo, identificador, Bis y sentido) con una placa que difiere por UN error pequeño en un solo fragmento (una cifra o letra de más, de menos o cambiada)?
+     * Ej.: «#935A-50» frente a «#35A-50». Exige que el fragmento editado tenga al menos 3 caracteres (con menos, un solo cambio no es evidencia). No es «igual»: se ofrece para REVISAR.
+     */
+    public boolean placaParecida(Nomenclatura o) {
+        if (!mismaVia(o) || !tienePlaca() || !o.tienePlaca() || igual(o)) return false;
+        int d1 = distancia(placa1, o.placa1), d2 = distancia(placa2, o.placa2);
+        if (d1 + d2 != 1) return false;
+        String editado = d1 == 1 ? (placa1.length() >= o.placa1.length() ? placa1 : o.placa1) : (placa2.length() >= o.placa2.length() ? placa2 : o.placa2);
+        return editado.length() >= 3;
+    }
+
+    /**
+     * Corrector de Autocomplete: ¿es la MISMA vía y una placa CERCANA? Hasta 2 cambios en total (cifras o letras de más, de menos o cambiadas) y con un fragmento idéntico
+     * (por ejemplo la calle transversal «35A» igual y el predio «50» frente a «58» o «15»). Solo para PROPONER «¿Te referías a…?» (la persona revisa el pin); nunca se aplica sola.
+     */
+    public boolean placaCercana(Nomenclatura o) {
+        if (!mismaVia(o) || !tienePlaca() || !o.tienePlaca()) return false;
+        int d1 = distancia(placa1, o.placa1), d2 = distancia(placa2, o.placa2), d = d1 + d2;
+        return d <= 2 && (d1 == 0 || d2 == 0);
+    }
+
+    /** Distancia total entre las dos placas (suma por fragmento); un valor alto si alguna no tiene placa. */
+    public int distanciaPlaca(Nomenclatura o) {
+        return tienePlaca() && o.tienePlaca() ? distancia(placa1, o.placa1) + distancia(placa2, o.placa2) : 99;
+    }
+
+    /** Distancia de edición (inserción, borrado o cambio de un carácter) entre dos fragmentos cortos de placa. */
+    static int distancia(String a, String b) {
+        int[] previa = new int[b.length() + 1], actual = new int[b.length() + 1];
+        for (int j = 0; j <= b.length(); j++) previa[j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            actual[0] = i;
+            for (int j = 1; j <= b.length(); j++)
+                actual[j] = Math.min(Math.min(actual[j - 1], previa[j]) + 1, previa[j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1));
+            int[] t = previa; previa = actual; actual = t;
+        }
+        return previa[b.length()];
+    }
+
     /** Forma canónica («Carrera 27 # 35A-50»). */
     public String texto() {
         return tipo + " " + via + (bis ? " Bis" : "") + (sentido.isEmpty() ? "" : " " + sentido) + (tienePlaca() ? " # " + placa1 + "-" + placa2 : "");

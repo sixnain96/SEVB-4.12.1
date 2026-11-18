@@ -758,3 +758,14 @@ html[data-motion='reduce'] .racha-chip.chispa .racha-llama::after { animation: n
 
 /* «Instalar en tu celular» no se ofrece durante un viaje (el menú del viaje se mantiene corto). */
 body.viaje-activo .menu-instalar { display: none; }
+
+/* ===== Coincidencias de direcciones: grupos y revisión del pin (planner.js) ===== */
+body.home-sevb .place-results .place-group { margin: 0; padding: 8px 16px 2px; font-size: 11.5px; font-weight: 800; color: var(--ink-2); background: #fff; }
+body.home-sevb .place-results .place-review { display: grid; gap: 6px; padding: 12px 14px; background: #fff; }
+.place-review-title { margin: 0; font-weight: 800; font-size: 15px; }
+.place-review-address { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.place-review-reason { margin: 0; font-size: 13px; color: #3d4a44; }
+.place-review-actions { display: grid; gap: 8px; padding: 6px 14px 12px; background: #fff; }
+.place-review .place-review-actions { padding: 6px 0 0; }
+.place-review-actions button { min-height: 48px; }
+.trip-pin.preview { background: #fff; color: #176650; border: 3px dashed #176650; }

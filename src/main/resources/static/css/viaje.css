@@ -987,8 +987,6 @@ details.menu-seccion > summary { justify-content: flex-start; gap: 10px; min-hei
 details.menu-seccion > summary > span:not(.menu-ico):not(.racha-chip) { flex: 1 1 auto; min-width: 0; }
 details.menu-seccion > summary::after { margin-left: auto; }
 .menu-logros > summary > .menu-ico, .menu-ico { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: color-mix(in srgb, var(--sec) 14%, #fff); color: var(--sec); }
-#menuLugares { --sec: #176650; } #menuEspacio { --sec: #1e5fbf; } #logros { --sec: #9a6a00; } #menuAyuda { --sec: #6b4bb3; } #menuInstalar { --sec: #0f6b7a; }
-#menuVista { --sec: #4d5b66; } #menuOffline { --sec: #8a4b2b; } #menuExplorar { --sec: #176650; }
 .menu-lugares > summary { font-size: 18px; }
 /* «Mis lugares»: Casa y Trabajo como dos botones grandes; el ⋯ es un botón aparte y sus acciones se abren debajo */
 .side-menu .atajo-fila .atajo { flex-wrap: wrap; text-align: left; }
@@ -1013,13 +1011,6 @@ details.menu-seccion.anima[open] > :not(summary) { animation: menuDespliega .22s
 html[data-motion="reduce"] details.menu-seccion.anima[open] > :not(summary), html[data-motion="reduce"] .lugar-acciones:not([hidden]) { animation: none; }
 @media (max-height: 480px) and (orientation: landscape) { .side-menu .side-menu-head { padding-block: 6px; } body.home-sevb .side-menu .menu-volver-viaje { min-height: 48px; margin-bottom: 8px; } }
 @media (prefers-color-scheme: dark) {
-    html:not([data-theme="light"]) .side-menu .side-menu-head { border-bottom-color: #2c4339; }
-    html:not([data-theme="light"]) .menu-ico { background: color-mix(in srgb, var(--sec) 30%, #17261f); color: #d7f0e4; }
-    html:not([data-theme="light"]) details.menu-seccion[open] { background: color-mix(in srgb, var(--sec) 12%, transparent); }
-    html:not([data-theme="light"]) .lugar-ir { background: #24463a; color: #d7f0e4; }
-    html:not([data-theme="light"]) .lugar-acciones { background: #17261f; border-color: #2c4339; }
-    html:not([data-theme="light"]) body.viaje-activo .side-menu #menuInicio { border-color: #e59b9b; color: #f3c4c4; }
-    html:not([data-theme="light"]) .menu-inicio-nota { color: #cdbfae; }
     html:not([data-theme="light"]) .viaje-caminata { background: #17261f; color: #eef6f1; }
     html:not([data-theme="light"]) .viaje-caminata[data-estado='error'], html:not([data-theme="light"]) .viaje-caminata[data-estado='larga'], html:not([data-theme="light"]) .viaje-caminata[data-estado='sin-ubicacion'], html:not([data-theme="light"]) .viaje-caminata[data-estado='no-alcanzable'] { background: #3a2c10; color: #ffe9b8; }
 }
@@ -1035,4 +1026,44 @@ html[data-letra="grande"] .menu-estado-viaje { font-size: 16px; } html[data-letr
 /* ===================== 4.16.1 · Celular girado con «Editar A y B» durante un viaje: la tarjeta compacta se queda a la derecha del planificador lateral (antes lo tapaba) ===================== */
 @media (max-width: 860px) and (max-height: 480px) and (min-width: 560px) {
     body.home-sevb .viaje-card[data-cede='planificador']:not([data-urgente]) { left: calc(min(380px, 50vw) + 24px); right: 84px; max-width: none; margin-inline: 0; }
+}
+
+/* ===================== 4.17 · Menú ☰ más vivo y botones que se adaptan a CUALQUIER ancho de celular ===================== */
+/* Ningún botón del menú se sale de su caja: ocupan todo el ancho disponible, el texto baja de línea y la altura se ajusta al contenido. */
+.side-menu button, .side-menu .secondary, .side-menu .primary-plan-button { box-sizing: border-box; max-width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+body.home-sevb .side-menu .primary-plan-button, body.home-sevb .side-menu button.secondary { height: auto; min-height: 48px; padding: 10px 14px; line-height: 1.2; }
+.side-menu .account-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; width: 100%; }
+.side-menu .account-buttons > button { width: 100%; flex: none; }
+.side-menu #accountGuest .account-buttons > button, .side-menu #accountUser .account-buttons > button { width: 100%; }
+.side-menu .atajos { grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr)); }
+.side-menu .atajo-fila { min-width: 0; }
+.side-menu .atajo { min-width: 0; flex-wrap: wrap; overflow-wrap: anywhere; }
+.side-menu .menu-ayuda-botones, .side-menu .confort-row, .side-menu .letra-opciones { min-width: 0; }
+.side-menu select, .side-menu input[type="search"], .side-menu input[type="text"] { max-width: 100%; box-sizing: border-box; }
+/* un toque de personalidad: mascota, tarjeta de cuenta con degradado, lugares como fichas de color y secciones en tarjetas */
+.side-menu-head { display: flex; align-items: center; gap: 10px; }
+.side-menu-head .side-menu-titulo { flex: 1; min-width: 0; }
+.menu-mascota { flex: none; width: 48px; height: 48px; border-radius: 50%; background: #e3efe9; padding: 3px; box-sizing: border-box; object-fit: contain; }
+.side-menu .menu-account { background: linear-gradient(135deg, #e3efe9 0%, #f3f8f5 60%, #fff4de 100%); border: 1px solid #cfe2d8; border-radius: 18px; }
+.side-menu .atajo-fila[data-tipo="casa"] .atajo { background: linear-gradient(135deg, #ffffff, #e6f4ec); border-color: #176650; }
+.side-menu .atajo .atajo-txt { font-weight: 800; }
+.side-menu > details.menu-seccion { margin: 6px 0; border: 1px solid #dbe6e1; border-radius: 16px; overflow: hidden; background: #fff; }
+.side-menu > details.menu-seccion > summary { padding-right: 10px; }
+.side-menu > details.menu-seccion[open] { background: linear-gradient(180deg, color-mix(in srgb, var(--sec) 7%, #fff), #fff 160px); border-left-width: 4px; }
+.side-menu > details.menu-seccion > :not(summary) { margin-left: 10px; margin-right: 10px; }
+.side-menu .menu-near, .side-menu .menu-links { margin-left: 0; margin-right: 0; }
+@media (prefers-color-scheme: dark) {
+}
+.side-menu > details.menu-seccion > :not(summary) { max-width: calc(100% - 20px); box-sizing: border-box; }
+.side-menu > details.menu-seccion > .atajos { max-width: calc(100% - 20px); }
+
+/* ===================== 4.17.1 · Mismos colores de SEVB en todo el menú: verde de la marca (y el naranja solo para lo que ya era naranja) ===================== */
+#menuLugares, #menuEspacio, #logros, #menuAyuda, #menuInstalar, #menuVista, #menuOffline, #menuExplorar { --sec: #176650; }
+.side-menu .menu-account { background: linear-gradient(135deg, #e3efe9 0%, #f1f7f4 100%); border-color: #cfe2d8; }
+.side-menu .atajo-fila[data-tipo="casa"] .atajo, .side-menu .atajo-fila[data-tipo="trabajo"] .atajo { background: linear-gradient(135deg, #ffffff, #e6f1ec); border-color: #176650; }
+.side-menu .atajo-fila[data-tipo="trabajo"] .atajo-ico { color: #176650; }
+.side-menu > details.menu-seccion { border-color: #d5e3dc; }
+.side-menu > details.menu-seccion[open] { background: linear-gradient(180deg, #eef6f2, #ffffff 160px); }
+.menu-ico { background: #e3efe9; color: #176650; }
+@media (prefers-color-scheme: dark) {
 }

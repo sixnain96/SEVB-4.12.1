@@ -197,6 +197,7 @@
     // Eventos de la aplicación: el panel se adapta a lo que la persona está haciendo.
     window.addEventListener('spevb-picking', () => go('peek', 'elegir-punto'));          // para ver el mapa mientras elige un punto
     window.addEventListener('spevb-focus-map', () => go('peek', 'ver-mapa'));
+    window.addEventListener('spevb-panel-completo', () => { if (mobile.matches) go('full', 'guia'); if (body) { try { body.scrollTop = 0; } catch { /* nada */ } } });      // la práctica del tutorial pide ver el panel entero (para señalar «Buscar rutas» y la recomendación)
     window.addEventListener('spevb-panel-medio', () => { if (mobile.matches) go('half', 'guiado'); if (body) { try { body.scrollTop = 0; } catch { /* nada */ } } });      // flujo guiado: la pregunta del paso queda a la vista
     // Con un solo punto puesto la pantalla NO se mueve (la pestañita «Ahora escribe B» avisa qué sigue); con los dos, el panel baja para ver el mapa.
     window.addEventListener('spevb-point-selected', () => {

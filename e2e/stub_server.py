@@ -855,6 +855,16 @@ class H(BaseHTTPRequestHandler):
             return self._json({'lugares': [{'id': None, 'nombre': q, 'direccion': q, 'lat': 4.1462, 'lng': -73.6528, 'fuente': 'Google Maps' if prov == 'google' else 'ArcGIS World Geocoding',
                                             'confirmado': False, 'precision': 'DIRECCION_PUNTUAL', 'googleId': gid}], 'avisos': [], 'estado': 'OK', 'proveedor': prov,
                                'intentos': [{'proveedor': prov, 'estado': 'OK'}]})
+        if low.startswith(('posible', 'referencia', 'mixto')):      # coincidencias clasificadas por el servidor (EXACTA / POSIBLE / REFERENCIA)
+            exacta = {'id': None, 'nombre': 'Carrera 27 #35A-50', 'direccion': 'Cra. 27 #35A-50, Villavicencio, Meta', 'lat': 4.1460, 'lng': -73.6520, 'fuente': 'Google Maps', 'confirmado': False,
+                      'precision': 'DIRECCION_PUNTUAL', 'googleId': 'ChIJexacta00001', 'nomenclatura': 'Carrera 27 # 35A-50', 'coincidencia': 'EXACTA', 'motivo': None}
+            posible = {**exacta, 'nombre': 'Carrera 27 #35A-50', 'lat': 4.1470, 'lng': -73.6530, 'googleId': 'ChIJposible0001', 'coincidencia': 'POSIBLE',
+                       'motivo': 'Google devolvió la placa #35A-50 en la misma carrera.'}
+            ref = {'id': None, 'nombre': 'Carrera 27', 'direccion': 'Cra. 27, Villavicencio, Meta', 'lat': 4.1480, 'lng': -73.6540, 'fuente': 'Google Maps', 'confirmado': False, 'precision': 'VIA',
+                   'googleId': 'ChIJvia0000001', 'nomenclatura': None, 'coincidencia': 'REFERENCIA', 'motivo': 'Ubicamos la carrera, no el número.'}
+            lugares = [posible] if low.startswith('posible') else [ref] if low.startswith('referencia') else [exacta, posible]
+            avisos = ['Ubicamos la carrera, pero no ese número. Marca el punto exacto en el mapa.'] if low.startswith('referencia') else []
+            return self._json({'lugares': lugares, 'avisos': avisos, 'estado': 'OK', 'proveedor': 'google', 'intentos': [{'proveedor': 'google', 'estado': 'OK'}]})
         if low.startswith('vianum'):      # la vía existe pero no ese número: no se confirma otra puerta
             return self._json({'lugares': [], 'avisos': ['Encontramos la carrera, pero no ese número. Puedes marcar el punto en el mapa con «Elegir en el mapa».'], 'estado': 'SIN_COINCIDENCIAS', 'proveedor': 'ninguno',
                                'intentos': [{'proveedor': 'google', 'estado': 'SIN_COINCIDENCIAS'}]})

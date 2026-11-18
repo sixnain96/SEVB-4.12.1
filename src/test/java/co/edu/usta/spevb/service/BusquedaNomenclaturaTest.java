@@ -107,11 +107,12 @@ class BusquedaNomenclaturaTest {
         texto.set("{\"places\":[" + lugar("ChIJvia000000001", "Carrera 27, Villavicencio, Meta", "[{\"longText\":\"Carrera 27\",\"types\":[\"route\"]}]", 4.1450, -73.6300, "route") + ","
                 + lugar("ChIJbarrio0000002", "Barrio Los Maracos, Villavicencio, Meta", null, 4.1451, -73.6301, "neighborhood") + "]}");
         var r = servicio.buscarDetallado("Carrera 27 # 35A-50", "", "sesion-abc-123456");
-        assertTrue(r.lugares().isEmpty(), "ninguno es esa puerta");
-        assertTrue(r.avisos().stream().anyMatch(a -> a.contains("Encontramos la carrera, pero no ese número") && a.contains("Elegir en el mapa")), r.avisos().toString());
+        assertTrue(r.lugares().stream().allMatch(l -> "REFERENCIA".equals(l.coincidencia())), "ninguno es esa puerta: solo la vía como REFERENCIA: " + r.lugares());
+        assertEquals(1, r.lugares().size(), "el barrio que no escribió la persona no se ofrece");
+        assertTrue(r.avisos().stream().anyMatch(a -> a.contains("no ese número") && a.contains("mapa")), r.avisos().toString());
         texto.set("{\"places\":[" + lugar("ChIJvia000000001", "Calle 30, Villavicencio, Meta", null, 4.1450, -73.6300, "route") + "]}");
         var calle = servicio.buscarDetallado("Calle 30 # 38-10", "", "sesion-abc-123456");
-        assertTrue(calle.avisos().stream().anyMatch(a -> a.contains("Encontramos la calle")), calle.avisos().toString());
+        assertTrue(calle.avisos().stream().anyMatch(a -> a.contains("Ubicamos la calle")), calle.avisos().toString());
     }
 
     @Test void siFaltaLaPlacaSeDiceQueDatoEscribir() {
@@ -142,7 +143,9 @@ class BusquedaNomenclaturaTest {
         texto.set("{\"places\":[]}");
         cuerpos.clear();
         servicio.buscarDetallado("Carrera 27 # 35A-50", "", "sesion-abc-123456");
-        assertEquals(1, cuerpos.size(), "no hay una segunda consulta: los números no se tocan y Google ya recibe la forma canónica");
+        assertEquals(2, cuerpos.size(), "la primera con la forma canónica y, como mucho, UN intento adicional (el corrector de Autocomplete)");
+        assertTrue(cuerpos.get(0).contains("Carrera 27 # 35A-50"), "la primera lleva los números intactos: " + cuerpos.get(0));
+        assertTrue(cuerpos.get(1).contains("\"input\":\"Carrera 27 # 35A-50\""), "el intento adicional es el corrector (Autocomplete) con los números intactos: " + cuerpos.get(1));
     }
 
     // ---------------------------------------------------------------- consultas parciales y opciones

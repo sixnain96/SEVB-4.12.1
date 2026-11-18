@@ -233,8 +233,12 @@
             const j = await (await fetch('/api/estado')).json();
             const el = $('estadoEmu');
             if (j.modo === 'prueba') { el.textContent = 'Modo de prueba: no se envía a ningún emulador.'; el.classList.remove('mal'); }
+            else if (j.modo === 'navegador') {
+                if (j.dispositivos.length) { el.textContent = 'Navegador conectado: ' + (j.url || ''); el.classList.remove('mal'); }
+                else { el.textContent = j.error || 'La ventana del navegador está cerrada. Vuelve a ejecutar el joystick.'; el.classList.add('mal'); }
+            }
             else if (j.dispositivos.length) { el.textContent = 'Emulador conectado: ' + j.dispositivos.join(', '); el.classList.remove('mal'); }
-            else { el.textContent = 'No veo ningún emulador encendido. Enciéndelo en Android Studio (Device Manager › ▶).'; el.classList.add('mal'); }
+            else { el.textContent = 'No veo ningún emulador encendido. Enciéndelo en Android Studio (Device Manager › ▶), o usa --navegador URL para probar sin emulador.'; el.classList.add('mal'); }
         } catch (e) { /* el error se muestra al enviar */ }
     }
 

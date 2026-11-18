@@ -215,9 +215,9 @@ def el_orden_ensena_destino_primero_origen_despues_y_cada_idea_tiene_su_escena(n
     assert all(x in todo[7] for x in ('Ya me bajé', 'Terminar viaje', 'último tramo')), 'escena 8: terminar'
     # y la práctica sigue el mismo orden: destino (paso 1) antes que salida (paso 2)
     p.evaluate("(ej) => { window.__practica = Spevb.Guia.practica({ ejemplo: ej }); }", EJEMPLO); hasta_paso(p, 1, '1 de 2', 8000)
-    assert 'a dónde vas' in p.inner_text('.coach-texto') and p.get_attribute('#coach', 'data-sel') == '#tripDestination', 'la práctica empieza por el destino'
+    assert 'a dónde vas' in p.inner_text('.coach-texto') and p.get_attribute('#coach', 'data-sel') == '#formAB .endpoint-block:has(#tripDestination)', 'la práctica empieza por el destino'
     p.click('.coach-siguiente'); hasta_paso(p, 1, '2 de 2', 8000); siguiente(p); hasta_paso(p, 2, '1 de 5')
-    assert 'desde dónde sales' in p.inner_text('.coach-texto') and 'Usar mi ubicación actual' in p.inner_text('.coach-texto') and p.get_attribute('#coach', 'data-sel') == '#gUsarGps'
+    assert 'desde dónde sales' in p.inner_text('.coach-texto') and 'Mi ubicación' in p.inner_text('.coach-texto') and p.get_attribute('#coach', 'data-sel') == '#useMyLocation'
     p.click('.coach-salir'); p.wait_for_timeout(600)
     s.limpio('orden'); s.cerrar()
 
@@ -259,8 +259,8 @@ def con_movimiento_reducido_y_solo_teclado_se_completa_todo_el_tutorial(nav):
         if 'paso 3' in txt and '2 de 2' in txt and p.is_hidden('.coach-siguiente') and not p.evaluate("Spevb.Planner.seleccion && Spevb.Planner.seleccion.viaje"):
             for _t in range(8):                            # el botón real señalado se alcanza con Tab y se activa con Enter
                 p.keyboard.press('Tab')
-                if p.evaluate("document.activeElement.id") == 'gBuscar': break
-            assert p.evaluate("document.activeElement.id") == 'gBuscar', 'Tab llega al botón señalado'
+                if p.evaluate("document.activeElement.id") == 'planTrip': break
+            assert p.evaluate("document.activeElement.id") == 'planTrip', 'Tab llega al botón señalado'
             p.keyboard.press('Enter'); p.wait_for_timeout(1500); continue
         foco = p.evaluate("document.activeElement.className")
         if 'coach-siguiente' not in foco:
@@ -548,7 +548,7 @@ def practica_hasta_buscar(p, ejemplo=EJEMPLO):
 
 def practica_hasta_recomendacion(p, ejemplo=EJEMPLO):
     practica_hasta_buscar(p, ejemplo)
-    p.evaluate("document.getElementById('gBuscar').click()")
+    p.evaluate("document.getElementById('planTrip').click()")
     hasta_paso(p, 4, None, 20000)
 
 
@@ -558,22 +558,22 @@ def el_viaje_de_practica_tiene_ocho_pasos_sobre_el_flujo_guiado_real_y_da_el_log
     p = s.abrir()
     assert p.evaluate('Spevb.Guiado.modo()') == 'avanzado', 'el predeterminado sigue siendo el planificador con A y B'
     practica_hasta_buscar(p)
-    assert p.evaluate('Spevb.Guiado.modo()') == 'guiado' and p.evaluate('Spevb.Guiado.paso()') == 'resumen', 'durante la práctica se usa el paso a paso real'
+    assert p.evaluate('Spevb.Guiado.modo()') == 'avanzado', 'durante la práctica se usa el planificador con A y B (el panel principal)'
     assert p.input_value('#tripOrigin') == 'Ejemplo A' and p.input_value('#tripDestination') == 'Ejemplo B', 'los lugares de ejemplo quedan puestos en los campos reales'
-    assert 'Buscar cómo llegar' in p.inner_text('.coach-texto') and p.is_hidden('.coach-siguiente'), 'paso 3: se pide tocar «Buscar cómo llegar»'
-    assert p.evaluate("document.querySelector('.coach').dataset.sel") == '#gBuscar' and p.evaluate("getComputedStyle(document.querySelector('.coach-hueco')).display") == 'block', 'el botón real queda resaltado'
+    assert 'Buscar rutas' in p.inner_text('.coach-texto') and p.is_hidden('.coach-siguiente'), 'paso 3: se pide tocar «Buscar rutas»'
+    assert p.evaluate("document.querySelector('.coach').dataset.sel") == '#planTrip' and p.evaluate("getComputedStyle(document.querySelector('.coach-hueco')).display") == 'block', 'el botón real queda resaltado'
     assert p.evaluate("document.querySelectorAll('.coach-progreso i').length") == 8
-    p.evaluate("document.getElementById('gBuscar').click()")
+    p.evaluate("document.getElementById('planTrip').click()")
     hasta_paso(p, 4, None, 20000)
     sels = []
     for _ in range(12):
         if not re.search(r'paso 4( |$)', coach_paso(p)): break
         sels.append(p.get_attribute('#coach', 'data-sel') or 'texto')
         siguiente(p)
-    assert any('guiado-datos' in c for c in sels) and len(sels) >= 5, f'una cosa por vez (razón, tiempo, caminata, buses, ruta, otras opciones): {sels}'
+    assert any('itin-pasos' in c for c in sels) and len(sels) >= 4, f'una cosa por vez (razón, tiempo, caminata, buses, ruta, otras opciones): {sels}'
     hasta_paso(p, 5, None, 4000)
     t5 = p.inner_text('.coach-texto')
-    assert 'Empezar este viaje' in t5 and 'Solo puede haber un viaje a la vez' in t5 and p.get_attribute('#coach', 'data-sel') == '#gEmpezar' and p.get_attribute('#coach', 'data-escudo') == '1', t5
+    assert 'Iniciar viaje' in t5 and 'Solo puede haber un viaje a la vez' in t5 and p.get_attribute('#coach', 'data-sel') == '#startTrip' and p.get_attribute('#coach', 'data-escudo') == '1', t5
     assert p.evaluate("!Spevb.Viaje.activo()") and p.evaluate("document.getElementById('viajeCard').hidden"), 'la práctica no inicia ningún viaje real'
     siguiente(p); hasta_paso(p, 6, None, 4000)
     assert 'círculo azul' in p.inner_text('.coach-texto') and 'código de la ruta' in p.inner_text('.coach-texto') and p.evaluate("!!document.querySelector('.coach-extra .m-bus') && document.querySelectorAll('.coach-extra .m-azul').length === 2")
@@ -602,15 +602,15 @@ def la_practica_usa_el_flujo_guiado_real_y_no_toca_gps_viaje_cuenta_ni_datos(nav
     pasos_vistos = set()
     for _ in range(40):
         if not p.evaluate("!!document.getElementById('coach')"): break
-        pasos_vistos.add(p.evaluate('Spevb.Guiado.paso()'))
+        pasos_vistos.add(coach_paso(p))
         sel = p.get_attribute('#coach', 'data-sel') or ''
-        if sel.startswith('#g'):
-            assert p.evaluate("(s) => !!document.querySelector(s)", sel), f'el control real {sel} existe en el flujo guiado'
+        if sel:
+            assert p.evaluate("(s) => !!document.querySelector(s)", sel), f'el control real {sel} existe en el planificador con A y B'
         if '8' in coach_paso(p) and 'paso 8' in coach_paso(p):
             p.click('.coach-siguiente'); break
         siguiente(p)
     p.wait_for_timeout(900)
-    assert {'confirmar_destino', 'origen', 'recomendacion'} <= pasos_vistos or {'recomendacion'} <= pasos_vistos, pasos_vistos
+    assert len(pasos_vistos) >= 5, pasos_vistos
     assert p.evaluate('window.__gps') == 0, 'la práctica no llama al GPS'
     assert p.evaluate("!Spevb.Viaje || !Spevb.Viaje.activo()") and p.evaluate("document.getElementById('viajeCard') === null || document.getElementById('viajeCard').hidden"), 'no se inició ningún viaje'
     assert not escrituras, f'no se escribió nada en la cuenta ni se compartió nada: {escrituras}'
@@ -650,7 +650,7 @@ def la_practica_conserva_y_devuelve_lo_que_la_persona_tenia(nav):
         else:
             p.evaluate("Spevb.Planner.poner('destination', " + json.dumps({**EJEMPLO['b'], 'nombre': 'Mi destino'}) + "); Spevb.Planner.poner('origin', " + json.dumps({**EJEMPLO['a'], 'nombre': 'Mi origen'}) + ")"); p.wait_for_timeout(500)
             p.evaluate("Spevb.Guiado.ir('resumen')"); p.wait_for_timeout(300)
-            p.evaluate("document.getElementById('gBuscar').click()")
+            p.evaluate("document.getElementById('planTrip').click()")
             B.esperar(p, "document.querySelectorAll('#tripResults .trip-option').length > 0", 15000); p.wait_for_timeout(1500)
         antes = p.evaluate("({ a: Spevb.Planner.puntos().origen.lat, b: Spevb.Planner.puntos().destino.lat, nombreA: document.getElementById('tripOrigin').value, nombreB: document.getElementById('tripDestination').value, modo: Spevb.Guiado.modo() })")
         assert antes['modo'] == modo
@@ -672,19 +672,18 @@ def en_la_practica_se_puede_volver_atras_sin_perder_lo_elegido_y_la_persona_pued
     p.evaluate("(ej) => { window.__practica = Spevb.Guia.practica({ ejemplo: ej }); }", EJEMPLO)       # sin «pausa»: la persona hace los pasos
     hasta_paso(p, 1, '1 de 2', 6000)
     assert p.is_hidden('.coach-atras') and p.inner_text('.coach-siguiente') == 'Poner un ejemplo'
-    assert p.get_attribute('#coach', 'data-sel') == '#tripDestination'
+    assert p.get_attribute('#coach', 'data-sel') == '#formAB .endpoint-block:has(#tripDestination)'
     p.fill('#tripDestination', 'Cerca de la Terminal'); p.keyboard.press('Enter')                   # lo hace ella misma con el campo real (el flujo guiado real lo recibe)
     p.evaluate("Spevb.Planner.poner('destination', " + json.dumps(EJEMPLO['b']) + ")")
     hasta_paso(p, 1, '2 de 2', 8000)
-    assert p.evaluate('Spevb.Guiado.paso()') == 'confirmar_destino' and p.is_visible('.coach-atras')
+    assert p.is_visible('.coach-atras')
     p.click('.coach-atras'); hasta_paso(p, 1, '1 de 2', 4000)
     assert 'Ya tienes tu destino' in p.inner_text('.coach-texto') and p.inner_text('.coach-siguiente') == 'Siguiente', 'al volver no se pierde lo hecho'
     assert p.evaluate("Spevb.Planner.puntos().destino !== null"), 'el destino sigue elegido'
     siguiente(p); hasta_paso(p, 1, '2 de 2', 4000)
-    siguiente(p); hasta_paso(p, 2, '1 de 5', 4000)           # «Sí, continuar» lo toca el botón real
-    assert p.evaluate('Spevb.Guiado.paso()') == 'origen'
+    siguiente(p); hasta_paso(p, 2, '1 de 5', 4000)
     p.click('.coach-atras'); hasta_paso(p, 1, '2 de 2', 4000)
-    assert p.evaluate("Spevb.Planner.puntos().destino !== null") and p.evaluate('Spevb.Guiado.paso()') == 'confirmar_destino', 'retroceder y avanzar conserva el destino confirmado'
+    assert p.evaluate("Spevb.Planner.puntos().destino !== null"), 'retroceder y avanzar conserva el destino elegido'
     siguiente(p); hasta_paso(p, 2, '1 de 5', 4000); siguiente(p); hasta_paso(p, 2, '2 de 5', 4000); siguiente(p)
     hasta_paso(p, 2, '3 de 5', 4000); siguiente(p); hasta_paso(p, 2, '4 de 5', 4000)
     assert p.inner_text('.coach-siguiente') == 'Poner un ejemplo'
@@ -702,7 +701,7 @@ def si_el_servicio_de_rutas_falla_la_practica_sigue_con_un_ejemplo_marcado_como_
     p = s.abrir()
     p.route('**/api/viajes/planificar', lambda r: r.fulfill(status=503, content_type='application/json', body='{"status":503,"message":"Servicio no disponible"}'))
     practica_hasta_buscar(p)
-    p.evaluate("document.getElementById('gBuscar').click()")
+    p.evaluate("document.getElementById('planTrip').click()")
     B.esperar(p, "!document.querySelector('.coach-alt').hidden", 15000)
     assert 'Ahora no pude traer rutas reales' in p.inner_text('.coach-texto') and p.inner_text('.coach-alt') == 'Ver un ejemplo ilustrado'
     p.click('.coach-alt'); hasta_paso(p, 4, None, 4000)
@@ -729,13 +728,13 @@ def durante_la_practica_el_menu_y_el_resto_de_la_pantalla_quedan_bloqueados_tamb
     p.wait_for_timeout(700)
     r = p.evaluate("""() => { const quien = (id) => { const b = document.getElementById(id).getBoundingClientRect(); const e = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
             return e ? (e.className || e.id || e.tagName) : null; };
-        const plan = document.getElementById('gBuscar').getBoundingClientRect(), e = document.elementFromPoint(plan.left + plan.width / 2, plan.top + plan.height / 2);
-        return { menu: quien('menuButton'), ayuda: quien('helpButton'), buscarLibre: e === document.getElementById('gBuscar') || document.getElementById('gBuscar').contains(e) }; }""")
+        const plan = document.getElementById('planTrip').getBoundingClientRect(), e = document.elementFromPoint(plan.left + plan.width / 2, plan.top + plan.height / 2);
+        return { menu: quien('menuButton'), ayuda: quien('helpButton'), buscarLibre: e === document.getElementById('planTrip') || document.getElementById('planTrip').contains(e) }; }""")
     assert 'coach-bloqueo' in str(r['menu']) and 'coach-bloqueo' in str(r['ayuda']), f'el menú y «?» quedan bloqueados: {r}'
     assert r['buscarLibre'], 'el botón señalado sí se puede tocar'
     for _ in range(7):                                    # Tab solo recorre lo señalado y los botones de la tarjeta
         p.keyboard.press('Tab')
-        assert p.evaluate("!!document.activeElement.closest('#gBuscar, .coach-tarjeta') || document.activeElement.id === 'gBuscar'"), p.evaluate("document.activeElement.id || document.activeElement.className")
+        assert p.evaluate("!!document.activeElement.closest('#planTrip, .coach-tarjeta') || document.activeElement.id === 'planTrip'"), p.evaluate("document.activeElement.id || document.activeElement.className")
     assert not p.evaluate("document.getElementById('sideMenu').classList.contains('open')")
     assert p.evaluate("document.querySelectorAll('.coach-dedo svg').length") == 1 and p.evaluate("!!document.querySelector('.coach-guia')")
     assert p.get_attribute('.coach-tarjeta', 'role') == 'dialog' and p.get_attribute('.coach-texto', 'aria-live') == 'polite'
@@ -757,7 +756,7 @@ def el_coach_no_mide_la_pantalla_en_cada_cuadro_y_sigue_al_elemento_cuando_se_mu
     antes = p.evaluate("window.__raf"); p.wait_for_timeout(3000); despues = p.evaluate("window.__raf")
     assert despues - antes < 25, f'en reposo el coach casi no pide cuadros: {despues - antes} en 3 s'
     p.set_viewport_size({'width': 384, 'height': 560}); p.wait_for_timeout(900)          # cambia el tamaño (teclado, giro…): el resaltado sigue al botón
-    r = p.evaluate("""() => { const h = document.querySelector('.coach-hueco').getBoundingClientRect(), b = document.getElementById('gBuscar').getBoundingClientRect(),
+    r = p.evaluate("""() => { const h = document.querySelector('.coach-hueco').getBoundingClientRect(), b = document.getElementById('planTrip').getBoundingClientRect(),
         t = document.querySelector('.coach-tarjeta').getBoundingClientRect();
         return { dif: Math.abs((h.top + h.height / 2) - (b.top + b.height / 2)), tapa: !(t.bottom <= b.top || t.top >= b.bottom), vh: innerHeight, abajo: t.bottom }; }""")
     assert r['dif'] < 8 and not r['tapa'] and r['abajo'] <= r['vh'] + 1, f'el resaltado sigue al botón y la tarjeta no lo tapa: {r}'
@@ -811,7 +810,7 @@ def la_practica_funciona_en_todos_los_tamanos_y_la_tarjeta_nunca_tapa_lo_que_ens
         hasta_paso(p, 2, '5 de 5'); p.wait_for_timeout(700); revisar('confirmar salida'); siguiente(p)
         hasta_paso(p, 3, '1 de 2'); p.wait_for_timeout(700); revisar('revisar'); siguiente(p)
         hasta_paso(p, 3, '2 de 2'); p.wait_for_timeout(700); revisar('buscar')
-        p.evaluate("document.getElementById('gBuscar').click()"); hasta_paso(p, 4, None, 20000)
+        p.evaluate("document.getElementById('planTrip').click()"); hasta_paso(p, 4, None, 20000)
         for k in range(6):
             if not re.search(r'paso 4( |$)', coach_paso(p)): break
             p.wait_for_timeout(500); revisar(f'recomendación {k + 1}'); siguiente(p)
@@ -922,7 +921,7 @@ def la_practica_desde_el_menu_cierra_el_menu_antes_de_empezar(nav):
     p = s.abrir()
     p.click('#menuButton'); p.wait_for_timeout(600); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     p.click('#menuPractica'); p.wait_for_timeout(1800)
-    assert p.evaluate("!!document.getElementById('coach')") and p.evaluate('Spevb.Guiado.modo()') == 'guiado'
+    assert p.evaluate("!!document.getElementById('coach')")
     assert not p.evaluate("document.getElementById('sideMenu').classList.contains('open')"), 'el menú ya cerró'
     assert p.evaluate("getComputedStyle(document.getElementById('menuBackdrop')).display") == 'none' or p.evaluate("document.getElementById('menuBackdrop').classList.contains('hidden')")
     p.click('.coach-salir'); p.wait_for_timeout(600)

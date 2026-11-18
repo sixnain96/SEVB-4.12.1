@@ -12,6 +12,7 @@ import sys
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')      # la consola de Windows (cp1252) no admite todos los símbolos de los mensajes
 import tempfile
+import time
 import threading
 import traceback
 import urllib.request
@@ -547,6 +548,38 @@ def un_viaje_con_transbordo_conducido_con_el_joystick_tambien_llega(nav):
                 'fase:caminar', 'fase:esperando', 'pregunta:subida', 'fase:en_bus', 'alerta:cerca', 'alerta:preparate', 'alerta:ahora', 'pregunta:bajada',
                 'fase:caminar_final', 'fase:llegaste', 'llego']
     assert [x for x in r['seq'] if x != 'desvio'] == esperado and r['fase'] == 'llegaste', r
+
+
+@prueba
+def modo_navegador_fija_la_ubicacion_que_recibe_la_app_sin_emulador(nav):
+    """--navegador URL: abre la app en un navegador (sin ventana en la prueba) y lo que el joystick envía es lo que la PÁGINA recibe del navegador; una coordenada inválida se rechaza."""
+    em = J.EmisorNavegador(B.URL, precision=8, sin_ventana=True)
+    assert em.arrancar(60), em.error
+    try:
+        assert em.dispositivos() and em.dispositivos()[0].startswith('navegador: ')
+        assert em.enviar(4.1500, -73.6300)[0] and em.enviar(999, 1)[0] is False and em.enviar(True, 1)[0] is False
+        time.sleep(1.0)
+        t = em.telefono()
+        assert t and abs(t['lat'] - 4.15) < 1e-6 and abs(t['lng'] + 73.63) < 1e-6 and t['precision'] == 8, t
+        em.enviar(4.1600, -73.6400); time.sleep(1.0)
+        t = em.telefono()
+        assert abs(t['lat'] - 4.16) < 1e-6, f'la página ve la última posición: {t}'
+        assert em.enviados == 2
+    finally:
+        em.parar()
+    assert not em.abierto and em.enviar(4.1, -73.6)[0] is False, 'cerrada la ventana no se envía nada'
+
+
+@prueba
+def la_url_del_modo_navegador_solo_acepta_http_y_https(nav):
+    for mala in ('file:///C:/x', 'javascript:alert(1)', 'mapas.spebv.tech', 'https://', 'https://a b.com', 'https://x"y.com'):
+        assert not J.url_valida(mala), mala
+    for buena in ('https://mapas.spebv.tech', 'http://127.0.0.1:8080/'):
+        assert J.url_valida(buena), buena
+    try:
+        J.EmisorNavegador('ftp://x.com'); assert False, 'debía rechazar la URL'
+    except ValueError:
+        pass
 
 
 def correr():

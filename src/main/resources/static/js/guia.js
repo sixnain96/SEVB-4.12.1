@@ -3,7 +3,7 @@
    marcador → avisos de bajada → terminar), ayuda en contexto (botón «?») con ayudas rápidas y una práctica de 8 pasos sobre el paso a paso real.
    · La bienvenida sale solo la primera vez y se puede ver otra vez desde el menú → Ayuda. Nadie está obligado a hacer la práctica. «Omitir» la cierra en cualquier escena.
    · Las «ayudas rápidas» reutilizan las mismas escenas (una sola ilustración, sin navegación) para consultar algo puntual. El planificador con A y B solo se explica ahí, como opción.
-   · La práctica usa los botones reales del flujo guiado (#tripDestination, #gSiDestino, #gUsarGps, #gBuscar, #gEmpezar…). NO usa el GPS ni inicia un viaje. Guarda lo que la persona tenía
+   · La práctica usa el planificador con A y B (el panel principal): #tripDestination, #useMyLocation, #planTrip, #startTrip…. NO usa el GPS ni inicia un viaje. Guarda lo que la persona tenía
      (puntos, resultados y el modo del planificador) y lo devuelve al terminar o salir. Si el servicio de rutas no responde, enseña con un ejemplo ilustrado marcado como simulación.
    · Solo se anima la escena que se ve; al cerrar se detienen animaciones, temporizadores y observadores. El coach se actualiza solo cuando algo cambia (eventos), no en cada cuadro.
    Sin emojis y sin voz: todo el dibujo es propio (SVG, ver iconos.js) y la guía es el chigüiro del proyecto, que solo aparece donde aporta. */
@@ -434,7 +434,7 @@
      * Antes se medía en cada cuadro de pantalla durante toda la práctica.
      */
     function seguir(c) {
-        let vivo = true, raf = 0, hasta = 0, ultimo = '', objetivo = null, desplazado = false;
+        let vivo = true, raf = 0, hasta = 0, ultimo = '', objetivo = null, desplazado = false; let ultimoDesp = 0;
         const hueco = c.querySelector('.coach-hueco'), dedo = c.querySelector('.coach-dedo'), tarjeta = c.querySelector('.coach-tarjeta'), escudo = c.querySelector('.coach-escudo');
         const bl = { arriba: c.querySelector('.b-arriba'), abajo: c.querySelector('.b-abajo'), izq: c.querySelector('.b-izq'), der: c.querySelector('.b-der') };
         const vv = window.visualViewport;
@@ -453,7 +453,7 @@
             tarjeta.dataset.teclado = enCampo && vAlto < 460 ? '1' : '0';
             const tope = vTop + margen, fondo = vTop + vAlto - margen;
             tarjeta.style.maxHeight = Math.max(160, fondo - tope) + 'px';
-            const alto = Math.min(tarjeta.offsetHeight, fondo - tope);
+            let alto = Math.min(tarjeta.offsetHeight, fondo - tope);
             let pos = 'abajo';
             if (r) {
                 const libreArriba = r.top - tope, libreAbajo = fondo - r.bottom, quepeArriba = libreArriba >= alto + 8, quepeAbajo = libreAbajo >= alto + 8;
@@ -471,6 +471,16 @@
                     if (room >= 300) lado = { der: libreDer >= libreIzq, ancho: Math.min(460, room - 8) };
                 }
             }
+            // Ni arriba ni abajo cabe la tarjeta completa (el panel A y B ocupa mucho): se usa su versión mínima, con desplazamiento interno, SOLO en el espacio libre del lado elegido: nunca tapa lo señalado.
+            if (r && !lado) {
+                const libre = pos === 'arriba' ? r.top - tope : fondo - r.bottom;
+                if (libre < alto + 8) {
+                    tarjeta.dataset.teclado = '1';
+                    const tope2 = Math.max(72, libre - 8);
+                    tarjeta.style.maxHeight = tope2 + 'px';
+                    alto = Math.min(tarjeta.offsetHeight, tope2);
+                }
+            }
             if (lado) {
                 tarjeta.dataset.pos = 'lado';
                 Object.assign(tarjeta.style, { bottom: 'auto', right: 'auto', width: lado.ancho + 'px', marginInline: '0', left: Math.round(lado.der ? W() - margen - lado.ancho : margen) + 'px' });
@@ -486,9 +496,12 @@
             if (!vivo) return;
             const sel = c.dataset.sel, el = sel ? document.querySelector(sel) : null;
             if (el !== objetivo) { objetivo = el; if (ro) { ro.disconnect(); if (el) ro.observe(el); } desplazado = false; }
-            let r = el && visible(el) ? el.getBoundingClientRect() : null;
-            if (r && el.getAttribute && el.getAttribute('aria-controls')) {      // sugerencias abiertas bajo el campo: también deben quedar libres
-                const lista = document.getElementById(el.getAttribute('aria-controls'));
+            // Con el teclado abierto (poca altura) y el cursor dentro del bloque señalado, se señala SOLO el campo (con su lista): el bloque entero ya no deja sitio a la tarjeta.
+            const vv0 = window.visualViewport, bajo = (vv0 ? vv0.height : H()) < 460, a0 = document.activeElement;
+            const ef = el && bajo && a0 && a0 !== el && el.contains(a0) && /^(INPUT|TEXTAREA)$/.test(a0.tagName) ? a0 : el;
+            let r = ef && visible(ef) ? ef.getBoundingClientRect() : null;
+            if (r && ef.getAttribute && ef.getAttribute('aria-controls')) {      // sugerencias abiertas bajo el campo: también deben quedar libres
+                const lista = document.getElementById(ef.getAttribute('aria-controls'));
                 if (lista && !lista.hidden && lista.getClientRects().length) { const l = lista.getBoundingClientRect(); r = { top: Math.min(r.top, l.top), bottom: Math.max(r.bottom, l.bottom), left: Math.min(r.left, l.left), right: Math.max(r.right, l.right), width: Math.max(r.right, l.right) - Math.min(r.left, l.left), height: Math.max(r.bottom, l.bottom) - Math.min(r.top, l.top) }; }
             }
             if (r && (r.width > 0 || r.height > 0)) {
@@ -504,7 +517,8 @@
                     dedo.style.left = (x + w * 0.62) + 'px'; dedo.style.top = (y + h * 0.55) + 'px';
                 }
                 colocar(r);
-                if ((r.top < 0 || r.bottom > H()) && !desplazado) { desplazado = true; el.scrollIntoView({ block: 'center', behavior: reducido() ? 'auto' : 'smooth' }); rafla(900); }
+                if ((r.top < 0 || r.bottom > H()) && (!desplazado || performance.now() - ultimoDesp > 1500)) { desplazado = true; ultimoDesp = performance.now(); if (el.closest && el.closest('#sheet')) { window.dispatchEvent(new CustomEvent('spevb-panel-completo')); setTimeout(() => { if (vivo) { desplazado = false; ultimoDesp = 0; rafla(900); } }, 1100); }      // si el panel aún se está acomodando (cambio de tamaño), se vuelve a comprobar
+                el.scrollIntoView({ block: 'center', behavior: reducido() ? 'auto' : 'smooth' }); rafla(900); }
             } else {
                 ultimo = ''; hueco.style.display = 'none'; dedo.style.display = 'none'; escudo.hidden = true;       // sin nada señalado: todo bloqueado menos la tarjeta
                 bloquear(0, 0, 0, 0); Object.assign(bl.arriba.style, { height: H() + 'px' });
@@ -572,13 +586,13 @@
     async function practica(opciones = {}) {
         if (coach) return;
         if (S.Viaje && S.Viaje.activo()) return S.toast('Ya tienes un viaje en curso: termínalo antes de practicar.', { tipo: 'info', ms: 4000 });
-        if (!S.Guiado || !$('menuPasoAPaso') || !S.Planner) return S.toast('La práctica no está disponible en este momento.', { tipo: 'info', ms: 4000 });
+        if (!S.Planner) return S.toast('La práctica no está disponible en este momento.', { tipo: 'info', ms: 4000 });
         await cerrarMenu();
         for (const id of ['ayudaModal', 'bienvenida']) { const m = $(id); if (m && !m.hidden) S.Modal.cerrar(m, { devolver: false }); }
-        const ej = opciones.ejemplo || EJEMPLO, P = S.Planner, G = S.Guiado, pausa = opciones.pausa ?? 700;
+        const ej = opciones.ejemplo || EJEMPLO, P = S.Planner, pausa = opciones.pausa ?? 700;
         const auto = opciones.auto === true || pausa <= 200, tecleo = !auto && !reducido() ? 38 : 0;
         // Lo que la persona tenía antes: se devuelve al terminar o al salir (puntos, resultados y el modo del planificador).
-        const previo = { puntos: P.puntos(), resultados: !!document.querySelector('#tripResults .trip-option'), modo: G.modo(), paso: G.paso() };
+        const previo = { puntos: P.puntos(), resultados: !!document.querySelector('#tripResults .trip-option') };
         recordarAbridor();
         document.body.dataset.sinRegistro = '1';                // la búsqueda de práctica no cuenta como historial ni como hábito
         coach = crearCoach();
@@ -604,20 +618,10 @@
         };
         document.addEventListener('keydown', onEsc, true); document.addEventListener('keydown', onTab, true);
         const verPanel = () => window.dispatchEvent(new CustomEvent('spevb-panel-medio'));      // el panel a media altura (no usa «spevb-ir-inicio»: ese evento reinicia el flujo guiado)
+        const verPanelCompleto = () => window.dispatchEvent(new CustomEvent('spevb-panel-completo'));
         const verMapa = () => window.dispatchEvent(new CustomEvent('spevb-focus-map'));
         const hayOpciones = () => !!document.querySelector('#tripResults .trip-option');
         const tocar = (id) => { const b = $(id); if (b && !b.disabled) b.click(); };
-        /** Lleva el flujo guiado real al paso pedido por transiciones permitidas (nunca pasa por «calculando» ni «viaje»). */
-        const irGuiado = (objetivo) => {
-            if (G.paso() === objetivo) return true;
-            const T = G.TRANSICIONES, cola = [[G.paso()]], vistos = new Set([G.paso()]);
-            while (cola.length) {
-                const ruta = cola.shift(), ult = ruta[ruta.length - 1];
-                if (ult === objetivo) { ruta.slice(1).forEach((n) => G.ir(n)); return G.paso() === objetivo; }
-                (T[ult] || []).forEach((n) => { if (!vistos.has(n) && (n === objetivo || !['calculando', 'viaje'].includes(n))) { vistos.add(n); cola.push([...ruta, n]); } });
-            }
-            return false;
-        };
         let okTimer = 0;
         const confirmar = (texto) => {
             const ok = q('.coach-ok'); ok.hidden = false; q('.ok-txt').textContent = texto;
@@ -653,16 +657,18 @@
             if (!salir) P.poner(modoPunto, punto);      // elegir el punto avanza el flujo guiado real (igual que tocar una sugerencia)
         };
 
-        // ---- Paso 1 · Destino primero (1 de 2: escribir y elegir · 2 de 2: confirmar)
+        // La práctica se hace SOBRE el planificador con A y B (el panel principal de siempre): se señalan sus campos y botones reales.
+        const BLOQUE_B = '#formAB .endpoint-block:has(#tripDestination)', BLOQUE_A = '#formAB .endpoint-block:has(#tripOrigin)';      // (el botón de intercambiar está entre los dos bloques: nth-child no sirve)
+        // ---- Paso 1 · Destino primero (1 de 2: escribir y elegir una sugerencia · 2 de 2: mirar el pin B en el mapa)
         async function paso1(desdeAtras) {
             let sub = P.puntos().destino && desdeAtras ? 2 : 1;
             while (!salir) {
                 if (sub === 1) {
-                    irGuiado('destino'); verPanel(); await dormir(reducido() || auto ? 0 : 380);
+                    verPanel(); await dormir(reducido() || auto ? 0 : 380);
                     const hecho = () => !!P.puntos().destino;
-                    if (auto && !hecho()) { coach.dataset.sel = '#tripDestination'; await dormir(Math.min(pausa, 300)); await escribir('tripDestination', ej.b, 'destination'); await dormir(Math.min(pausa, 300)); sub = 2; continue; }
-                    const r = await mostrar({ n: 1, sub: '1 de 2', atras: false, sel: '#tripDestination',
-                        texto: hecho() ? 'Ya tienes tu destino. Sigue con el paso siguiente.' : 'Primero, a dónde vas. Escribe aquí el lugar y toca «Buscar destino». Google te muestra sugerencias: toca la correcta. Para seguir sin escribir, toca «Poner un ejemplo».',
+                    if (auto && !hecho()) { coach.dataset.sel = BLOQUE_B; await dormir(Math.min(pausa, 300)); await escribir('tripDestination', ej.b, 'destination'); await dormir(Math.min(pausa, 300)); sub = 2; continue; }
+                    const r = await mostrar({ n: 1, sub: '1 de 2', atras: false, sel: BLOQUE_B,
+                        texto: hecho() ? 'Ya tienes tu destino. Sigue con el paso siguiente.' : 'Primero, a dónde vas. Escribe aquí el lugar y toca «Buscar» (o pulsa Enter). Google te muestra sugerencias: toca la correcta. Para seguir sin escribir, toca «Poner un ejemplo».',
                         boton: hecho() ? 'Siguiente' : 'Poner un ejemplo', cond: hecho, foco: !hecho() });
                     if (r === 'salir') return r;
                     if (r === 'sig' && !hecho()) { botonSig.hidden = true; await escribir('tripDestination', ej.b, 'destination'); }
@@ -670,78 +676,76 @@
                     if (hecho()) { confirmar('Destino puesto'); await dormir(auto ? 150 : 900); }
                     sub = 2;
                 } else {
-                    irGuiado('confirmar_destino'); verPanel(); await dormir(reducido() || auto ? 0 : 200);
-                    const r = await mostrar({ n: 1, sub: '2 de 2', sel: '#gSiDestino', texto: 'Confirma el lugar. Mira el punto en el mapa: si es el correcto, toca «Sí, continuar».', boton: 'Siguiente', dedo: true,
-                        cond: () => G.paso() !== 'confirmar_destino', atras: true });
+                    verPanel(); await dormir(reducido() || auto ? 0 : 200);
+                    const r = await mostrar({ n: 1, sub: '2 de 2', sel: null, boton: 'Siguiente', atras: true,
+                        texto: 'Mira el mapa: el pin B marca tu destino. Si no es el lugar correcto, escríbelo otra vez. Cuando esté bien, sigue.' });
                     if (r === 'salir') return r;
-                    if (r === 'atras') { irGuiado('destino'); sub = 1; continue; }
-                    if (G.paso() === 'confirmar_destino') tocar('gSiDestino');
+                    if (r === 'atras') { sub = 1; continue; }
                     return 'sig';
                 }
             }
             return 'salir';
         }
-        // ---- Paso 2 · Ahora, dónde estás (1: usar mi ubicación · 2: escribir una dirección · 3: elegir en el mapa · 4: poner un ejemplo · 5: confirmar)
+        // ---- Paso 2 · Ahora, dónde estás (1: usar mi ubicación · 2: buscar una dirección · 3: elegir en el mapa · 4: poner un ejemplo · 5: mirar el pin A)
         async function paso2(desdeAtras) {
             let sub = P.puntos().origen && desdeAtras ? 5 : 1;
             while (!salir) {
                 if (sub === 1) {
-                    irGuiado('origen'); verPanel(); await dormir(reducido() || auto ? 0 : 300);
-                    const r = await mostrar({ n: 2, sub: '1 de 5', sel: '#gUsarGps', escudo: true, boton: 'Siguiente',
-                        texto: 'Ahora, desde dónde sales. Lo normal es tocar «Usar mi ubicación actual». En esta práctica no la vamos a usar, así que no la toques.' });
+                    verPanel(); await dormir(reducido() || auto ? 0 : 300);
+                    const r = await mostrar({ n: 2, sub: '1 de 5', sel: '#useMyLocation', escudo: true, boton: 'Siguiente',
+                        texto: 'Ahora, desde dónde sales. Lo normal es tocar «Mi ubicación». En esta práctica no la vamos a usar, así que no la toques.' });
                     if (r === 'atras' || r === 'salir') return r;
                     sub = 2;
                 } else if (sub === 2) {
-                    irGuiado('origen');
-                    const r = await mostrar({ n: 2, sub: '2 de 5', sel: '#gEscribirOrigen', escudo: true, boton: 'Siguiente', texto: 'Otra manera: «Escribir una dirección». Escribes el lugar y Google te muestra sugerencias, igual que con el destino.' });
+                    const r = await mostrar({ n: 2, sub: '2 de 5', sel: '#searchOrigin', escudo: true, boton: 'Siguiente', texto: 'Otra manera: escribir una dirección en «¿De dónde sales?» y tocar «Buscar». Google te muestra sugerencias, igual que con el destino.' });
                     if (r === 'salir') return r;
                     sub = r === 'atras' ? 1 : 3;
                 } else if (sub === 3) {
-                    const r = await mostrar({ n: 2, sub: '3 de 5', sel: '#gMapaOrigen', escudo: true, boton: 'Siguiente', texto: 'Y otra más: «Elegir en el mapa». Tocas el mapa con el dedo en el lugar desde el que sales.' });
+                    const r = await mostrar({ n: 2, sub: '3 de 5', sel: '#pickOrigin', escudo: true, boton: 'Siguiente', texto: 'Y otra más: «En el mapa». Tocas el mapa con el dedo en el lugar desde el que sales.' });
                     if (r === 'salir') return r;
                     sub = r === 'atras' ? 2 : 4;
                 } else if (sub === 4) {
                     const hecho = () => !!P.puntos().origen;
                     if (hecho()) { sub = 5; continue; }
-                    if (auto) { coach.dataset.sel = '#gUsarGps'; await dormir(Math.min(pausa, 300)); await escribir('tripOrigin', ej.a, 'origin'); await dormir(Math.min(pausa, 300)); sub = 5; continue; }
-                    const r = await mostrar({ n: 2, sub: '4 de 5', sel: '#gUsarGps', escudo: true, boton: 'Poner un ejemplo', texto: 'Para seguir, usaremos un lugar de ejemplo como punto de salida. Toca «Poner un ejemplo».' });
+                    if (auto) { coach.dataset.sel = BLOQUE_A; await dormir(Math.min(pausa, 300)); await escribir('tripOrigin', ej.a, 'origin'); await dormir(Math.min(pausa, 300)); sub = 5; continue; }
+                    const r = await mostrar({ n: 2, sub: '4 de 5', sel: BLOQUE_A, escudo: true, boton: 'Poner un ejemplo', texto: 'Para seguir, usaremos un lugar de ejemplo como punto de salida. Toca «Poner un ejemplo».' });
                     if (r === 'salir') return r;
                     if (r === 'atras') { sub = 3; continue; }
                     botonSig.hidden = true; await escribir('tripOrigin', ej.a, 'origin');
                     if (salir) return 'salir';
                     confirmar('Salida puesta'); await dormir(900); sub = 5;
                 } else {
-                    irGuiado('confirmar_origen'); await dormir(reducido() || auto ? 0 : 200);
-                    const r = await mostrar({ n: 2, sub: '5 de 5', sel: '#gSiOrigen', dedo: true, boton: 'Siguiente', texto: 'Confirma tu salida. Mira el punto en el mapa: si es correcto, toca «Sí, continuar».', cond: () => G.paso() !== 'confirmar_origen' });
+                    verPanel(); await dormir(reducido() || auto ? 0 : 200);
+                    const r = await mostrar({ n: 2, sub: '5 de 5', sel: null, boton: 'Siguiente', texto: 'Mira el mapa: el pin A marca tu salida. Si no es el lugar correcto, cámbialo. Cuando esté bien, sigue.' });
                     if (r === 'salir') return r;
-                    if (r === 'atras') { irGuiado('origen'); sub = P.puntos().origen ? 3 : 4; continue; }
-                    if (G.paso() === 'confirmar_origen') tocar('gSiOrigen');
+                    if (r === 'atras') { sub = P.puntos().origen ? 3 : 4; continue; }
                     return 'sig';
                 }
             }
             return 'salir';
         }
-        // ---- Paso 3 · Revisa y busca (1: revisar · 2: buscar cómo llegar)
+        // ---- Paso 3 · Revisa y busca (1: revisar A y B · 2: buscar rutas)
         async function paso3(desdeAtras) {
-            irGuiado('resumen'); verPanel(); await dormir(reducido() || auto ? 0 : 300);
+            verPanel(); await dormir(reducido() || auto ? 0 : 300);
             let sub = hayOpciones() && !desdeAtras ? 2 : 1;
             if (sub === 1) {
-                const r = await mostrar({ n: 3, sub: '1 de 2', sel: '#guiadoCuerpo .guiado-par', boton: 'Siguiente', texto: 'Revisa tu viaje: aquí ves desde dónde sales y a dónde vas. Si algo está mal, puedes cambiarlo sin perder el otro lugar.' });
+                const r = await mostrar({ n: 3, sub: '1 de 2', sel: null, boton: 'Siguiente', texto: 'Revisa tu viaje: aquí ves desde dónde sales (A) y a dónde vas (B). Si algo está mal, puedes cambiarlo sin perder el otro lugar.' });
                 if (r !== 'sig') return r;
             }
-            if (hayOpciones()) { demo = false; return mostrar({ n: 3, sub: '2 de 2', sel: '#guiadoCuerpo', boton: 'Siguiente', foco: false, texto: 'Ya buscaste y SEVB encontró una recomendación. Sigue para aprender a leerla.' }); }
+            verPanelCompleto(); await dormir(reducido() || auto ? 0 : 350);
+            if (hayOpciones()) { demo = false; return mostrar({ n: 3, sub: '2 de 2', sel: '#tripResults', boton: 'Siguiente', foco: false, texto: 'Ya buscaste y SEVB encontró una recomendación. Sigue para aprender a leerla.' }); }
             const inicio = { t: 0 };
             const estado = () => {
                 if (hayOpciones()) return 'ok';
                 const st = $('tripStatus'), msg = st ? st.textContent.trim() : '';
                 if (/Todavía no hay una ruta/.test(($('tripResults') || {}).textContent || '')) return 'vacio';
                 if (st && st.classList.contains('error') && !/^Primero selecciona/.test(msg)) return 'fallo';
-                if (G.paso() === 'calculando' || /^Comparando/.test(msg)) { if (!inicio.t) inicio.t = Date.now(); if (Date.now() - inicio.t > 14000) return 'lento'; return 'buscando'; }
+                if (/^Comparando/.test(msg)) { if (!inicio.t) inicio.t = Date.now(); if (Date.now() - inicio.t > 14000) return 'lento'; return 'buscando'; }
                 return 'espera';
             };
             let ultimo = '';
-            if (auto && !hayOpciones()) { coach.dataset.sel = '#gBuscar'; await dormir(Math.min(pausa, 200)); }
-            const r = await mostrar({ n: 3, sub: '2 de 2', sel: '#gBuscar', dedo: true, foco: false, texto: 'Ahora toca «Buscar cómo llegar». Tócalo tú.',
+            if (auto && !hayOpciones()) { coach.dataset.sel = '#planTrip'; await dormir(Math.min(pausa, 200)); }
+            const r = await mostrar({ n: 3, sub: '2 de 2', sel: '#planTrip', dedo: true, foco: false, texto: 'Ahora toca «Buscar rutas». Tócalo tú.',
                 cond: () => {
                     const e = estado();
                     if (e !== ultimo) {
@@ -764,16 +768,15 @@
                 subs = [['Este es el nombre de la ruta. Es el que ves escrito en el letrero del bus.', '#coachDemo .demo-chip'], ['Aquí está el tiempo aproximado, en minutos. No incluye la espera del bus.', '#coachDemo .demo-eta'],
                     ['Y aquí, cuánto caminas y cuánto vas en el bus.', '#coachDemo .demo-camina'], ['Aquí ves dónde subir, dónde bajar y cuánto caminas en cada tramo.', '#coachDemo .demo-pasos'], ['Si no hay un bus directo, verás «2 buses»: es un transbordo.', '#coachDemo .demo-transbordo']];
             } else {
-                irGuiado('recomendacion'); verPanel(); await dormir(reducido() || auto ? 0 : 350);
-                const d = '#guiadoCuerpo .guiado-datos li:nth-child(', hay = (s) => !!document.querySelector(s);
+                verPanelCompleto(); await dormir(reducido() || auto ? 0 : 350);
+                const hay = (x) => { const e = document.querySelector(x); return !!e && visible(e); };
                 subs = [];
-                if (hay('#guiadoAyuda') && visible($('guiadoAyuda')) && $('guiadoAyuda').textContent.trim()) subs.push(['Aquí SEVB te dice por qué recomienda esta opción.', '#guiadoAyuda']);
-                if (hay(d + '1)')) subs.push(['Este es el tiempo aproximado, en minutos. No incluye la espera del bus.', d + '1)']);
-                if (hay(d + '2)')) subs.push(['Aquí ves cuánto caminas en total, hasta el paradero y desde donde bajas.', d + '2)']);
-                if (hay(d + '3)')) subs.push(['Estos son los buses que vas a usar. Si dice 2, es un transbordo: bajas del primero y subes al segundo.', d + '3)', MINI_TRANSBORDO]);
-                if (hay(d + '4)')) subs.push(['Este es el nombre de la ruta: el que ves escrito en el letrero del bus.', d + '4)']);
-                subs.push(hay('#gOtras') ? ['«Ver otras opciones» muestra las demás rutas. Con «Cambiar desde o hasta» vuelves a la revisión.', '#gOtras'] : ['Con «Cambiar desde o hasta» vuelves a la revisión sin perder tus lugares.', '#gCambiarPuntos']);
-                if (!subs.some((x) => x[2])) subs.splice(Math.min(subs.length, 3), 0, ['Si no hay un bus directo, verás «2 buses»: es un transbordo.', null, MINI_TRANSBORDO]);
+                if (hay('#tripItinerario .itin-encabezado')) subs.push(['Este es el nombre de la ruta: el que ves escrito en el letrero del bus.', '#tripItinerario .itin-encabezado']);
+                if (hay('#tripItinerario .itin-porque')) subs.push(['Aquí SEVB te dice por qué recomienda esta opción.', '#tripItinerario .itin-porque']);
+                if (hay('#tripResults .trip-option.selected')) subs.push(['Aquí ves el tiempo aproximado, en minutos (no incluye la espera del bus), cuánto caminas y los buses que vas a usar. Si dice «2 buses», es un transbordo: bajas del primero y subes al segundo.', '#tripResults .trip-option.selected', MINI_TRANSBORDO]);
+                if (hay('#tripItinerario .itin-pasos')) subs.push(['Estos son los pasos: dónde caminar, qué bus tomar y dónde bajarte. «Ver subida» y «Ver bajada» te muestran esos puntos en el mapa.', '#tripItinerario .itin-pasos']);
+                if (hay('#tripResults .trip-option')) subs.push(['Si hay más opciones, toca otra tarjeta para verla en el mapa.', '#tripResults']);
+                if (!subs.length) subs.push(['Si no hay un bus directo, verás «2 buses»: es un transbordo.', null, MINI_TRANSBORDO]);
             }
             let j = desdeAtras ? subs.length - 1 : 0, r = 'sig';
             while (!salir && j >= 0 && j < subs.length) {
@@ -785,10 +788,10 @@
         }
         /** Paso 5 · Empieza un solo viaje: se señala el botón real pero NO se puede tocar (la práctica no inicia ningún viaje). */
         async function paso5() {
-            if (!demo) { irGuiado('recomendacion'); verPanel(); await dormir(reducido() || auto ? 0 : 300); }
-            const real = !demo && visible($('gEmpezar'));
-            return mostrar({ n: 5, sel: real ? '#gEmpezar' : '#coachDemo .demo-iniciar', escudo: true, boton: 'Siguiente',
-                texto: 'Cuando estés en el paradero, toca «Empezar este viaje». Solo puede haber un viaje a la vez: para empezar otro, primero termina este. Ahora no lo toques: la práctica no inicia ningún viaje ni usa tu ubicación.' });
+            if (!demo) { verPanelCompleto(); await dormir(reducido() || auto ? 0 : 300); }
+            const real = !demo && visible($('startTrip'));
+            return mostrar({ n: 5, sel: real ? '#startTrip' : '#coachDemo .demo-iniciar', escudo: true, boton: 'Siguiente',
+                texto: 'Cuando estés en el paradero, toca «Iniciar viaje». Solo puede haber un viaje a la vez: para empezar otro, primero termina este. Ahora no lo toques: la práctica no inicia ningún viaje ni usa tu ubicación.' });
         }
         /** Paso 6 · Sigue tu marcador (solo explicación: no hay viaje real). */
         async function paso6() {
@@ -811,19 +814,15 @@
         const restaurar = () => {
             try {
                 P.limpiar();
-                if (previo.modo !== G.modo()) { const e = $('menuPasoAPaso'); if (e) e.click(); }      // vuelve al planificador (o al paso a paso) en el que estaba
                 const { origen, destino } = previo.puntos;
                 if (origen) P.poner('origin', origen);
                 if (destino) P.poner('destination', destino);
-                if (previo.modo === 'guiado' && ['destino', 'confirmar_destino', 'origen', 'confirmar_origen', 'resumen'].includes(previo.paso)) setTimeout(() => { if (!document.body.classList.contains('practicando')) irGuiado(previo.paso); }, 50);
                 if (previo.resultados && origen && destino) setTimeout(() => { const b = $('planTrip'); if (b && !document.body.classList.contains('practicando')) b.click(); }, 300);
             } catch { /* sin planificador */ }
             setTimeout(() => { delete document.body.dataset.sinRegistro; }, previo.resultados ? 9000 : 400);
         };
         try {
-            if (G.modo() !== 'guiado') $('menuPasoAPaso').click();      // el mismo botón del menú: pasa al paso a paso real
-            P.limpiar();
-            irGuiado('destino');
+            P.limpiar();      // la práctica usa el planificador con A y B (el panel principal): parte de campos vacíos y los devuelve al salir
             await dormir(180);
             let i = 1, volver = false;
             const pasos = [null, () => paso1(volver), () => paso2(volver), () => paso3(volver), () => paso4(volver), paso5, paso6, paso7, paso8];

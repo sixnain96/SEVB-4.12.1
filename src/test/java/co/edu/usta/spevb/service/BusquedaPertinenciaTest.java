@@ -150,8 +150,9 @@ class BusquedaPertinenciaTest {
                 + lugar("ChIJbarrio0000003", "Barrio Los Maracos, Villavicencio, Meta", 4.1452, -73.6302, "neighborhood") + ","
                 + lugar("ChIJcentro0000004", "Villavicencio, Meta, Colombia", 4.1420, -73.6266, "locality") + "]}");
         var r = servicio.buscarDetallado("Carrera 22 #38-10", "", "sesion-abc-123456");
-        assertTrue(r.lugares().isEmpty(), "ninguna es esa puerta: " + r.lugares());
-        assertTrue(r.avisos().stream().anyMatch(a -> a.contains("Encontramos la carrera, pero no ese número")), "se explica: " + r.avisos());
+        assertTrue(r.lugares().stream().noneMatch(l -> "EXACTA".equals(l.coincidencia()) || "POSIBLE".equals(l.coincidencia())), "ninguna es esa puerta ni una placa parecida: " + r.lugares());
+        assertTrue(r.lugares().stream().allMatch(l -> "REFERENCIA".equals(l.coincidencia()) && "ChIJvia000000001".equals(l.googleId())), "solo la vía, como referencia: " + r.lugares());
+        assertTrue(r.avisos().stream().anyMatch(a -> a.contains("no ese número")), "se explica: " + r.avisos());
     }
 
     @Test void laBusquedaExplicitaDistingueBisYLetras() {
@@ -172,9 +173,9 @@ class BusquedaPertinenciaTest {
     @Test void laConsultaExplicitaAgregaLaCiudadSoloSiHaceFaltaYNuncaCambiaOtraCiudad() {
         texto.set("{\"places\":[]}");
         cuerpos.clear(); servicio.buscarDetallado("Carrera 22 #38-10", "", "sesion-abc-123456");
-        assertTrue(cuerpos.get(cuerpos.size() - 1).contains("Villavicencio, Meta"), "se le da el contexto de la ciudad: " + cuerpos.get(cuerpos.size() - 1));
+        assertTrue(cuerpos.get(0).contains("Villavicencio, Meta"), "se le da el contexto de la ciudad: " + cuerpos.get(0));
         cuerpos.clear(); servicio.buscarDetallado("Carrera 22 #38-10 Bogotá", "", "sesion-abc-123456");
-        assertFalse(cuerpos.get(cuerpos.size() - 1).contains("Villavicencio"), "«Bogotá» no se vuelve un sitio local: " + cuerpos.get(cuerpos.size() - 1));
+        assertFalse(cuerpos.get(0).contains("Villavicencio, Meta"), "«Bogotá» no se vuelve un sitio local: " + cuerpos.get(0));
     }
 
     // ------------------------------------------------------------------ clase 5: tocar una opción y recibir otra

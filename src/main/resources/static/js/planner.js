@@ -235,6 +235,11 @@
         explorer.clearRoute();
     }
 
+    /** Tras borrar A y/o B, si no queda nada que planear, se vuelve a limpiar el mapa un instante después (por si algo asíncrono alcanzó a dibujar justo antes de borrar). */
+    function despejarRutaTardia() {
+        [250, 1200].forEach((ms) => setTimeout(() => { if (!origin && !destination && !Planner.seleccion) { try { tripLayers.clear(); nearbyLayers.clear(); } catch { /* mapa en recuperación */ } } }, ms));
+    }
+
     function clearPlan() {
         sequence++;
         setSeleccion(null);
@@ -287,8 +292,10 @@
         if (picking === mode) pickMode(null);
         if (mode === 'origin') { origin = null; clearNearby(); } else destination = null;
         endpointInput(mode).value = '';
+        ocultarCompleto(mode);      // la dirección completa de Google que quedaba bajo el campo desaparece en el acto
         clearPlan();
         drawPins();
+        despejarRutaTardia();
         if (announce) status(mode === 'origin' ? 'Origen eliminado. Selecciona nuevamente el punto A.' : 'Destino eliminado. Selecciona nuevamente el punto B.', 'info');
         if (focus) endpointInput(mode).focus();
         window.dispatchEvent(new CustomEvent('spevb-point-cleared', { detail: { mode } }));
@@ -302,9 +309,11 @@
         destination = null;
         endpointInput('origin').value = '';
         endpointInput('destination').value = '';
+        ocultarCompleto('origin'); ocultarCompleto('destination');
         clearPlan();
         clearNearby();
         drawPins();
+        despejarRutaTardia();
         status('Origen y destino eliminados. Marca nuevamente A y B.', 'info');
         if (focus) endpointInput('origin').focus();
         window.dispatchEvent(new CustomEvent('spevb-point-cleared', { detail: { mode: 'both' } }));
@@ -437,6 +446,7 @@
         } else {
             destination = point;
         }
+        quitarVistaPrevia();
         endpointInput(mode).value = point.nombre;
         $(mode + 'Results').replaceChildren();
         resetSuggestions(mode);
@@ -508,33 +518,99 @@
         DIRECCION_PUNTUAL: ' · Número de puerta informado por proveedor; verifica el pin',
     })[precision] || ' · Coincidencia sin precisión comprobada';
 
+    // ---- Coincidencias de una dirección numerada (búsqueda explícita): EXACTA se elige como siempre; POSIBLE se REVISA antes de usarla; REFERENCIA solo lleva el mapa a la vía.
+    const ETIQUETA_COINCIDENCIA = { EXACTA: 'Coincidencia exacta', POSIBLE: 'Posible coincidencia', REFERENCIA: 'Referencia en el mapa' };
+    let vistaPrevia = null;
+    const resultadosPintadosEn = { origin: 0, destination: 0 };
+    function quitarVistaPrevia() { if (vistaPrevia) { try { vistaPrevia.remove(); } catch { /* ya quitado */ } vistaPrevia = null; } }
+
+    /** «¿Te referías a esta dirección?»: muestra la dirección que de verdad devolvió Google y su pin SIN tocar A ni B. «Usar este punto» confirma; «Ajustar en el mapa» deja marcar otro; «Volver» regresa a la lista. */
+    function revisarPosible(mode, place, lista) {
+        quitarVistaPrevia();
+        const box = $(mode + 'Results');
+        box.replaceChildren();
+        resetSuggestions(mode);
+        const tarjeta = document.createElement('div');
+        tarjeta.className = 'place-review'; tarjeta.setAttribute('role', 'group'); tarjeta.setAttribute('aria-label', 'Revisa esta dirección antes de usarla');
+        const pregunta = document.createElement('p'); pregunta.className = 'place-review-title'; pregunta.textContent = '¿Te referías a esta dirección?';
+        const dir = document.createElement('p'); dir.className = 'place-review-address'; dir.textContent = place.nomenclatura || place.direccion || place.nombre;
+        const motivo = document.createElement('p'); motivo.className = 'place-review-reason';
+        motivo.textContent = (place.motivo ? place.motivo + ' ' : '') + 'Comprueba el pin en el mapa: no es exactamente lo que escribiste.';
+        const acciones = document.createElement('div'); acciones.className = 'place-review-actions';
+        const mk = (txt, clase, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = clase; b.textContent = txt; b.addEventListener('click', fn); return b; };
+        const usar = mk('Usar este punto', 'primary-plan-button place-review-use', () => { quitarVistaPrevia(); choose(mode, place); map.setView(coordinates(place), 17); });
+        const ajustar = mk('Ajustar en el mapa', 'secondary place-review-adjust', () => {
+            quitarVistaPrevia(); box.replaceChildren(); resetSuggestions(mode);
+            map.setView(coordinates(place), 17); pickMode(mode);      // la persona marca el punto: nada se confirma hasta que toque «Confirmar»
+        });
+        const volver = mk('Volver a la lista', 'text-button place-review-back', () => { renderPlaceResults(mode, lista); const o = box.querySelector('.autosuggest-option'); if (o) o.focus(); });
+        acciones.append(usar, ajustar, volver);
+        tarjeta.append(pregunta, dir, motivo, acciones);
+        box.append(tarjeta);
+        box.classList.add('suggestion-open');
+        endpointInput(mode).setAttribute('aria-expanded', 'true');
+        vistaPrevia = map.marker(coordinates(place), {
+            className: 'endpoint-wrapper', size: [38, 48], anchor: [19, 46], z: 1190,
+            html: '<div class="trip-pin preview" aria-hidden="true">?</div>', tooltip: Spevb.text('Posible dirección: ' + (place.nomenclatura || place.nombre)),
+        }).addTo(pins);
+        map.setView(coordinates(place), 17);
+        status('Revisa el pin: es la dirección que devolvió Google, no exactamente la que escribiste. Úsalo solo si es el sitio correcto.', 'info');
+        setTimeout(() => { try { usar.focus({ preventScroll: true }); } catch { /* nada */ } }, 30);
+    }
+
+    /** Solo se ubicó la vía: se lleva el mapa allí y la persona marca el punto exacto (con el mismo «Elegir en el mapa»). El texto escrito se conserva. */
+    function usarReferencia(mode, place) {
+        quitarVistaPrevia();
+        $(mode + 'Results').replaceChildren(); resetSuggestions(mode);
+        map.setView(coordinates(place), 16);
+        pickMode(mode);
+        status('Ubicamos la vía, no el número. Mueve el mapa hasta el punto exacto y confírmalo. Lo que escribiste se conserva.', 'info');
+    }
+
     function renderPlaceResults(mode, places) {
+        quitarVistaPrevia();
+        resultadosPintadosEn[mode] = performance.now();
         const box = $(mode + 'Results');
         box.replaceChildren();
         resetSuggestions(mode);
         if (!places.length) {
             const note = document.createElement('p');
             note.className = 'address-warning';
-            note.textContent = 'No se encontró una coincidencia a nivel de predio o número de puerta. Una avenida no equivale a la dirección exacta. Puedes usar «Elegir en mapa».';
+            note.textContent = 'No pudimos ubicar ese número. Puedes corregir la dirección o marcar el punto con «Elegir en el mapa». Si lo sabes, agrega el barrio.';
             box.append(note);
+            const salidas = document.createElement('div'); salidas.className = 'place-review-actions';
+            const editar = document.createElement('button'); editar.type = 'button'; editar.className = 'secondary place-exit-edit'; editar.textContent = 'Editar dirección';
+            editar.addEventListener('click', () => { box.replaceChildren(); resetSuggestions(mode); endpointInput(mode).focus(); });
+            const mapa = document.createElement('button'); mapa.type = 'button'; mapa.className = 'secondary place-exit-map'; mapa.textContent = 'Elegir en el mapa';
+            mapa.addEventListener('click', () => { box.replaceChildren(); resetSuggestions(mode); pickMode(mode); });
+            salidas.append(editar, mapa); box.append(salidas);
         }
+        let grupo = null;
         places.forEach((place) => {
+            if (place.coincidencia && place.coincidencia !== grupo) {
+                grupo = place.coincidencia;
+                const h = document.createElement('p'); h.className = 'place-group'; h.textContent = ETIQUETA_COINCIDENCIA[grupo] || ''; if (h.textContent) box.append(h);
+            }
             const result = document.createElement('button');
             result.type = 'button';
             result.className = 'place-option rich-place autosuggest-option';
             const title = document.createElement('strong');
-            title.textContent = place.nombre;
+            title.textContent = place.coincidencia === 'POSIBLE' ? (place.nomenclatura || place.nombre) : place.nombre;
             const meta = document.createElement('small');
-            meta.textContent = (place.confirmado ? 'Confirmado por el equipo · ' : '') + (place.fuente || 'Ubicación') + precisionLabel(place.precision);
+            meta.textContent = place.coincidencia === 'POSIBLE' ? '¿Te referías a esta dirección? · Toca para revisar el pin'
+                : place.coincidencia === 'REFERENCIA' ? 'Solo se ubicó la vía · Toca para marcar el punto exacto en el mapa'
+                : (place.confirmado ? 'Confirmado por el equipo · ' : '') + (place.fuente || 'Ubicación') + precisionLabel(place.precision);
             result.append(title, meta);
             result.onclick = () => {
+                if (place.coincidencia === 'POSIBLE') return revisarPosible(mode, place, places);
+                if (place.coincidencia === 'REFERENCIA') return usarReferencia(mode, place);
                 choose(mode, place);
                 map.setView(coordinates(place), 17);
             };
             box.append(result);
         });
         // Mismo menú desplegable que las sugerencias: una sola lista a la vez, que se cierra al salir del campo o al enfocar el otro.
-        if (box.querySelector('.autosuggest-option')) {
+        if (box.querySelector('.autosuggest-option, .place-exit-edit')) {
             box.classList.add('suggestion-open');
             endpointInput(mode).setAttribute('aria-expanded', 'true');
         }
@@ -728,9 +804,12 @@
                 $(mode + 'Results').prepend(note);
             }
             if (lugares.length) {
-                status('Selecciona una coincidencia y comprueba su precisión. La vía o el barrio no equivalen al número de casa.', 'info');
+                const solo = lugares.every((l) => l.coincidencia === 'REFERENCIA'), posible = lugares.some((l) => l.coincidencia === 'POSIBLE') && !lugares.some((l) => l.coincidencia === 'EXACTA');
+                status(solo ? 'Ubicamos la vía, pero no ese número. Toca la referencia y marca el punto exacto en el mapa.'
+                    : posible ? 'No hay una coincidencia exacta. Mira si alguna de estas direcciones es la tuya; podrás revisar el pin antes de usarla.'
+                    : 'Selecciona una coincidencia y comprueba su precisión. La vía o el barrio no equivalen al número de casa.', 'info');
             } else {
-                status('Todavía no encontramos ese lugar. Prueba con el barrio o marca el punto en el mapa con «Elegir en el mapa». Lo que escribiste se conserva.', 'info');
+                status('No pudimos ubicar ese número. Corrige la dirección o marca el punto en el mapa con «Elegir en el mapa». Lo que escribiste se conserva.', 'info');
             }
         } catch (error) {
             if (vigente()) { setCampo(mode, 'error'); status(error.message, 'error'); }
@@ -874,6 +953,7 @@
                 // Servidores anteriores sin proveedores externos ni base local: el botón de búsqueda manual sigue disponible, sin mensajes.
                 if (!data.estado && !data.arcgisConfigurado && !data.direccionesLocales) { setCampo(mode, 'editando'); return; }
                 setCampo(mode, estado === 'SIN_COINCIDENCIAS' ? 'editando' : 'error');
+                if (estado === 'SIN_COINCIDENCIAS') return;      // mientras escribe, sin sugerencias NO se dice «no encontramos»: ese mensaje es solo de «Buscar»; los fallos de red, clave o cuota sí se avisan
                 avisoBusqueda(mode, estado, { reintentar: ['SIN_CONEXION', 'RED', 'TIMEOUT', 'PAUSADO'].includes(estado) ? () => suggest(mode, query, lookups[mode]) : null });
                 return;
             }
@@ -934,10 +1014,11 @@
         const listBox = $(mode + 'Results');
         ['mousedown', 'pointerdown'].forEach((ev) => listBox.addEventListener(ev, (e) => { if (e.target.closest('.autosuggest-option, .search-retry, .search-alt')) e.preventDefault(); }));
         input.addEventListener('focus', () => closeList(other));
-        input.addEventListener('blur', () => setTimeout(() => {
+        input.addEventListener('blur', () => { const alDesenfocar = performance.now(); setTimeout(() => {
+            if (resultadosPintadosEn[mode] > alDesenfocar) return;      // la lista se pintó DESPUÉS de este desenfoque (p. ej. tocar «Buscar» y llegar la respuesta enseguida): no se cierra recién nacida
             if (document.activeElement === input || listBox.contains(document.activeElement) || tocandoLista[mode] || campo[mode].estado === 'resolviendo') return;      // no con un dedo encima ni mientras se resuelve la elección
             closeList(mode);
-        }, 160));
+        }, 160); });
         input.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowDown' && suggestedOptions[mode].length) {
                 e.preventDefault();

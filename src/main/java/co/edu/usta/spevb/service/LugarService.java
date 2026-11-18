@@ -364,7 +364,7 @@ public class LugarService {
     boolean lugarUtilizable(String consulta, LugarResponse l) {
         if (l == null || !cityArea.contains(l.lat(), l.lng())) return false;
         String precision = l.precision() == null ? "" : l.precision();
-        if (DireccionesHibridasService.esDireccionNumerada(consulta)) {
+        if (DireccionesHibridasService.esDireccionNumerada(consulta) || pideDireccionConPlaca(consulta)) {
             if (precision.equals("VIA") || precision.equals("SECTOR") || precision.equals("CIUDAD")) return false;
             var pedida = Nomenclatura.de(consulta, cityArea);
             if (pedida.isPresent() && pedida.get().tienePlaca()) {
@@ -376,6 +376,73 @@ public class LugarService {
         }
         return !(precision.equals("CIUDAD") && DireccionesHibridasService.busquedaEspecifica(consulta));
     }
+
+    private boolean pideDireccionConPlaca(String consulta) {
+        return Nomenclatura.de(consulta, cityArea).map(Nomenclatura::tienePlaca).orElse(false);      // vía numerada con placa completa (pegado, «cra27 #35a 50», «número»…)
+    }
+
+
+    private static String dirDe(LugarResponse l) { return l.nomenclatura() != null ? l.nomenclatura() : (l.direccion() == null ? l.nombre() : l.direccion()); }
+
+    /**
+     * Clasifica lo que devolvió Google para esta consulta, en un orden fijo: EXACTA (misma vía y placa completa; se cubre con {@link #lugarUtilizable}), POSIBLE (misma vía, placa con UN error pequeño; solo si
+     * no hay una exacta; máximo 3) y REFERENCIA (la vía sola; solo una). Nunca se promociona otra vía, otro sentido o un barrio. Para nombres o sitios (sin placa) devuelve lo utilizable sin clasificar.
+     */
+    List<LugarResponse> clasificar(String consulta, List<LugarResponse> candidatos) { return clasificar(consulta, candidatos, false); }
+
+    List<LugarResponse> clasificar(String consulta, List<LugarResponse> candidatos, boolean relajada) {
+        var pedida = Nomenclatura.de(consulta, cityArea);
+        if (!pideDireccionConPlaca(consulta) || pedida.isEmpty()) return candidatos.stream().filter(l -> lugarUtilizable(consulta, l)).toList();
+        List<LugarResponse> exactas = new ArrayList<>(), posibles = new ArrayList<>(), referencias = new ArrayList<>();
+        for (var l : candidatos) {
+            if (l == null || !cityArea.contains(l.lat(), l.lng())) continue;
+            if (lugarUtilizable(consulta, l)) { exactas.add(l.conCoincidencia("EXACTA", null)); continue; }
+            var d = Nomenclatura.de(dirDe(l), cityArea);
+            String precision = l.precision() == null ? "" : l.precision();
+            boolean puntual = !(precision.equals("VIA") || precision.equals("SECTOR") || precision.equals("CIUDAD"));
+            if (d.isPresent() && puntual && (relajada ? pedida.get().placaCercana(d.get()) : pedida.get().placaParecida(d.get())))
+                posibles.add(l.conCoincidencia("POSIBLE", (relajada ? "Google sugiere la placa " : "Google devolvió la placa ") + d.get().texto().replaceFirst("^.*# ", "#") + " en la misma " + pedida.get().sustantivo() + "."));
+            else if (d.isPresent() && precision.equals("VIA") && pedida.get().mismaVia(d.get()))
+                referencias.add(l.conCoincidencia("REFERENCIA", "Ubicamos la " + pedida.get().sustantivo() + ", no el número."));
+        }
+        List<LugarResponse> salida = new ArrayList<>(exactas);
+        if (exactas.isEmpty()) salida.addAll(posibles.stream().limit(3).toList());
+        if (!referencias.isEmpty() && salida.stream().noneMatch(x -> "EXACTA".equals(x.coincidencia()))) salida.add(referencias.get(0));
+        return salida;
+    }
+
+    /**
+     * CORRECTOR (como el de Google Maps): cuando la búsqueda por texto no trajo nada útil, se pregunta al Autocomplete de Places (tolera errores y números parciales) por la dirección escrita. De sus
+     * predicciones se toman solo las de la MISMA vía: hasta 2 con placa cercana (máximo 2 cambios y un fragmento idéntico) o, si no hay, la vía sola como referencia. Cada una se resuelve por su placeId
+     * (detalle) y se clasifica con las mismas reglas: nunca se confirma sola; la persona revisa el pin. Presupuesto: 1 autocompletar + 2 detalles como máximo, con un solo token de sesión.
+     */
+    List<LugarResponse> corregirConAutocompletar(String consulta, List<Intento> intentos, long fin) {
+        var pedida = Nomenclatura.de(consulta, cityArea);
+        if (pedida.isEmpty() || !pedida.get().tienePlaca()) return List.of();
+        String token = java.util.UUID.randomUUID().toString();
+        var pred = consultar(GOOGLE, cortaGoogle, timeoutProveedorExplicitaMs, fin, false, () -> google.sugerir(consulta, token), intentos);
+        if (!pred.ok() || pred.valor == null) return List.of();
+        record Cand(GoogleDireccionesService.Sugerencia s, int d) {}
+        List<Cand> cercanas = new ArrayList<>();
+        GoogleDireccionesService.Sugerencia soloVia = null;
+        for (var sug : pred.valor) {
+            var n = Nomenclatura.de(sug.texto(), cityArea);
+            if (n.isEmpty() || !pedida.get().mismaVia(n.get())) continue;      // otra vía, otro sentido u otra clase: nunca
+            if (!n.get().tienePlaca()) { if (soloVia == null) soloVia = sug; continue; }
+            if (pedida.get().placaCercana(n.get()) || pedida.get().igual(n.get())) cercanas.add(new Cand(sug, pedida.get().distanciaPlaca(n.get())));
+        }
+        cercanas.sort(java.util.Comparator.comparingInt(Cand::d));
+        List<GoogleDireccionesService.Sugerencia> aResolver = new ArrayList<>();
+        cercanas.stream().limit(2).forEach(c -> aResolver.add(c.s()));
+        if (aResolver.isEmpty() && soloVia != null) aResolver.add(soloVia);
+        List<LugarResponse> resueltos = new ArrayList<>();
+        for (var sug : aResolver) {
+            var r = consultar(GOOGLE, cortaGoogle, timeoutProveedorExplicitaMs, fin, false, () -> google.resolver(sug.lugarId(), sug.texto(), token), intentos);
+            if (r.ok() && r.valor != null) resueltos.addAll(r.valor.lugares());
+        }
+        return clasificar(consulta, resueltos, true);
+    }
+
 
     /** «Encontramos la carrera, pero no ese número…» si entre los resultados hay la misma vía (aunque sin la placa pedida); null si no. */
     String avisoViaSinNumero(String consulta, List<LugarResponse> lugares) {
@@ -407,15 +474,23 @@ public class LugarService {
         String proveedorFinal = merged.isEmpty() ? NINGUNO : LOCAL;
         int fueraDeCiudad = 0;
         boolean externoFallo = false;
+        List<LugarResponse> referencias = new ArrayList<>();
 
         // 1) Google
         boolean resuelto = false;
         if (googleActivo()) {
             var r = consultar(GOOGLE, cortaGoogle, timeoutProveedorExplicitaMs, fin, false, () -> google.buscarTextoResultado(query), intentos);
             if (r.ok() && r.valor != null) {
-                List<LugarResponse> utiles = r.valor.lugares().stream().filter(l -> lugarUtilizable(query, l)).toList();
+                List<LugarResponse> utiles = clasificar(query, r.valor.lugares());
                 fueraDeCiudad += r.valor.fueraDeCiudad();
-                if (!utiles.isEmpty()) { merged.addAll(utiles); proveedorFinal = GOOGLE; resuelto = true; }
+                if (utiles.isEmpty() && r.valor.fueraDeCiudad() == 0 && pideDireccionConPlaca(query) && !GoogleDireccionesService.nombraOtraCiudad(cityArea.normalizeAddress(query))) {
+                    // Ni exacta, ni parecida, ni la vía: UN solo intento adicional, el CORRECTOR (Autocomplete, tolerante a errores, y como mucho dos detalles). Solo porque Google respondió bien a la primera.
+                    utiles = corregirConAutocompletar(query, intentos, fin);
+                }
+                if (!utiles.isEmpty()) {
+                    // Una REFERENCIA (la vía sola) no «resuelve» la dirección: si otra fuente configurada trae la puerta exacta, esa va primero. La referencia se agrega al final.
+                    for (var l : utiles) { if ("REFERENCIA".equals(l.coincidencia())) referencias.add(l); else { merged.add(l); proveedorFinal = GOOGLE; resuelto = true; } }
+                }
                 else {
                     marcar(intentos, GOOGLE, r.valor.fueraDeCiudad() > 0 ? EstadoBusqueda.FUERA_DE_CIUDAD : EstadoBusqueda.SIN_COINCIDENCIAS);
                     String viaSola = avisoViaSinNumero(query, r.valor.lugares());
@@ -492,6 +567,13 @@ public class LugarService {
         }
         // Incluye lugares no confirmados sólo como sugerencias, sin sobreponerlos al catastro.
         local.stream().filter(p -> !p.confirmado()).forEach(merged::add);
+        boolean hayPuerta = merged.stream().anyMatch(l -> "EXACTA".equals(l.coincidencia()) || l.confirmado() || Set.of("DIRECCION_PUNTUAL", "PREDIO_APROXIMADO", "CONFIRMADA_POR_USUARIOS", "VERIFICADO_LOCAL").contains(l.precision()));
+        if (!referencias.isEmpty() && !hayPuerta) {      // al final: exactas y posibles primero, la vía sola después (y solo si ninguna fuente trajo la puerta)
+            merged.addAll(referencias);
+            if (NINGUNO.equals(proveedorFinal)) proveedorFinal = GOOGLE;
+            if (merged.stream().allMatch(l -> "REFERENCIA".equals(l.coincidencia())))
+                avisos.add("Ubicamos la " + Nomenclatura.de(query, cityArea).map(Nomenclatura::sustantivo).orElse("vía") + ", pero no ese número. Marca el punto exacto en el mapa.");
+        }
         if (merged.isEmpty() && externoFallo)
             avisos.add("No se pudo comprobar la dirección en las fuentes externas. No se asignó ningún marcador arbitrario.");
         var lugares = deduplicate(merged, 8);

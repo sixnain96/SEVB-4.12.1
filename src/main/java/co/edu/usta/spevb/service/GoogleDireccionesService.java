@@ -149,6 +149,9 @@ public class GoogleDireccionesService {
     private static final java.util.regex.Pattern OTRA_CIUDAD = java.util.regex.Pattern.compile(
             "(?iU)\\b(bogot[aá]|medell[ií]n|cali|barranquilla|cartagena|bucaramanga|c[uú]cuta|ibagu[eé]|pereira|manizales|villeta|acac[ií]as|granada|restrepo|cumaral|puerto l[oó]pez)\\b");
 
+    /** ¿La persona nombró otra ciudad (Bogotá, Acacías…)? Entonces no se le agrega Villavicencio ni se hace un intento adicional con la vía sola. */
+    static boolean nombraOtraCiudad(String texto) { return texto != null && OTRA_CIUDAD.matcher(texto).find(); }
+
     /**
      * Consulta de la búsqueda por texto. El rectángulo (locationRestriction) de Text Search NO garantiza que una dirección quede en Villavicencio: el servidor revisa cada coordenada. Para una
      * dirección numerada se agrega el contexto «Villavicencio, Meta» solo si la persona no nombró otra ciudad (así «Bogotá» no se vuelve un sitio local); un nombre se envía tal cual.

@@ -474,8 +474,8 @@ def coordenadas_y_punto_en_el_mapa_siguen_funcionando_sin_google(nav):
 def google_sin_resultados_con_error_lento_o_sin_configurar_informa_y_conserva_el_texto(nav):
     s = movil(nav); g = GoogleSim(s.ctx); p = s.abrir()
     texto = lambda: p.inner_text('#originResults')
-    g.modo_sug = 'vacio'; escribir(p, 'tripOrigin', 'zzzz sin nada'); B.esperar(p, "!!document.querySelector('#originResults .search-hint')", 4000)
-    assert p.get_attribute('#originResults .search-hint', 'data-estado') == 'SIN_COINCIDENCIAS' and p.input_value('#tripOrigin') == 'zzzz sin nada'
+    g.modo_sug = 'vacio'; escribir(p, 'tripOrigin', 'zzzz sin nada'); p.wait_for_timeout(1500)
+    assert not p.query_selector('#originResults .search-hint') and p.input_value('#tripOrigin') == 'zzzz sin nada', 'escribiendo, sin sugerencias: ningún «no encontramos» (eso solo lo dice «Buscar»); el texto se conserva'
     g.modo_sug = 'error'; p.fill('#tripOrigin', 'Origen error'); B.esperar(p, "!!document.querySelector('#originResults .search-retry')", 4000)
     assert p.get_attribute('#originResults .search-hint', 'data-estado') == 'RED' and p.input_value('#tripOrigin') == 'Origen error'
     n = len(g.sug_pedidos); p.wait_for_timeout(1500)

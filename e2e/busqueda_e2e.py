@@ -282,7 +282,7 @@ def seleccionar_y_cambiar_enseguida_al_otro_campo_no_reabre_el_primero(nav):
 def cada_estado_de_error_dice_algo_distinto_y_no_es_no_hay_direcciones(nav):
     s, p = sesion(nav)
     esperado = {'tiempo extra': 'tard', 'redca': 'no pudo responder', 'cuota': 'límite', 'clave': 'configur', 'pausa': 'pausa', 'fuera de la ciudad': 'fuera del área disponible',
-                'nada que ver': 'No encontr', 'basura json': 'no pude leer'}
+                'basura json': 'no pude leer'}      # «sin coincidencias» mientras se escribe ya NO muestra mensaje (solo lo dice «Buscar»): se prueba aparte
     textos = {}
     for consulta, fragmento in esperado.items():
         p.fill('#tripOrigin', consulta)
@@ -292,6 +292,10 @@ def cada_estado_de_error_dice_algo_distinto_y_no_es_no_hay_direcciones(nav):
         assert fragmento.lower() in t, f'«{consulta}»: se esperaba «{fragmento}» y salió «{t}»'
         assert p.locator('#originResults [role="status"], #originResults [role="alert"]').count() >= 1, f'«{consulta}»: el aviso debe anunciarse'
     assert len(set(textos.values())) == len(textos), f'los estados deben diferenciarse: {textos}'
+    p.fill('#tripOrigin', 'nada que ver'); p.wait_for_timeout(1500)
+    assert p.locator('#originResults').inner_text().strip() == '' and 'encontramos' not in p.inner_text('#tripStatus').lower(), 'escribiendo, sin sugerencias: ningún «no encontramos»'
+    p.click('#searchOrigin'); p.wait_for_timeout(1500)
+    assert 'No pudimos ubicar' in p.locator('#originResults').inner_text() or 'encontramos' in p.inner_text('#tripStatus').lower(), 'al pulsar «Buscar» sí se dice'
     s.limpio('estados'); s.cerrar()
 
 
@@ -582,7 +586,7 @@ def si_la_busqueda_falla_siguen_a_mano_buscar_usar_mi_ubicacion_y_elegir_en_el_m
 def los_cinco_mensajes_honestos_dicen_exactamente_lo_acordado(nav):
     s, p = sesion_instrumentada(nav)
     esperado = {'sinconfig x': 'La búsqueda de Google no está configurada', 'cuota x': 'Google no pudo responder. Intenta de nuevo',
-                'nada x': 'Todavía no encontramos ese lugar', 'fuera x': 'Ese lugar queda fuera del área disponible', 'tiempo x': 'Google no pudo responder. Intenta de nuevo'}
+                'fuera x': 'Ese lugar queda fuera del área disponible', 'tiempo x': 'Google no pudo responder. Intenta de nuevo'}
     for consulta, inicio in esperado.items():
         p.fill('#tripOrigin', consulta)
         B.esperar(p, "document.querySelector('#originResults .search-error') !== null", 6000)
@@ -632,6 +636,95 @@ def una_via_sin_el_numero_pedido_se_explica_ofrece_el_mapa_y_conserva_el_texto(n
     assert p.input_value('#tripDestination') == 'vianum Carrera 22 #38-10', 'se conserva lo escrito'
     assert p.is_visible('#pickDestination'), '«Elegir en el mapa» sigue a la mano'
     s.limpio('vía sin número'); s.cerrar()
+
+
+@prueba
+def una_posible_coincidencia_se_revisa_antes_de_usarla_y_no_cambia_a_ni_b_hasta_confirmar(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'posible Carrera 27 935A 50')
+    p.keyboard.press('Escape')
+    p.click('#searchDestination')
+    B.esperar(p, "document.getElementById('destinationResults').innerText.includes('Posible coincidencia')", 8000)
+    assert 'Posible coincidencia' in p.inner_text('#destinationResults') and 'Carrera 27 # 35A-50' in p.inner_text('#destinationResults')
+    assert punto(p, 'destination') is None, 'una posible coincidencia no se aplica sola'
+    p.click('#destinationResults .autosuggest-option'); p.wait_for_timeout(500)
+    assert '¿Te referías a esta dirección?' in p.inner_text('#destinationResults') and 'Carrera 27 # 35A-50' in p.inner_text('#destinationResults')
+    assert p.evaluate("document.activeElement.className.includes('place-review-use')"), 'el foco queda en «Usar este punto»'
+    assert punto(p, 'destination') is None and punto(p, 'origin') is None, 'revisar no cambia A ni B'
+    assert p.input_value('#tripDestination') == 'posible Carrera 27 935A 50', 'se conserva lo escrito'
+    p.click('.place-review-back'); p.wait_for_timeout(300)
+    assert 'Posible coincidencia' in p.inner_text('#destinationResults'), 'volver regresa a la lista'
+    p.click('#destinationResults .autosuggest-option'); p.click('.place-review-use'); p.wait_for_timeout(500)
+    d = p.evaluate("Spevb.Planner.puntos().destino")
+    assert d and abs(d['lat'] - 4.1470) < 1e-6, f'«Usar este punto» confirma el pin que se revisó: {d}'
+    s.limpio('posible'); s.cerrar()
+
+
+@prueba
+def solo_la_via_se_ofrece_como_referencia_y_lleva_al_mapa_sin_confirmar_nada(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'referencia Carrera 27 #99-99')
+    p.keyboard.press('Escape')
+    p.click('#searchDestination')
+    B.esperar(p, "document.getElementById('destinationResults').innerText.includes('Referencia en el mapa')", 8000)
+    assert 'no ese número' in p.inner_text('#destinationResults')
+    p.click('#destinationResults .autosuggest-option'); p.wait_for_timeout(500)
+    assert p.get_attribute('#pickDestination', 'aria-pressed') == 'true', 'se activa «Elegir en el mapa»'
+    assert punto(p, 'destination') is None, 'la vía no se confirma como destino'
+    assert p.input_value('#tripDestination') == 'referencia Carrera 27 #99-99'
+    s.limpio('referencia'); s.cerrar()
+
+
+@prueba
+def con_una_exacta_y_una_parecida_la_exacta_va_primero_y_se_elige_en_un_toque(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'mixto Carrera 27 #35A-50')
+    p.keyboard.press('Escape')
+    p.click('#searchDestination')
+    B.esperar(p, "document.getElementById('destinationResults').innerText.includes('Coincidencia exacta')", 8000)
+    t = p.inner_text('#destinationResults')
+    assert t.index('Coincidencia exacta') < t.index('Posible coincidencia'), t
+    p.click('#destinationResults .autosuggest-option >> nth=0'); p.wait_for_timeout(500)
+    d = p.evaluate("Spevb.Planner.puntos().destino")
+    assert d and abs(d['lat'] - 4.1460) < 1e-6, f'la exacta se elige en un toque: {d}'
+    s.limpio('mixto'); s.cerrar()
+
+
+@prueba
+def sin_ninguna_opcion_se_dice_que_no_se_ubico_el_numero_y_quedan_las_salidas(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'nada Carrera 27 #99-99')
+    p.keyboard.press('Escape')
+    p.click('#searchDestination'); p.wait_for_timeout(1500)
+    t = p.inner_text('#destinationResults') + ' ' + p.inner_text('#tripStatus')
+    assert 'No pudimos ubicar ese número' in t or 'No encontramos' in t or 'Todavía no encontramos' in t, t
+    assert punto(p, 'destination') is None and p.input_value('#tripDestination') == 'nada Carrera 27 #99-99'
+    assert p.is_visible('#pickDestination')
+    s.limpio('sin opcion'); s.cerrar()
+
+
+@prueba
+def borrar_quita_en_el_acto_la_direccion_de_google_bajo_el_campo_y_deja_el_mapa_sin_ruta(nav):
+    s, p = sesion(nav)
+    p.fill('#tripDestination', 'mixto Carrera 27 #35A-50'); p.keyboard.press('Escape')
+    p.click('#searchDestination')
+    B.esperar(p, "document.getElementById('destinationResults').innerText.includes('Coincidencia exacta')", 8000)
+    p.click('#destinationResults .autosuggest-option >> nth=0'); p.wait_for_timeout(700)
+    assert p.is_visible('#destinationCompleto') and 'Carrera 27' in p.inner_text('#destinationCompleto'), 'la dirección que devolvió Google queda bajo el campo'
+    p.click('#clearDestination'); p.wait_for_timeout(120)
+    assert not p.is_visible('#destinationCompleto') and p.inner_text('#destinationCompleto').strip() == '', 'al borrar, la dirección de abajo desaparece en el acto'
+    # A y B con una ruta dibujada: «Limpiar A y B» deja el mapa sin ruta ni pines
+    p.fill('#tripOrigin', 'mixto Carrera 27 #35A-50'); p.keyboard.press('Escape'); p.click('#searchOrigin'); p.wait_for_timeout(1200)
+    p.click('#originResults .autosuggest-option >> nth=0'); p.wait_for_timeout(500)
+    p.evaluate("Spevb.Planner.poner('destination', { id: null, lat: 4.133, lng: -73.6065, nombre: 'Destino de prueba', direccion: null, fuente: 'Prueba', confirmado: true })"); p.wait_for_timeout(500)
+    p.evaluate("document.querySelector('#planTrip').click()"); p.wait_for_timeout(2500)
+    p.click('#clearTripPoints'); p.wait_for_timeout(300)
+    assert p.evaluate("Spevb.maps.map.elementos().length") == 0, 'sin ruta ni pines en el mapa'
+    assert p.evaluate("!document.querySelector('#tripResults .trip-option') && document.getElementById('tripItinerario').children.length === 0")
+    assert not p.is_visible('#originCompleto') and not p.is_visible('#destinationCompleto')
+    p.wait_for_timeout(1500)
+    assert p.evaluate("Spevb.maps.map.elementos().length") == 0, 'tampoco reaparece algo tardío'
+    s.limpio('borrar'); s.cerrar()
 
 
 @prueba

@@ -102,6 +102,9 @@ public class CityArea {
         }
         q = q.replaceAll("\\s*#\\s*", " # ");
         if (direccion) {
+            // Ej.: «Carrera 27 #35A50» / «Cra 27 35A50» → «# 35A-50»: una LETRA seguida directamente de cifras cierra el primer fragmento de la placa (35A | 50); es inequívoco.
+            q = q.replaceAll("(?iU)\\s+#\\s+(\\d+[A-Z])(\\d{1,3})(?![\\p{L}\\p{N}])", " # $1-$2");
+            q = q.replaceAll("(?iU)^" + VIA + "\\s+" + NUMERO_VIA + "\\s+(?!#)(\\d+[A-Z])(\\d{1,3})(?![\\p{L}\\p{N}])(.*)$", "$1 $2 # $3-$4$5");
             // Ej.: Carrera 27 Norte 5 a 50 / Carrera 27 5-50 → Carrera 27 Norte # 5-50 (con «a» o guion entre los dos fragmentos de la placa)
             q = q.replaceAll("(?iU)^" + VIA + "\\s+" + NUMERO_VIA + "\\s+(?!#)" + NUMERO_PLACA
                     + "\\s*(?:\\s(?:a)\\s|-)\\s*" + PLACA_PARTE + "(.*)$", "$1 $2 # $3-$4$5");

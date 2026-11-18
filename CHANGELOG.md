@@ -1,3 +1,7 @@
+## Fase N (sin publicar, sobre 4.15.0) · Joystick de GPS con la app desplegada
+
+- `joystick_gps.py --navegador URL`: sin emulador, abre Edge/Chrome en la app (p. ej. https://mapas.spebv.tech) y le fija la ubicación; la página recibe exactamente lo que envía el joystick. `--url` abre la app desplegada en el emulador. Ver `docs/JOYSTICK.md`.
+
 ## Fase L (sin publicar, sobre 4.15.0) · Reparto de espacio entre superficies en celular
 
 - Celular girado (poca altura) con viaje: el planificador cede como en vertical y, con «Editar A y B», la tarjeta compacta queda a la derecha sin taparlo. Panel A y B y menús sin cambios de diseño. Sonda `e2e/rendimiento/sonda_superficies.py`; ver `docs/SUPERFICIES-MOVIL.md`.

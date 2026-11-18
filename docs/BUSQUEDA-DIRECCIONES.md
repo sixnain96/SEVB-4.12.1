@@ -142,3 +142,50 @@ Estado: implementada y probada con un **Google simulado**; sin publicar. Código
 1. Con un entorno autorizado: al menos 12 búsquedas de Villavicencio (vías, placas y abreviaturas distintas) comparando antes y después: ¿la dirección esperada entre las 3 primeras?, ¿se confirma el mismo lugar elegido?, ¿cuántas consultas? **No se hizo ninguna llamada real** (no se usó la clave de pago del `.env` sin autorización). Los ejemplos ficticios solo prueban la gramática.
 2. Cómo formatea Google las placas con letra o Bis en Villavicencio (los componentes `route` y `street_number` reales) y si hay variantes que `Nomenclatura` no reconozca.
 3. Teclado virtual real y composición con predicción en Android/iOS.
+
+---
+
+## Fase M · Coincidencias clasificadas, placa parecida y referencia de la vía
+
+**Causa reproducida (con Google simulado; no se usó la clave de pago ni Google real).** Para una dirección numerada la búsqueda explícita solo aceptaba un candidato si coincidían vía **y** placa completa. Cuando Google devolvía solo la vía («Cra. 27») o una placa con un error pequeño («#35A-50» cuando se escribió «#935A-50»), el servidor descartaba todo y la persona veía «no hay coincidencias» aunque Google sí tenía algo útil. Además, si la dirección se escribía pegada («Cra27 #35a 50»), el chequeo de «dirección numerada» fallaba y un resultado que era solo la vía **pasaba como si fuera la dirección** (defecto corregido: ahora se interpreta con el mismo modelo de nomenclatura).
+
+**Qué hace ahora** (`LugarService.clasificar`, `Nomenclatura.placaParecida`, `planner.js`):
+
+| Grupo | Regla verificable | Qué ve la persona |
+|---|---|---|
+| **Coincidencia exacta** | misma vía (tipo, número, letra, Bis, sentido) y placa completa | se elige en un toque, como siempre (la precisión del pin se dice aparte) |
+| **Posible coincidencia** | misma vía y la placa difiere por **un solo** cambio (cifra de más, de menos o cambiada) en un fragmento de ≥ 3 caracteres; solo si no hay exacta; máximo 3 | «¿Te referías a esta dirección?»: se **revisa** el pin y la dirección real de Google antes de usarla («Usar este punto», «Ajustar en el mapa», «Volver a la lista»). No cambia A ni B hasta confirmar |
+| **Referencia en el mapa** | Google ubicó la vía (precisión VIA) y es la misma vía; una sola | «Ubicamos la carrera, pero no ese número»: lleva el mapa a la vía y activa «Elegir en el mapa»; nada se confirma hasta que la persona toque el punto |
+| **Sin opción útil** | nada de lo anterior | «No pudimos ubicar ese número» con «Editar dirección» y «Elegir en el mapa» |
+
+Orden fijo: exactas → posibles → referencia. Nunca se promociona otra vía, otro sentido, otra clase de vía, un barrio ni una ciudad. Si existe una exacta para «935A-50» se respeta (no se asume que el 9 sobra).
+
+**Llamadas a Google.** Una búsqueda explícita hace **una** llamada. Solo si la primera respondió bien y no hubo exacta, ni parecida, ni la vía, entra el **corrector** (como el de Google Maps): **un** Autocomplete de Places (tolera errores y números parciales) con los números intactos y, de sus predicciones **de la misma vía**, como máximo **dos** detalles por `placeId` (placa a lo sumo 2 cambios y un fragmento idéntico; o, si no hay, la vía sola como referencia). Todo con un solo token de sesión. Lo que el corrector devuelve se muestra como «Posible coincidencia» (se revisa el pin) o «Referencia en el mapa»; **nunca se aplica solo**, y una predicción de otra vía, otro sentido u otra clase de vía se descarta. Con error de red, clave, cuota, cortacircuito o tiempo no hay segundo intento. Si la persona escribió otra ciudad, tampoco. **No se añadió Geocoding**: no hay evidencia de que el proyecto lo tenga autorizado y habilitado (queda como respaldo posible, medido contra direcciones públicas, cuando se autorice).
+
+**Contrato.** `LugarResponse` gana dos campos aditivos: `coincidencia` (`EXACTA`/`POSIBLE`/`REFERENCIA`/null) y `motivo`. Sin cambios para el resto de clientes.
+
+**Corrección de interfaz de paso.** Si la respuesta llegaba muy rápido tras tocar «Buscar», el cierre de la lista por «salir del campo» la cerraba recién pintada; ahora no cierra una lista pintada después del desenfoque.
+
+### Antes / después (casos con Google simulado; los resultados reales de Google siguen pendientes)
+| Caso | Antes | Después |
+|---|---|---|
+| «Cra27 #35a 50», Google trae la vía y la puerta | podía aceptar la vía como la dirección | exacta primero; la vía no se confunde |
+| «Carrera 27 935A 50», Google trae «#35A-50» | lista vacía + «no ese número» | **Posible coincidencia**, con revisión del pin |
+| «Carrera 27 #99-99», Google trae solo la vía | lista vacía | **Referencia**: lleva al mapa para marcar el punto |
+| Sin candidatos | lista vacía, 1 llamada | corrector: 1 Autocomplete + hasta 2 detalles de la misma vía → «Posible coincidencia»; si tampoco, «No pudimos ubicar ese número» con salidas |
+| Otra calle / otro sentido / placa lejana | descartadas | descartadas (probado) |
+| Google falla (503) | estado de error | igual, **sin** segundo intento (probado) |
+| Llamadas por búsqueda | 1 | 1; solo sin candidatos, hasta 1 Autocomplete + 2 detalles |
+
+### Pruebas
+Java: `ClasificacionCoincidenciasTest` (12) + ajustes en `BusquedaNomenclaturaTest`, `BusquedaPertinenciaTest`; suite completa en verde (581). Navegador: 4 nuevas en `busqueda_e2e.py` (posible con revisión, referencia, exacta primero, sin opción) y el stub (`posible…`, `referencia…`, `mixto…`).
+
+### Guion de demostración (3 pasos; usar solo direcciones públicas comprobadas)
+1. Una dirección pública escrita como se dice («Carrera 27 número 35A 50») → aparece con su formato «Carrera 27 # 35A-50».
+2. Un error pequeño (una cifra de más) → «Posible coincidencia»: se revisa el pin y se usa o se ajusta.
+3. Una placa que Google no ubica → «Referencia en el mapa»: se centra la vía y la persona marca el punto.
+
+### Pendiente
+Comparar con Google real un conjunto de 20–30 direcciones públicas de Villavicencio (con y sin barrio): cuántas exactas entre las tres primeras, cuántas recuperadas con opción útil y llamadas por búsqueda. Prueba manual en un celular. No se usó ninguna clave de pago.
+
+**Placa pegada sin guion** («Carrera 27 #35A50», «Cra 27 35A50»): una letra seguida de cifras separa la placa (`35A | 50`) → «Carrera 27 # 35A-50».
