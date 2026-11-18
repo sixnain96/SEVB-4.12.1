@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -68,102 +69,180 @@ public class GeocodingService {
     public boolean reversoConfigurado() { return !reverseUrl.isBlank(); }
 
     public synchronized List<Resultado> buscar(String rawQuery) {
-        if (!configurado()) return List.of();
-        String cacheKey = cityArea.normalizeAddress(rawQuery).toLowerCase(Locale.ROOT);
-        if (searchCache.containsKey(cacheKey)) return searchCache.get(cacheKey);
+        if (!configurado()) {
+            return List.of();
+        }
+        String normalizedQuery = cityArea.normalizeAddress(rawQuery);
+        String cacheKey = normalizedQuery.toLowerCase(Locale.ROOT);
+        if (searchCache.containsKey(cacheKey)) {
+            return searchCache.get(cacheKey);
+        }
 
-        LinkedHashMap<String, Resultado> merged = new LinkedHashMap<>();
-        // Si se escribió una placa (# 19-05), Nominatim no debe recomendar la
-        // avenida completa como si hubiera encontrado la casa. Se exige house_number.
-        String numeroPuerta = numeroPuertaSolicitado(cityArea.normalizeAddress(rawQuery));
+        Map<String, Resultado> merged = new LinkedHashMap<>();
+        String numeroPuerta = numeroPuertaSolicitado(normalizedQuery);
         for (String query : cityArea.searchQueries(rawQuery)) {
-            if (!merged.isEmpty()) break;
-            rateLimit();
-            try {
-                String separator = searchUrl.contains("?") ? "&" : "?";
-                URI uri = URI.create(searchUrl + separator
-                        + "format=jsonv2&addressdetails=1&limit=10&countrycodes=co&bounded=1&viewbox="
-                        + URLEncoder.encode(cityArea.viewbox(), StandardCharsets.UTF_8)
-                        + "&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
-                var response = client.send(request(uri), HttpResponse.BodyHandlers.ofInputStream());
-                try (var body = response.body()) {
-                    requireOk(response.statusCode());
-                    byte[] bytes = body.readNBytes(400_001);
-                    if (bytes.length > 400_000) throw badGateway("Respuesta geográfica demasiado grande.");
-                    var array = mapper.readTree(bytes);
-                    if (!array.isArray()) throw badGateway("Respuesta geográfica inválida.");
-                    for (var item : array) {
-                        double lat = parse(item.path("lat").asText());
-                        double lng = parse(item.path("lon").asText());
-                        if (!cityArea.contains(lat, lng)) continue;
-                        String display = item.path("display_name").asText("").strip();
-                        if (display.isBlank()) continue;
-                        String numeroEncontrado = item.path("address").path("house_number").asText("").strip();
-                        if (!numeroPuerta.isBlank() && !normalizarNumero(numeroEncontrado).equals(numeroPuerta)) continue;
-                        if (!numeroPuerta.isBlank() && !viaSolicitadaCompatible(rawQuery,
-                                item.path("address").path("road").asText(""))) continue;
-                        String precision = numeroEncontrado.isBlank() ? "SIN_VERIFICAR" : "DIRECCION_PUNTUAL";
-                        String external = externalId(item.path("osm_type").asText(""), item.path("osm_id").asText(""));
-                        String key = external != null ? external : String.format(Locale.ROOT, "%.6f,%.6f", lat, lng);
-                        merged.putIfAbsent(key, new Resultado(display, display, lat, lng,
-                                "OpenStreetMap / Nominatim", external, precision));
-                        if (merged.size() >= 8) break;
-                    }
-                }
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.");
-            } catch (ResponseStatusException ex) {
-                throw ex;
-            } catch (java.net.http.HttpTimeoutException ex) {
-                throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "El buscador de direcciones no respondió a tiempo.");
-            } catch (Exception ex) {
-                throw badGateway("No se pudo consultar el buscador de direcciones.");
+            if (!merged.isEmpty()) {
+                break;
             }
+            consultarBusqueda(query, rawQuery, numeroPuerta, merged);
         }
         List<Resultado> answer = List.copyOf(merged.values());
         putBounded(searchCache, cacheKey, answer, 250);
         return answer;
     }
 
-    public synchronized Resultado reverso(double lat, double lng) {
-        cityArea.requireInside(lat, lng);
-        if (!reversoConfigurado()) return null;
-        String key = String.format(Locale.ROOT, "%.5f,%.5f", lat, lng);
-        if (reverseCache.containsKey(key)) return reverseCache.get(key);
+    private void consultarBusqueda(String query, String rawQuery, String numeroPuerta,
+                                   Map<String, Resultado> merged) {
         rateLimit();
         try {
-            String separator = reverseUrl.contains("?") ? "&" : "?";
-            URI uri = URI.create(reverseUrl + separator + "format=jsonv2&addressdetails=1&zoom=18&layer=address&lat="
-                    + URLEncoder.encode(Double.toString(lat), StandardCharsets.UTF_8)
-                    + "&lon=" + URLEncoder.encode(Double.toString(lng), StandardCharsets.UTF_8));
+            URI uri = uriBusqueda(query);
             var response = client.send(request(uri), HttpResponse.BodyHandlers.ofInputStream());
-            try (var body = response.body()) {
-                requireOk(response.statusCode());
-                byte[] bytes = body.readNBytes(200_001);
-                if (bytes.length > 200_000) throw badGateway("Respuesta geográfica demasiado grande.");
-                var item = mapper.readTree(bytes);
-                String display = item.path("display_name").asText("").strip();
-                if (display.isBlank()) return null;
-                double resultLat = parse(item.path("lat").asText(Double.toString(lat)));
-                double resultLng = parse(item.path("lon").asText(Double.toString(lng)));
-                if (!cityArea.contains(resultLat, resultLng)) return null;
-                Resultado result = new Resultado(display, display, resultLat, resultLng,
-                        "OpenStreetMap / Nominatim",
-                        externalId(item.path("osm_type").asText(""), item.path("osm_id").asText("")));
-                putBounded(reverseCache, key, result, 250);
-                return result;
-            }
+            leerResultadosBusqueda(response, rawQuery, numeroPuerta, merged);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.", ex);
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (java.net.http.HttpTimeoutException ex) {
-            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "El buscador de direcciones no respondió a tiempo.");
+            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "El buscador de direcciones no respondió a tiempo.", ex);
         } catch (Exception ex) {
-            throw badGateway("No se pudo obtener la dirección del punto.");
+            throw badGateway("No se pudo consultar el buscador de direcciones.", ex);
         }
+    }
+
+    private URI uriBusqueda(String query) {
+        String separator = searchUrl.contains("?") ? "&" : "?";
+        return URI.create(searchUrl + separator
+                + "format=jsonv2&addressdetails=1&limit=10&countrycodes=co&bounded=1&viewbox="
+                + URLEncoder.encode(cityArea.viewbox(), StandardCharsets.UTF_8)
+                + "&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
+    }
+
+    private void leerResultadosBusqueda(HttpResponse<java.io.InputStream> response, String rawQuery,
+                                        String numeroPuerta, Map<String, Resultado> merged)
+            throws java.io.IOException {
+        try (var body = response.body()) {
+            requireOk(response.statusCode());
+            byte[] bytes = body.readNBytes(400_001);
+            if (bytes.length > 400_000) {
+                throw badGateway("Respuesta geográfica demasiado grande.");
+            }
+            JsonNode array = mapper.readTree(bytes);
+            if (!array.isArray()) {
+                throw badGateway("Respuesta geográfica inválida.");
+            }
+            agregarResultadosBusqueda(array, rawQuery, numeroPuerta, merged);
+        }
+    }
+
+    private void agregarResultadosBusqueda(JsonNode array, String rawQuery, String numeroPuerta,
+                                           Map<String, Resultado> merged) {
+        for (JsonNode item : array) {
+            Resultado resultado = convertirResultadoBusqueda(item, rawQuery, numeroPuerta);
+            if (resultado == null) {
+                continue;
+            }
+            String external = resultado.externalId();
+            String key = external != null ? external
+                    : String.format(Locale.ROOT, "%.6f,%.6f", resultado.lat(), resultado.lng());
+            merged.putIfAbsent(key, resultado);
+            if (merged.size() >= 8) {
+                break;
+            }
+        }
+    }
+
+    private Resultado convertirResultadoBusqueda(JsonNode item, String rawQuery, String numeroPuerta) {
+        double lat = parse(item.path("lat").asText());
+        double lng = parse(item.path("lon").asText());
+        if (!cityArea.contains(lat, lng)) {
+            return null;
+        }
+
+        String display = item.path("display_name").asText("").strip();
+        if (display.isBlank()) {
+            return null;
+        }
+
+        String numeroEncontrado = item.path("address").path("house_number").asText("").strip();
+        if (!numeroPuerta.isBlank() && !normalizarNumero(numeroEncontrado).equals(numeroPuerta)) {
+            return null;
+        }
+        if (!numeroPuerta.isBlank()
+                && !viaSolicitadaCompatible(rawQuery, item.path("address").path("road").asText(""))) {
+            return null;
+        }
+
+        String precision = numeroEncontrado.isBlank() ? "SIN_VERIFICAR" : "DIRECCION_PUNTUAL";
+        String external = externalId(item.path("osm_type").asText(""), item.path("osm_id").asText(""));
+        return new Resultado(display, display, lat, lng, "OpenStreetMap / Nominatim", external, precision);
+    }
+
+    public synchronized Resultado reverso(double lat, double lng) {
+        cityArea.requireInside(lat, lng);
+        if (!reversoConfigurado()) {
+            return null;
+        }
+        String key = String.format(Locale.ROOT, "%.5f,%.5f", lat, lng);
+        if (reverseCache.containsKey(key)) {
+            return reverseCache.get(key);
+        }
+        return consultarReverso(lat, lng, key);
+    }
+
+    private Resultado consultarReverso(double lat, double lng, String key) {
+        rateLimit();
+        try {
+            URI uri = uriReverso(lat, lng);
+            var response = client.send(request(uri), HttpResponse.BodyHandlers.ofInputStream());
+            return leerResultadoReverso(response, lat, lng, key);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.", ex);
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (java.net.http.HttpTimeoutException ex) {
+            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "El buscador de direcciones no respondió a tiempo.", ex);
+        } catch (Exception ex) {
+            throw badGateway("No se pudo obtener la dirección del punto.", ex);
+        }
+    }
+
+    private URI uriReverso(double lat, double lng) {
+        String separator = reverseUrl.contains("?") ? "&" : "?";
+        return URI.create(reverseUrl + separator + "format=jsonv2&addressdetails=1&zoom=18&layer=address&lat="
+                + URLEncoder.encode(Double.toString(lat), StandardCharsets.UTF_8)
+                + "&lon=" + URLEncoder.encode(Double.toString(lng), StandardCharsets.UTF_8));
+    }
+
+    private Resultado leerResultadoReverso(HttpResponse<java.io.InputStream> response,
+                                           double lat, double lng, String key) throws java.io.IOException {
+        try (var body = response.body()) {
+            requireOk(response.statusCode());
+            byte[] bytes = body.readNBytes(200_001);
+            if (bytes.length > 200_000) {
+                throw badGateway("Respuesta geográfica demasiado grande.");
+            }
+            JsonNode item = mapper.readTree(bytes);
+            return convertirResultadoReverso(item, lat, lng, key);
+        }
+    }
+
+    private Resultado convertirResultadoReverso(JsonNode item, double lat, double lng, String key) {
+        String display = item.path("display_name").asText("").strip();
+        if (display.isBlank()) {
+            return null;
+        }
+        double resultLat = parse(item.path("lat").asText(Double.toString(lat)));
+        double resultLng = parse(item.path("lon").asText(Double.toString(lng)));
+        if (!cityArea.contains(resultLat, resultLng)) {
+            return null;
+        }
+        Resultado result = new Resultado(display, display, resultLat, resultLng,
+                "OpenStreetMap / Nominatim",
+                externalId(item.path("osm_type").asText(""), item.path("osm_id").asText("")));
+        putBounded(reverseCache, key, result, 250);
+        return result;
     }
 
     private HttpRequest request(URI uri) {
@@ -183,7 +262,7 @@ public class GeocodingService {
                 Thread.sleep(remaining / 1_000_000L, (int) (remaining % 1_000_000L));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.");
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Búsqueda interrumpida.", ex);
             }
         }
         lastCall = System.nanoTime();
@@ -204,6 +283,10 @@ public class GeocodingService {
 
     private ResponseStatusException badGateway(String message) {
         return new ResponseStatusException(HttpStatus.BAD_GATEWAY, message);
+    }
+
+    private ResponseStatusException badGateway(String message, Throwable cause) {
+        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, message, cause);
     }
 
     private <K,V> void putBounded(Map<K,V> map, K key, V value, int max) {
