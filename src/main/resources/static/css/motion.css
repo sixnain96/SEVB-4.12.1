@@ -42,6 +42,73 @@ body.home-sevb .trip-option[open] > :not(summary) { animation: cuerpo-in var(--m
 body.home-sevb .trip-option { position: relative; }
 body.home-sevb .trip-option.selected::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--route-color); pointer-events: none; }
 
+/* ---------- campos A y B: entrada, confirmación y «aquí falta algo» (Fase P) ----------
+   js/animaciones.js solo pone y quita clases (ab-intro, punto-fijado, ab-viaja, ab-completo, pide); aquí vive todo el movimiento.
+   Solo transform y opacity, con los colores que ya existen (verde de A, naranja de B): no se cambia ningún color ni forma. */
+@keyframes letra-entra { from { opacity: 0; transform: scale(0) rotate(-40deg); } to { opacity: 1; transform: none; } }
+@keyframes letra-llama { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.22); } 62% { transform: scale(.96); } }
+@keyframes anillo-sale { from { opacity: .75; transform: scale(1); } to { opacity: 0; transform: scale(2.6); } }
+@keyframes campo-confirma { 0% { opacity: 0; transform: scale(.985); } 30% { opacity: .9; } 100% { opacity: 0; transform: scale(1.03); } }
+@keyframes campo-titila { 0%, 100% { opacity: 0; transform: scale(1); } 45% { opacity: .95; transform: scale(1.035); } }
+@keyframes campo-entra { from { opacity: 0; } to { opacity: 1; } }
+@keyframes conector-dibuja { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes punto-baja { 0% { opacity: 0; transform: translateY(0); } 15%, 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(var(--conector-alto, 22px)); } }
+body.home-sevb .endpoint-letter { position: relative; }
+/* al abrir la app: A cae con rebote, el conector se dibuja, un punto baja de A a B y B cae después */
+body.home-sevb #formAB.ab-intro .endpoint-letter { animation: letra-entra var(--motion-spring, 420ms) var(--ease-spring, var(--ease-enter)) backwards; }
+body.home-sevb #formAB.ab-intro .endpoint-block:first-child .endpoint-letter { animation-delay: 100ms; }
+body.home-sevb #formAB.ab-intro .endpoint-block:last-child .endpoint-letter { animation-delay: 750ms; }
+body.home-sevb #formAB.ab-intro::before { transform-origin: 50% 0; animation: conector-dibuja 450ms var(--ease-standard) 350ms backwards; }
+body.home-sevb #formAB.ab-intro::after { animation: punto-baja 800ms var(--ease-standard) 1000ms 2; }
+body.home-sevb #formAB.ab-intro .endpoint-field { animation: campo-entra var(--motion-normal) var(--ease-enter) backwards; }
+body.home-sevb #formAB.ab-intro .endpoint-block:first-child .endpoint-field { animation-delay: 200ms; }
+body.home-sevb #formAB.ab-intro .endpoint-block:last-child .endpoint-field { animation-delay: 850ms; }
+/* una dirección elegida: la letra late, un aro sale de ella, el borde del campo destella y un punto baja por el conector */
+body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-letter { animation: letra-llama 520ms var(--ease-spring, var(--ease-enter)); }
+body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-letter::after,
+body.home-sevb #formAB .endpoint-block.pide .endpoint-letter::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--brand); pointer-events: none; animation: anillo-sale 700ms var(--ease-standard) 80ms backwards; }
+body.home-sevb #formAB .endpoint-block.pide .endpoint-letter::after { animation-duration: 1250ms; animation-iteration-count: 3; animation-delay: 0ms; animation-timing-function: ease-out; }
+body.home-sevb #formAB .endpoint-block:last-child.punto-fijado .endpoint-letter::after,
+body.home-sevb #formAB .endpoint-block:last-child.pide .endpoint-letter::after { border-color: var(--accent); }
+body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-field::before,
+body.home-sevb #formAB .endpoint-block.pide .endpoint-field::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 52px; border: 2px solid var(--brand); border-radius: 14px; box-sizing: border-box; pointer-events: none; opacity: 0; }
+@media (max-height: 640px) {      /* viaje.css baja el campo a 46 px en pantallas bajas */
+    body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-field::before, body.home-sevb #formAB .endpoint-block.pide .endpoint-field::before { height: 46px; }
+}
+body.home-sevb #formAB .endpoint-block:last-child.punto-fijado .endpoint-field::before,
+body.home-sevb #formAB .endpoint-block:last-child.pide .endpoint-field::before { border-color: var(--accent); }
+body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-field::before { animation: campo-confirma 700ms var(--ease-standard); }
+body.home-sevb #formAB.ab-viaja::after { animation: punto-baja 850ms var(--ease-standard) 2; }
+body.home-sevb #formAB.ab-completo::after { animation: punto-baja 650ms var(--ease-standard) 150ms 3; }
+body.home-sevb #formAB.ab-completo .endpoint-block:last-child.punto-fijado .endpoint-letter { animation-delay: 250ms; }
+/* tras un rato sin tocar nada: el campo que falta titila tres veces (la letra y un aro lo acompañan) */
+body.home-sevb #formAB .endpoint-block.pide .endpoint-field::before { animation: campo-titila 1250ms ease-in-out 3; }
+body.home-sevb #formAB .endpoint-block.pide .endpoint-letter { animation: letra-llama 1250ms ease-in-out 3; }
+
+/* ---------- marcadores A / B del mapa: una onda sale de la punta al caer ---------- */
+@keyframes pin-onda { 0% { opacity: .85; transform: scale(.3, .15); } 100% { opacity: 0; transform: scale(2.6, 1.1); } }
+body.home-sevb .trip-pin.pin-in::after { content: ''; position: absolute; left: 50%; bottom: -4px; width: 26px; height: 12px; margin-left: -13px; border: 2px solid var(--brand); border-radius: 50%; pointer-events: none; opacity: 0; animation: pin-onda 750ms var(--ease-map) 220ms backwards; }
+body.home-sevb .trip-pin.pin-in.b::after { border-color: var(--accent); }
+
+/* ---------- menú ☰: el icono de cada sección abierta salta al abrir el menú; la llama de la racha se mece ---------- */
+@keyframes icono-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes llama-vive { 0%, 100% { transform: scale(1) rotate(0deg); } 30% { transform: scale(1.06, 1.1) rotate(-3deg); } 65% { transform: scale(.97, 1.03) rotate(2.5deg); } }
+body.home-sevb .side-menu.open details.menu-seccion[open] > summary .menu-ico { animation: icono-pop var(--motion-spring, 420ms) var(--ease-spring, var(--ease-enter)) both; }
+body.home-sevb .side-menu.open .racha-chip:not(.sin-racha) .racha-llama { transform-origin: 50% 90%; animation: llama-vive 2600ms ease-in-out infinite; }
+body.home-sevb .side-menu > details.menu-seccion > summary { transition: transform var(--motion-instant) var(--ease-standard); }
+body.home-sevb .side-menu > details.menu-seccion > summary:active { transform: scale(.985); }
+/* el menú entra con curva de salida suave y se va más rápido */
+body.home-sevb .side-menu { transition: transform var(--motion-normal) var(--ease-exit); }
+body.home-sevb .side-menu.open { transition: transform var(--motion-emphasized) var(--ease-enter); }
+
+/* ---------- logros: entran uno tras otro, y los ganados destellan y saltan (sin recortar nada: el aro de foco queda fuera) ---------- */
+@keyframes logro-entra { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes logro-destello { 0% { opacity: 0; } 35% { opacity: .85; } 100% { opacity: 0; } }
+@keyframes logro-ico-pop { 0% { transform: scale(.7) rotate(-12deg); } 60% { transform: scale(1.15) rotate(4deg); } 100% { transform: none; } }
+body.home-sevb .menu-logros[open] .logro { position: relative; animation: logro-entra var(--motion-spring, 420ms) var(--ease-spring, var(--ease-enter)) backwards; animation-delay: calc(var(--i, 0) * var(--motion-stagger) * 1.6); }
+body.home-sevb .menu-logros[open] .logro.ganado::after { content: ''; position: absolute; inset: 0; border-radius: 12px; pointer-events: none; opacity: 0; background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .8) 50%, transparent 70%); animation: logro-destello 900ms var(--ease-standard) both; animation-delay: calc(var(--i, 0) * var(--motion-stagger) * 1.6 + 350ms); }
+body.home-sevb .menu-logros[open] .logro.ganado .logro-ico { animation: logro-ico-pop var(--motion-spring, 420ms) var(--ease-spring, var(--ease-enter)) backwards; animation-delay: calc(var(--i, 0) * var(--motion-stagger) * 1.6 + 120ms); }
+
 /* ---------- movimiento reducido ----------
    Dos bloques idénticos: el del sistema (prefers-reduced-motion) y html[data-motion="reduce"], que motion.js pone según la
    preferencia y que también permite comprobar este modo sin cambiar el sistema operativo. Se conserva solo el movimiento
@@ -61,3 +128,27 @@ html[data-motion="reduce"] body.home-sevb .trip-option, html[data-motion="reduce
 html[data-motion="reduce"] body.home-sevb .siguiendo-bus, html[data-motion="reduce"] body.home-sevb .siguiendo-bus .sb-punto,
 html[data-motion="reduce"] body.home-sevb .bus-panel, html[data-motion="reduce"] .bus-panel.collapsed .bus-min,
 html[data-motion="reduce"] .bus3d-stage, html[data-motion="reduce"] .bus3d .bus-halo, html[data-motion="reduce"] .walk-line { animation: none !important; }
+
+/* ---------- movimiento reducido para lo de la Fase P ----------
+   Sin movimiento: ni entrada de A y B, ni aros, ni mecidas. Lo único que se conserva es un aro fijo en el campo que «pide» una dirección, para que la ayuda siga viéndose. */
+@media (prefers-reduced-motion: reduce) {
+    body.home-sevb #formAB.ab-intro .endpoint-letter, body.home-sevb #formAB.ab-intro .endpoint-field, body.home-sevb #formAB.ab-intro::before, body.home-sevb #formAB.ab-intro::after,
+    body.home-sevb #formAB.ab-viaja::after, body.home-sevb #formAB.ab-completo::after,
+    body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-letter, body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-letter::after, body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-field::before,
+    body.home-sevb #formAB .endpoint-block.pide .endpoint-letter, body.home-sevb #formAB .endpoint-block.pide .endpoint-letter::after, body.home-sevb .trip-pin.pin-in::after,
+    body.home-sevb .side-menu.open details.menu-seccion[open] > summary .menu-ico, body.home-sevb .side-menu.open .racha-chip .racha-llama,
+    body.home-sevb .menu-logros[open] .logro, body.home-sevb .menu-logros[open] .logro.ganado::after, body.home-sevb .menu-logros[open] .logro.ganado .logro-ico,
+    body.home-sevb .side-menu.open > *, body.home-sevb .menu-backdrop:not(.hidden) { animation: none !important; }
+    body.home-sevb #formAB .endpoint-block.pide .endpoint-field::before { animation: none !important; opacity: .9; }
+}
+html[data-motion="reduce"] body.home-sevb #formAB.ab-intro .endpoint-letter, html[data-motion="reduce"] body.home-sevb #formAB.ab-intro .endpoint-field,
+html[data-motion="reduce"] body.home-sevb #formAB.ab-intro::before, html[data-motion="reduce"] body.home-sevb #formAB.ab-intro::after,
+html[data-motion="reduce"] body.home-sevb #formAB.ab-viaja::after, html[data-motion="reduce"] body.home-sevb #formAB.ab-completo::after,
+html[data-motion="reduce"] body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-letter, html[data-motion="reduce"] body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-letter::after,
+html[data-motion="reduce"] body.home-sevb #formAB .endpoint-block.punto-fijado .endpoint-field::before,
+html[data-motion="reduce"] body.home-sevb #formAB .endpoint-block.pide .endpoint-letter, html[data-motion="reduce"] body.home-sevb #formAB .endpoint-block.pide .endpoint-letter::after,
+html[data-motion="reduce"] body.home-sevb .trip-pin.pin-in::after, html[data-motion="reduce"] body.home-sevb .side-menu.open details.menu-seccion[open] > summary .menu-ico,
+html[data-motion="reduce"] body.home-sevb .side-menu.open .racha-chip .racha-llama, html[data-motion="reduce"] body.home-sevb .menu-logros[open] .logro,
+html[data-motion="reduce"] body.home-sevb .menu-logros[open] .logro.ganado::after, html[data-motion="reduce"] body.home-sevb .menu-logros[open] .logro.ganado .logro-ico,
+html[data-motion="reduce"] body.home-sevb .side-menu.open > *, html[data-motion="reduce"] body.home-sevb .menu-backdrop:not(.hidden) { animation: none !important; }
+html[data-motion="reduce"] body.home-sevb #formAB .endpoint-block.pide .endpoint-field::before { animation: none !important; opacity: .9; }

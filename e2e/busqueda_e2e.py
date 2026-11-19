@@ -710,9 +710,10 @@ def borrar_quita_en_el_acto_la_direccion_de_google_bajo_el_campo_y_deja_el_mapa_
     p.click('#searchDestination')
     B.esperar(p, "document.getElementById('destinationResults').innerText.includes('Coincidencia exacta')", 8000)
     p.click('#destinationResults .autosuggest-option >> nth=0'); p.wait_for_timeout(700)
-    assert p.is_visible('#destinationCompleto') and 'Carrera 27' in p.inner_text('#destinationCompleto'), 'la dirección que devolvió Google queda bajo el campo'
+    # la dirección de Google ya NO se dibuja bajo el campo (ocupaba el espacio de «Buscar rutas»): queda en el elemento oculto que lee el lector de pantalla y en el tooltip
+    assert not p.is_visible('#destinationCompleto') and 'Carrera 27' in p.text_content('#destinationCompleto'), 'la dirección que devolvió Google queda en el texto oculto, no a la vista'
     p.click('#clearDestination'); p.wait_for_timeout(120)
-    assert not p.is_visible('#destinationCompleto') and p.inner_text('#destinationCompleto').strip() == '', 'al borrar, la dirección de abajo desaparece en el acto'
+    assert not p.is_visible('#destinationCompleto') and p.text_content('#destinationCompleto').strip() == '', 'al borrar, el texto de la dirección desaparece en el acto'
     # A y B con una ruta dibujada: «Limpiar A y B» deja el mapa sin ruta ni pines
     p.fill('#tripOrigin', 'mixto Carrera 27 #35A-50'); p.keyboard.press('Escape'); p.click('#searchOrigin'); p.wait_for_timeout(1200)
     p.click('#originResults .autosuggest-option >> nth=0'); p.wait_for_timeout(500)
@@ -813,8 +814,8 @@ def al_elegir_se_ve_la_direccion_que_devolvio_google_y_el_punto_es_ese(nav):
     p.fill('#tripDestination', 'goodir carrera 27'); esperar_lista(p, 'destination')
     lista(p, 'destination').first.click()
     B.esperar(p, "!!Spevb.Planner.puntos().destino", 6000)
-    B.esperar(p, "!document.getElementById('destinationCompleto').hidden", 3000)
-    assert 'Cra. 27 #35A-50, Villavicencio, Meta' in p.inner_text('#destinationCompleto'), p.inner_text('#destinationCompleto')
+    B.esperar(p, "document.getElementById('destinationCompleto').textContent.trim() !== ''", 3000)
+    assert 'Cra. 27 #35A-50, Villavicencio, Meta' in p.text_content('#destinationCompleto'), p.text_content('#destinationCompleto')
     assert [r for r in consultas('lugares') if r['magicKey']][-1]['magicKey'] == 'g:dir000001'
     s.limpio('dirección de Google'); s.cerrar()
 

@@ -1,3 +1,28 @@
+## Fase R (sin publicar, sobre 4.15.0) · Tarjeta «Mejor opción» tras buscar rutas
+- Después de buscar, entre «Buscar rutas» e «Iniciar viaje» aparece una tarjeta con el bus que conviene tomar («Toma el bus Terminal»), su color, los minutos (sin la espera), dónde subes y cuánto caminas, y cuánto más tardan las otras opciones. Debajo, «También puedes tomar»: hasta 3 buses distintos y tocables, y «Ver las N» para la lista completa.
+- Solo se muestra si el servidor marcó una opción como recomendada; si no, todo queda como antes. Los nombres se escriben bien (Porfía, Galán, Covisán, Álamos…).
+- `planner.js` solo deja los datos de cada tarjeta en `card._mejor` (`datosMejor`); `js/mejor-opcion.js` los lee y, al tocar un bus, abre esa tarjeta igual que si se tocara en la lista. `sheet.js` mide la vista compacta para ver la tarjeta con «Iniciar viaje» (tope 62 %).
+- La línea pequeña de `#startTripInfo` deja de verse cuando hay tarjeta (sigue en el texto). `css/mejor-opcion.css` entra en `app.min.css`; `sw.js`: caché `-mapa9`.
+
+## Fase Q (sin publicar, sobre 4.15.0) · El panel de A y B no baja solo y deja a la vista «Buscar rutas»
+- Celular: al poner A y luego B el panel ya no se manda a la vista compacta (antes «Buscar rutas» quedaba fuera de alcance y había que volver a subirlo).
+- La vista compacta ahora mide lo justo (hasta el borde de «Buscar rutas» y «Limpiar A y B», con tope del 66 % de la pantalla) en vez de 268 px fijos; con rutas ya buscadas se conserva la altura de antes. `sheet.js` la vuelve a medir si cambia el contenido.
+- La dirección completa de Google ya no se dibuja en letra pequeña bajo los campos: queda en el tooltip y en un texto oculto para lectores de pantalla. Las pruebas e2e en Python se adaptaron.
+- `sw.js`: caché `-mapa8`.
+
+## Fase P (sin publicar, sobre 4.15.0) · Animaciones de A y B, del menú y de los logros
+
+- Campos A y B: al abrir la app, A y B «caen», el conector punteado se dibuja y un punto baja de A a B; al elegir la 1.ª y la 2.ª dirección la letra late, sale un aro, el borde del campo destella y el punto baja por el conector (con las dos listas, una ola en ambas letras); tras unos 14 s sin tocar nada el campo que falta titila tres veces (como mucho tres avisos; nada con menú, diálogo o tutorial abiertos). Los pines del mapa sueltan una onda al caer. `js/animaciones.js` solo pone clases; el movimiento está en `css/motion.css`, con su versión «reducir movimiento» (el campo que pide una dirección queda con un aro fijo). Sin cambios de colores ni de formas.
+- Menú ☰: el fondo se atenúa, los bloques entran escalonados, los iconos de las secciones abiertas saltan, el menú entra con curva suave y sale más rápido, y las secciones se hunden un poco al tocarlas.
+- Logros: entran uno tras otro, los ganados destellan y su icono salta; la llama de la racha se mece mientras el menú está abierto.
+- Cuentas de demostración: `LOGROS_CUENTAS_DEMO` (correos, en `.env`) muestra todos los logros desbloqueados sin escribir viajes falsos. Ver `docs/LOGROS.md`.
+
+## Fase O (sin publicar, sobre 4.15.0) · Menú según Figma y carga más ligera
+
+- Menú ☰: aspecto del diseño de Figma «SEVB - Menús» (cabeceras de sección grises con icono, tarjeta de cuenta blanca, botones secundarios, etiqueta «Viaje en curso») solo con CSS (`css/menu-figma.css`); el fondo se atenúa y los bloques entran escalonados con las duraciones de `motion.css` (instantáneas con «reducir movimiento»). Sin cambios de HTML ni de lógica.
+- Instalación: el manifiesto suma `id`, `categories` y `prefers_related_applications`. Lighthouse 11 contra la app real: PWA, accesibilidad, buenas prácticas y SEO en 100.
+- Carga: `index.html` pide un solo archivo de estilos, `css/app.min.css` (11 hojas juntas y minificadas, 270 → 201 KiB), generado con `node scripts/build-css.mjs`; `CssBundleTest` falla si queda desactualizado. Las imágenes del logo y del pie del menú pasan a WebP (86 → 12 KB) y `recomendacion.css` ya se guarda para usar sin conexión. Ver `docs/CSS-BUNDLE.md`.
+
 ## Fase N (sin publicar, sobre 4.15.0) · Joystick de GPS con la app desplegada
 
 - `joystick_gps.py --navegador URL`: sin emulador, abre Edge/Chrome en la app (p. ej. https://mapas.spebv.tech) y le fija la ubicación; la página recibe exactamente lo que envía el joystick. `--url` abre la app desplegada en el emulador. Ver `docs/JOYSTICK.md`.

@@ -401,7 +401,7 @@
         if (estado !== 'confirmado') ocultarCompleto(mode);
     }
     /** Presentación completa del punto confirmado (4.14): un input no muestra una dirección larga en una línea y no se fuerza multilínea; la edición sigue siendo normal
-     *  (se puede recorrer todo el texto) y, SOLO si no cabe, debajo del campo aparece el nombre y la dirección completos (y también como `title`). */
+     *  (se puede recorrer todo el texto). El nombre y la dirección completos van como `title` y en un elemento oculto para lectores de pantalla (ya no se ven bajo el campo). */
     function textoCompleto(point) {
         const n = point.nombre || '', d = point.direccion || '';
         return d && d !== n && !d.startsWith(n) ? n + ' — ' + d : (d.length > n.length ? d : n);
@@ -423,13 +423,11 @@
         }
         const texto = textoCompleto(point);
         input.title = texto;
+        // La dirección completa YA NO se dibuja bajo el campo (restaba espacio a lo importante: «Buscar rutas»). Queda en el tooltip del campo (title) y en este elemento oculto, que el
+        // campo referencia con aria-describedby: los lectores de pantalla siguen leyéndola.
         requestAnimationFrame(() => {
-            if (!el.isConnected || endpointInput(mode).value !== point.nombre) return;      // ya cambió: no se muestra un texto viejo
-            const trunca = input.scrollWidth > input.clientWidth + 1;      // el texto NO cabe en el campo
-            // Un lugar de Google muestra SIEMPRE la dirección que Google devolvió para ese lugar (así la persona comprueba que es la que quería, p. ej. la placa); el resto, solo si no cabe.
-            const deGoogle = point.fuente === 'Google Maps' && point.direccion && point.direccion.trim() && point.direccion.trim() !== point.nombre;
-            const visible = trunca || deGoogle;
-            el.textContent = visible ? texto : ''; el.hidden = !visible;      // «nombre — dirección de Google» (el mismo texto del tooltip del campo)
+            if (!el.isConnected || endpointInput(mode).value !== point.nombre) return;      // ya cambió: no se conserva un texto viejo
+            el.textContent = texto; el.hidden = true;
         });
     }
 
@@ -1917,8 +1915,27 @@
         tags.forEach((e) => { const c = document.createElement('span'); c.className = 'reco-etiqueta'; c.dataset.etiqueta = e; c.textContent = ETIQUETAS[e]; row.append(c); });
         return row;
     }
+    /** Datos de la tarjeta para «Mejor opción» (mejor-opcion.js): se guardan en la propia tarjeta (card._mejor), sin tocar el DOM ni lo que ya se dibuja. Mismas fórmulas que la tarjeta. */
+    let directoRef = null;      // minutos de ir caminando de A a B (referencia de la búsqueda en curso), para saber si el bus no ahorra tiempo
+    const tramoBus = (x) => ({ nombre: Spevb.rutaNombre(x.codigo), color: x.color });
+    function datosMejor(e, item) {
+        try {
+            const m = (v) => Math.round(v || 0);
+            const etiquetas = ((item && item.etiquetas) || []).filter((x) => ETIQUETAS[x]).map((x) => ETIQUETAS[x]);      // solo las que el servidor mandó
+            if (e.t) {
+                const t = e.t;
+                return { id: e.id, buses: [tramoBus(t.primerBus), tramoBus(t.segundoBus)], minutos: Math.max(1, Math.round(t.minutos)), caminaM: m(t.caminataMetros),
+                    busKm: (t.primerBus.recorridoKm || 0) + (t.segundoBus.recorridoKm || 0), subeM: t.caminataInicio ? m(t.caminataInicio.metros) : null, transbordo: true, etiquetas };
+            }
+            const o = e.o, min = minOpcion(o);
+            return { id: e.id, buses: [tramoBus(o)], minutos: Math.max(1, Math.round(min)), caminaM: m(o.acercamientoInicioMetros + o.acercamientoFinMetros), busKm: o.recorridoKm,
+                subeM: m(o.acercamientoInicioMetros), transbordo: false, sentidoContrario: e.tipo === 'contraria' || o.sentidoPermitido === false,
+                caminarMejor: directoRef != null && min >= directoRef, directoMin: directoRef, etiquetas };
+        } catch { return null; }      // un dato raro nunca debe romper los resultados: la tarjeta simplemente no se ofrece
+    }
     function decorar(card, entrada, item, espera) {
         card.dataset.opcionId = entrada.id;
+        const dm = datosMejor(entrada, item); if (dm) card._mejor = dm;
         if (!item) return;
         card.dataset.orden = String(item.orden);
         const main = card.querySelector(':scope > summary .opt-main');
@@ -1950,6 +1967,7 @@
 
     /** Dibuja «Mejores opciones» y los grupos según la recomendación del servidor. Devuelve la tarjeta inicial (la recomendada). */
     function renderConRecomendacion(data, rec, start, finish, current, box) {
+        try { directoRef = minDirecto(coordinates(start), coordinates(finish)); } catch { directoRef = null; }
         const options = data.opciones || [], alternatives = data.alternativas || [], transfers = data.transbordos || [];
         const entradas = [
             ...options.map((o) => ({ id: idOpcion(o, false), tipo: 'normal', o })),

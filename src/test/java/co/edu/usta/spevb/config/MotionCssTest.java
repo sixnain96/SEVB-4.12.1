@@ -78,10 +78,13 @@ class MotionCssTest {
 
     @Test void motionFilesAreLoadedAndCachedOffline() throws Exception {
         String html = leer("/index.html"), sw = leer("/sw.js");
-        assertTrue(html.indexOf("/css/motion.css") > 0 && html.indexOf("/css/motion.css") < html.indexOf("/css/styles.css"));
+        // index.html carga un solo archivo (css/app.min.css); motion.css va dentro, antes que styles.css (CssBundleTest comprueba que está al día).
+        assertTrue(html.contains("/css/app.min.css"));
+        List<String> fuentes = leer("/css/app.sources.txt").lines().map(String::trim).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList();
+        assertTrue(fuentes.indexOf("motion.css") >= 0 && fuentes.indexOf("motion.css") < fuentes.indexOf("styles.css"), "motion.css debe ir antes que styles.css en app.sources.txt");
         // common.js reemplaza window.Spevb: motion.js tiene que cargarse después o Spevb.Motion se pierde.
         assertTrue(html.indexOf("/js/motion.js") > html.indexOf("/js/common.js"), "motion.js debe cargarse después de common.js");
-        assertTrue(sw.contains("\"/css/motion.css\"") && sw.contains("\"/js/motion.js\""));
+        assertTrue(sw.contains("\"/css/app.min.css\"") && sw.contains("\"/js/motion.js\""));
     }
 
     @Test void theGlobalFocusRingKeepsAtLeast3To1ContrastAgainstWhite() throws Exception {

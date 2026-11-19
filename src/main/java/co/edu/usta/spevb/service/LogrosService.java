@@ -89,6 +89,27 @@ public class LogrosService {
         return new Estado(m, logros, insignia, hoy, r.ultimoDia(), dias.stream().sorted().skip(Math.max(0, dias.size() - DIAS_VISTA)).toList());
     }
 
+    /**
+     * Modo demostración (LOGROS_CUENTAS_DEMO): el mismo estado de la cuenta pero con TODO el catálogo desbloqueado, para enseñar cómo se ven y que se pueden cumplir.
+     * No se escribe ningún viaje: los reales siguen intactos y, al quitar la cuenta de la variable, vuelve a verse su progreso verdadero. Las métricas que se muestran
+     * (30 viajes, 1 transbordo, 7 días seguidos que terminan hoy, madrugador, nocturno y práctica) cumplen de verdad las reglas de {@link #desbloqueados}.
+     */
+    static Estado demo(Estado real, String insigniaGuardada) {
+        LocalDate hoy = real.hoy();
+        var m = new Metricas(Math.max(30, real.m().viajes()), Math.max(1, real.m().transbordos()), Math.max(7, real.m().rachaActual()),
+                Math.max(7, real.m().mejorRacha()), Math.max(7, real.m().mejorEstricta()), true, true, true);
+        var dias = new ArrayList<LocalDate>();
+        for (int i = 6; i >= 0; i--) dias.add(hoy.minusDays(i));
+        String insignia = insigniaGuardada != null && CATALOGO.contains(insigniaGuardada) ? insigniaGuardada : null;
+        return new Estado(m, desbloqueados(m), insignia, hoy, hoy, dias);
+    }
+
+    /** Estado de una cuenta de demostración (todos los logros desbloqueados). */
+    public Estado estadoDemo(long uid, long ahoraMs) {
+        List<String> p = jdbc.queryForList("SELECT insignia FROM logros_perfil WHERE usuario_id = ? AND insignia IS NOT NULL", String.class, uid);
+        return demo(estado(uid, ahoraMs), p.isEmpty() ? null : p.get(0));
+    }
+
     private static List<String> diferencia(Estado antes, Estado despues) {
         var nuevos = new ArrayList<>(despues.logros());
         nuevos.removeAll(antes.logros());
@@ -123,13 +144,16 @@ public class LogrosService {
     }
 
     /** Destaca (o quita con null/vacío) una insignia. Solo se acepta una que la cuenta ya desbloqueó. */
-    public Estado equipar(long uid, String id, long ahoraMs) {
+    public Estado equipar(long uid, String id, long ahoraMs) { return equipar(uid, id, ahoraMs, false); }
+
+    /** {@code demostracion}: la cuenta ve todo el catálogo desbloqueado, así que puede destacar cualquier insignia que exista. */
+    public Estado equipar(long uid, String id, long ahoraMs, boolean demostracion) {
         String nuevo = id == null || id.isEmpty() ? null : id;
         if (nuevo != null) {
             if (!CATALOGO.contains(nuevo)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esa insignia no existe.");
-            if (!estado(uid, ahoraMs).logros().contains(nuevo)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Todavía no has ganado esa insignia.");
+            if (!demostracion && !estado(uid, ahoraMs).logros().contains(nuevo)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Todavía no has ganado esa insignia.");
         }
         jdbc.update("INSERT INTO logros_perfil (usuario_id, insignia) VALUES (?, ?) ON CONFLICT (usuario_id) DO UPDATE SET insignia = EXCLUDED.insignia, actualizado_en = NOW()", uid, nuevo);
-        return estado(uid, ahoraMs);
+        return demostracion ? estadoDemo(uid, ahoraMs) : estado(uid, ahoraMs);
     }
 }

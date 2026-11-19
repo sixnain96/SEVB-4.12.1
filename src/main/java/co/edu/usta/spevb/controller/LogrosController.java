@@ -5,13 +5,16 @@ import co.edu.usta.spevb.service.CuentaService;
 import co.edu.usta.spevb.service.CuentaService.Usuario;
 import co.edu.usta.spevb.service.LogrosService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -38,6 +41,16 @@ public class LogrosController {
         return cuentas.usuarioDeSesion(CuentaController.token(r)).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Inicia sesión para continuar."));
     }
 
+    /** Correos (coma) de las cuentas de demostración: ven todos los logros desbloqueados. Vacío = ninguna (LOGROS_CUENTAS_DEMO, ver docs/LOGROS.md). */
+    @Value("${spevb.logros.cuentas-demo:}")
+    private String cuentasDemo = "";
+
+    private boolean esDemo(Usuario u) {
+        if (u.correo() == null || cuentasDemo == null || cuentasDemo.isBlank()) return false;
+        String correo = u.correo().strip().toLowerCase(Locale.ROOT);
+        return Arrays.stream(cuentasDemo.split(",")).map(s -> s.strip().toLowerCase(Locale.ROOT)).anyMatch(correo::equals);
+    }
+
     private void limite(Usuario u) {
         if (!limitador.permitir("logros:" + u.id(), 120, Duration.ofMinutes(1))) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Demasiadas solicitudes seguidas. Espera unos segundos.");
     }
@@ -53,7 +66,8 @@ public class LogrosController {
     public Map<String, Object> estado(HttpServletRequest r) {
         Usuario u = exigirUsuario(r);
         limite(u);
-        return respuesta(logros.estado(u.id(), System.currentTimeMillis()), false, List.of());
+        long ahora = System.currentTimeMillis();
+        return respuesta(esDemo(u) ? logros.estadoDemo(u.id(), ahora) : logros.estado(u.id(), ahora), false, List.of());
     }
 
     @PostMapping("/viaje")
@@ -62,7 +76,9 @@ public class LogrosController {
         Usuario u = exigirUsuario(r);
         limite(u);
         if (q == null || q.llegadaMs() == null || q.buses() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faltan datos del viaje.");
-        var reg = logros.registrar(u.id(), q.viajeId(), q.llegadaMs(), q.buses(), System.currentTimeMillis());
+        long ahora = System.currentTimeMillis();
+        var reg = logros.registrar(u.id(), q.viajeId(), q.llegadaMs(), q.buses(), ahora);
+        if (esDemo(u)) return respuesta(logros.estadoDemo(u.id(), ahora), reg.nuevo(), List.of());      // el viaje se guarda de verdad; los logros ya estaban todos desbloqueados
         return respuesta(reg.estado(), reg.nuevo(), reg.nuevos());
     }
 
@@ -71,7 +87,9 @@ public class LogrosController {
         CuentaController.mismoSitio(r);
         Usuario u = exigirUsuario(r);
         limite(u);
-        var reg = logros.practica(u.id(), System.currentTimeMillis());
+        long ahora = System.currentTimeMillis();
+        var reg = logros.practica(u.id(), ahora);
+        if (esDemo(u)) return respuesta(logros.estadoDemo(u.id(), ahora), reg.nuevo(), List.of());
         return respuesta(reg.estado(), reg.nuevo(), reg.nuevos());
     }
 
@@ -80,6 +98,8 @@ public class LogrosController {
         CuentaController.mismoSitio(r);
         Usuario u = exigirUsuario(r);
         limite(u);
-        return respuesta(logros.equipar(u.id(), q == null ? null : q.id(), System.currentTimeMillis()), false, List.of());
+        String id = q == null ? null : q.id();
+        long ahora = System.currentTimeMillis();
+        return respuesta(esDemo(u) ? logros.equipar(u.id(), id, ahora, true) : logros.equipar(u.id(), id, ahora), false, List.of());
     }
 }

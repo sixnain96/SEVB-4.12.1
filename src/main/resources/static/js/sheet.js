@@ -54,7 +54,7 @@
     let vhCache = null;
     const medirViewH = () => Math.round(zoomDePagina() ? window.innerHeight : (window.visualViewport?.height || window.innerHeight));
     const viewH = () => (vhCache === null ? (vhCache = medirViewH()) : vhCache);
-    const invalidarVH = () => { vhCache = null; };
+    const invalidarVH = () => { vhCache = null; peekJusto = 0; peekResultado = 0; };      // el alto de la pantalla cambió: la altura justa de la vista compacta también
     window.addEventListener('resize', invalidarVH, { passive: true });
     window.addEventListener('orientationchange', invalidarVH, { passive: true });
     window.addEventListener('pageshow', invalidarVH, { passive: true });
@@ -62,7 +62,38 @@
     if (window.visualViewport) { window.visualViewport.addEventListener('resize', invalidarVH, { passive: true }); window.visualViewport.addEventListener('scroll', invalidarVH, { passive: true }); }
     mobile.addEventListener('change', invalidarVH);
     const full = () => Math.round(viewH() * 0.94);
-    const visible = (name) => name === 'peek' ? Math.min(268, Math.round(viewH() * 0.4))
+    /* ALTURA «JUSTA» de la vista compacta. Antes era fija (268 px) y cortaba «Buscar rutas» y «Limpiar A y B»: había que subir el panel a mano para pulsarlos. Ahora, mientras NO hay rutas
+       buscadas, la vista compacta mide lo justo para ver los campos A y B, sus botones y esa fila (se mide, así sigue valiendo si el texto cambia de tamaño o aparece «Tu viaje de siempre»).
+       Con rutas ya buscadas se conserva la altura de antes: ahí el panel muestra «Iniciar viaje» (ver alinearBarraInicio). Tope: el 66 % de la pantalla. */
+    let peekJusto = 0;                                       // 0 = sin medir
+    const altoPeekFijo = () => Math.min(268, Math.round(viewH() * 0.4));
+    const hayRutasBuscadas = () => { const b = document.getElementById('startTripBar'); return !!(b && !b.hidden) || !!document.querySelector('#tripResults > *'); };
+    function medirPeekJusto() {
+        const fila = document.querySelector('.plan-actions');
+        if (!fila || !body || !mobile.matches) return 0;
+        const r = fila.getBoundingClientRect();
+        if (!r.height) return 0;                             // oculta (panel oculto, viaje en curso): no se mide
+        if (document.querySelector('.place-results.suggestion-open')) return peekJusto;      // con una lista de sugerencias abierta la fila baja: se conserva la medida anterior
+        const px = Math.round(r.bottom - sheet.getBoundingClientRect().top + body.scrollTop) + 14;
+        return Math.max(200, Math.min(px, Math.round(viewH() * 0.66)));
+    }
+    /* Con rutas buscadas y la tarjeta «Mejor opción» a la vista, la vista compacta mide lo justo para ver la tarjeta y «Iniciar viaje» (asa + cabecera + lo que hay entre la fila de «Buscar rutas»
+       y el borde de abajo del botón). Sin tarjeta (sin recomendación del servidor) sigue la altura de siempre. Tope: el 62 % de la pantalla. */
+    let peekResultado = 0;
+    function medirPeekResultado() {
+        const tarjeta = document.getElementById('mejorOpcion'), boton = document.getElementById('startTrip'), fila = document.querySelector('.plan-actions');
+        if (!tarjeta || tarjeta.hidden || !boton || !fila || !body || !mobile.matches) return 0;
+        const rb = boton.getBoundingClientRect(), rf = fila.getBoundingClientRect();
+        if (!rb.height || !rf.height) return 0;
+        const cabecera = body.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
+        return Math.max(altoPeekFijo(), Math.min(Math.round(cabecera + (rb.bottom - rf.bottom) + 14), Math.round(viewH() * 0.62)));
+    }
+    const altoPeek = () => {
+        if (hayRutasBuscadas()) { if (!peekResultado) peekResultado = medirPeekResultado(); return peekResultado || altoPeekFijo(); }
+        if (!peekJusto) peekJusto = medirPeekJusto();
+        return peekJusto || altoPeekFijo();
+    };
+    const visible = (name) => name === 'peek' ? altoPeek()
         : name === 'half' ? Math.round(viewH() * 0.56) : full();
 
     // will-change solo mientras la hoja se mueve de verdad (arrastre o transición); después se retira para no mantener una capa de más.
@@ -74,7 +105,7 @@
         // Si nada de lo que determina el tamaño cambió (estado, alto visible, teclado, panel oculto, diseño), no se vuelve a leer el layout ni a escribir las variables CSS (lectura-escritura-lectura
         // forzaba recálculos); la transformación SÍ se reescribe siempre (restablece la posición tras un arrastre cancelado).
         const ocultoYa = document.body.classList.contains('panel-oculto');
-        const firma = name + '|' + full() + '|' + mobile.matches + '|' + ocultoYa + '|' + kbPx;
+        const firma = name + '|' + full() + '|' + mobile.matches + '|' + ocultoYa + '|' + kbPx + '|' + altoPeek();
         const igual = firma === ultimaFirma;
         ultimaFirma = firma;
         const leido = !igual && body ? body.scrollTop : 0;      // posición de lectura antes de medir de nuevo el panel
@@ -199,11 +230,11 @@
     window.addEventListener('spevb-focus-map', () => go('peek', 'ver-mapa'));
     window.addEventListener('spevb-panel-completo', () => { if (mobile.matches) go('full', 'guia'); if (body) { try { body.scrollTop = 0; } catch { /* nada */ } } });      // la práctica del tutorial pide ver el panel entero (para señalar «Buscar rutas» y la recomendación)
     window.addEventListener('spevb-panel-medio', () => { if (mobile.matches) go('half', 'guiado'); if (body) { try { body.scrollTop = 0; } catch { /* nada */ } } });      // flujo guiado: la pregunta del paso queda a la vista
-    // Con un solo punto puesto la pantalla NO se mueve (la pestañita «Ahora escribe B» avisa qué sigue); con los dos, el panel baja para ver el mapa.
+    // El panel NO se mueve al elegir un punto, ni el primero ni el segundo: se queda en la altura que la persona dejó (antes, con los dos puestos bajaba solo y «Buscar rutas»
+    // quedaba fuera de alcance; había que volver a subirlo). El mapa se reencuadra por su cuenta con el área que el panel deja libre (showBothPoints → sheetCover).
     window.addEventListener('spevb-point-selected', () => {
-        terminarEdicion('punto-confirmado');         // el ajuste para escribir se deshace: vuelve a la altura que la persona tenía
-        const p = window.Spevb && window.Spevb.Planner && window.Spevb.Planner.puntos ? window.Spevb.Planner.puntos() : null;
-        if (!p || (p.origen && p.destino)) go('peek', 'ambos-puntos');
+        // La vista compacta ya muestra «Buscar rutas» y «Limpiar A y B» (altura justa, ver altoPeek), así que volver a ella tras escribir no deja nada fuera de alcance.
+        terminarEdicion('punto-confirmado');
     });
     /** Desplaza el cuerpo para que el elemento (por su posición NATURAL, no la fija de «sticky») quede arriba. */
     function alinearArriba(el, margen = 4) {
@@ -360,5 +391,25 @@
     window.addEventListener('pageshow', (e) => { if (e.persisted) { apply(state, false); sincronizarTeclado(); } });
     window.addEventListener('resize', () => { apply(state, false); sincronizarTeclado(); });      // apply() conserva scrollTop
     let ultimoFoco = 0;
+    // La altura justa de la vista compacta sigue a lo que hay dentro: si cambia el contenido (aparece «Tu viaje de siempre», cambia el tamaño de letra, se buscan o se limpian rutas) se mide de nuevo
+    // y, si el panel está en la vista compacta y la persona no lo está arrastrando, se reajusta con suavidad.
+    let repensarPeek = 0;
+    function programarPeek() {
+        cancelAnimationFrame(repensarPeek);
+        repensarPeek = requestAnimationFrame(() => {
+            peekJusto = 0; peekResultado = 0;
+            if (state === 'peek' && !dragging && mobile.matches) apply('peek');
+        });
+    }
+    if (window.ResizeObserver) {
+        const ro = new ResizeObserver(programarPeek);
+        ['formAB', 'siempre', 'mejorOpcion'].forEach((id) => { const el = document.getElementById(id); if (el) ro.observe(el); });
+        const fila = document.querySelector('.plan-actions'); if (fila) ro.observe(fila);
+    }
+    const resultadosEl = document.getElementById('tripResults'), barraEl = document.getElementById('startTripBar');
+    if (resultadosEl) new MutationObserver(programarPeek).observe(resultadosEl, { childList: true });
+    if (barraEl) new MutationObserver(programarPeek).observe(barraEl, { attributes: true, attributeFilter: ['hidden'] });
+    const mejorEl = document.getElementById('mejorOpcion');
+    if (mejorEl) new MutationObserver(programarPeek).observe(mejorEl, { childList: true, attributes: true, attributeFilter: ['hidden'] });
     apply('peek', false);
 })();

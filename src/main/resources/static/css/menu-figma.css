@@ -1,0 +1,112 @@
+/* Aspecto del menú lateral según el diseño de Figma «SEVB - Menús» (pantalla «Con sesión y viaje en curso»).
+   Es solo visual: no cambia la estructura del HTML, los ids ni la lógica. Va al final porque
+   sobrescribe las reglas del menú de viaje.css. */
+
+/* Secciones: cabecera gris suave y contenido sobre fondo blanco, sin marco ni degradado */
+body.home-sevb .side-menu > details.menu-seccion,
+body.home-sevb .side-menu > details.menu-seccion[open] {
+    margin: 7px 0;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    overflow: visible;
+}
+body.home-sevb .side-menu > details.menu-seccion > summary {
+    min-height: 48px;
+    padding: 8px 14px;
+    border-radius: 14px;
+    background: #f3f6f4;
+    color: #1d2a26;
+    font-size: 16px;
+    font-weight: 700;
+}
+body.home-sevb .side-menu > details.menu-seccion > summary::after {
+    width: 8px;
+    height: 8px;
+    margin-right: 2px;
+    border-color: #8a9791;
+    border-width: 0 2px 2px 0;
+}
+body.home-sevb .side-menu > details.menu-seccion > summary > .menu-ico,
+body.home-sevb .side-menu .menu-ico {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: #e4f0ea;
+    color: #176650;
+}
+body.home-sevb .side-menu > details.menu-seccion > :not(summary) {
+    margin-left: 4px;
+    margin-right: 4px;
+    max-width: calc(100% - 8px);
+}
+body.home-sevb .side-menu > details.menu-seccion[open] { padding-bottom: 6px; }
+body.home-sevb .side-menu > details.menu-seccion[open] > summary { margin-bottom: 10px; }
+
+/* Tarjeta «Mi cuenta»: blanca con borde fino */
+body.home-sevb .side-menu .menu-account {
+    padding: 16px;
+    gap: 10px;
+    border: 1px solid #e3e8e5;
+    border-radius: 16px;
+    background: #fff;
+}
+
+/* Botones secundarios: blancos, borde gris azulado y texto verde oscuro */
+body.home-sevb .side-menu button.secondary {
+    border: 1.5px solid #c4ceca;
+    border-radius: 13px;
+    background: #fff;
+    color: #0f4a3a;
+    font-weight: 600;
+}
+body.home-sevb .side-menu button.secondary:hover { background: #f3f6f4; }
+body.home-sevb .side-menu .primary-plan-button { border-radius: 13px; }
+
+/* Casa y Trabajo: iguales a un botón secundario; guardado se sigue distinguiendo en verde */
+body.home-sevb .side-menu .atajo-fila[data-tipo] .atajo {
+    border: 1.5px solid #c4ceca;
+    border-radius: 13px;
+    background: #fff;
+    font-weight: 600;
+}
+body.home-sevb .side-menu .atajo-fila[data-tipo] .atajo.guardado {
+    border-color: #176650;
+    background: #eef6f2;
+}
+body.home-sevb .side-menu .atajo-fila[data-tipo] .atajo[aria-pressed="true"] {
+    border-color: #9a6a00;
+    background: #fff3d6;
+}
+
+/* «Viaje en curso»: etiqueta verde suave */
+body.home-sevb .menu-estado-viaje {
+    padding: 4px 10px;
+    background: #e4f0ea;
+    color: #0f4a3a;
+    font-weight: 700;
+}
+body.home-sevb .menu-estado-viaje .menu-pulso { background: #176650; }
+
+/* Racha de logros: aviso en tono cálido */
+body.home-sevb .side-menu .racha-chip {
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: #fff3e3;
+}
+body.home-sevb .side-menu .racha-chip.sin-racha { background: #fff; }
+
+/* Movimiento del menú: el fondo se atenúa y los bloques entran uno tras otro (los 8 primeros).
+   Usa las duraciones de motion.css, así que «reducir movimiento» las deja instantáneas. */
+@keyframes menu-fondo-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes menu-bloque-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+body.home-sevb .menu-backdrop:not(.hidden) { animation: menu-fondo-in var(--motion-normal) var(--ease-standard) both; }
+body.home-sevb .side-menu.open > :not(.side-menu-head) { animation: menu-bloque-in var(--motion-normal) var(--ease-enter) backwards; }
+body.home-sevb .side-menu.open > :nth-child(2) { animation-delay: calc(var(--motion-stagger) * 1); }
+body.home-sevb .side-menu.open > :nth-child(3) { animation-delay: calc(var(--motion-stagger) * 2); }
+body.home-sevb .side-menu.open > :nth-child(4) { animation-delay: calc(var(--motion-stagger) * 3); }
+body.home-sevb .side-menu.open > :nth-child(5) { animation-delay: calc(var(--motion-stagger) * 4); }
+body.home-sevb .side-menu.open > :nth-child(6) { animation-delay: calc(var(--motion-stagger) * 5); }
+body.home-sevb .side-menu.open > :nth-child(7) { animation-delay: calc(var(--motion-stagger) * 6); }
+body.home-sevb .side-menu.open > :nth-child(8) { animation-delay: calc(var(--motion-stagger) * 7); }
+body.home-sevb .side-menu.open > :nth-child(n+9) { animation-delay: calc(var(--motion-stagger) * 8); }

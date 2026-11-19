@@ -69,6 +69,10 @@ Cada medalla es un botón (también las bloqueadas): al tocarla o con Enter/Espa
 - `POST /api/cuenta/logros/viaje` `{ viajeId, llegadaMs, buses }` → estado + `nuevo` + `nuevos[]`.
 - `POST /api/cuenta/logros/practica` · `POST /api/cuenta/logros/insignia` `{ id|null }`.
 
+## Cuentas de demostración (todos los logros desbloqueados)
+
+Para enseñar el catálogo completo sin tener que viajar 30 veces, `LOGROS_CUENTAS_DEMO` (correos separados por coma; vacía por defecto; dato personal, va en `.env`) hace que esas cuentas **vean todos los logros desbloqueados**: 30 viajes, un transbordo, 7 días seguidos que terminan hoy, madrugador, de noche y práctica. Es un **modo de demostración** que solo cambia lo que se muestra: no escribe viajes falsos en la base (`LogrosService.demo`), los viajes reales de la cuenta siguen guardándose y, al quitar el correo de la variable y reiniciar, vuelve a verse su progreso verdadero. Esas cuentas pueden destacar cualquier insignia del catálogo. Pruebas: `LogrosDemoTest` (las métricas mostradas cumplen de verdad las reglas) y `LogrosDemoControllerTest`.
+
 ## Pruebas
 
 - Java: `RachaTest` (vectores, día/hora de Bogotá, significado antiguo de los logros), `LogrosPostgresTest` (PostgreSQL real: idempotencia, validaciones, racha con gracia, fuera de orden,

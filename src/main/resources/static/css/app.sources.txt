@@ -1,0 +1,15 @@
+# Hojas que forman css/app.min.css, en el orden en que las cargaba index.html (el orden importa: las últimas ganan).
+# Si agregas, quitas o reordenas una hoja, edita esta lista y ejecuta:  node scripts/build-css.mjs
+# styles.css y mapa.css también las usan por separado editor.html, lugares.html, paraderos.html, pasos.html, puentes.html y reportes.html.
+motion.css
+styles.css
+mapa.css
+home.css
+bus3d.css
+panel-ocultable.css
+viaje.css
+recomendacion.css
+guia.css
+guiado.css
+menu-figma.css
+mejor-opcion.css

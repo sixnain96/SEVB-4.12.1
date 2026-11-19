@@ -202,6 +202,25 @@ class EmisorNavegador:
         raise RuntimeError(f'ningún navegador disponible ({ultimo})')
 
 
+def preparar_emulador(adb, serial):
+    """Deja el emulador listo para recibir el GPS: ubicación del sistema ENCENDIDA y permiso de ubicación concedido a Chrome (sin esto la página nunca recibe la posición del joystick).
+    Devuelve una lista de (paso, ok). Los fallos no detienen nada: se informan."""
+    base = [adb] + (['-s', serial] if serial else []) + ['shell']
+    pasos = [('ubicación del sistema encendida', ['cmd', 'location', 'set-location-enabled', 'true']),
+             ('ubicación en modo preciso', ['settings', 'put', 'secure', 'location_mode', '3'])]
+    for paquete in ('com.android.chrome', 'com.chrome.beta', 'org.mozilla.firefox', 'com.sec.android.app.sbrowser'):
+        for permiso in ('ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION'):
+            pasos.append((f'permiso de ubicación a {paquete} ({permiso})', ['pm', 'grant', paquete, 'android.permission.' + permiso]))
+    resultado = []
+    for nombre, cmd in pasos:
+        try:
+            r = subprocess.run(base + cmd, capture_output=True, text=True, timeout=12)
+            resultado.append((nombre, r.returncode == 0 and 'Exception' not in (r.stdout + r.stderr) and 'Unknown' not in (r.stdout + r.stderr)))
+        except (OSError, subprocess.SubprocessError):
+            resultado.append((nombre, False))
+    return resultado
+
+
 def abrir_en_emulador(adb, serial, url):
     """Abre la página en el navegador del emulador (intent VIEW). Devuelve (ok, mensaje)."""
     if not url_valida(url):
@@ -339,6 +358,7 @@ def principal(argv=None):
     ap.add_argument('--adb', default=adb_por_defecto())
     ap.add_argument('--prueba', action='store_true', help='no llama a adb: guarda las posiciones en memoria (para las pruebas automáticas)')
     ap.add_argument('--abrir', action='store_true', help='abre la página en tu navegador')
+    ap.add_argument('--no-preparar', action='store_true', help='no tocar los ajustes de ubicación ni los permisos del emulador')
     ap.add_argument('--navegador', metavar='URL', help='SIN emulador: abre una ventana de Edge/Chrome en esa URL (p. ej. https://mapas.spebv.tech) y le fija la ubicación')
     ap.add_argument('--url', metavar='URL', help='con emulador: abre esta URL en el navegador del teléfono virtual')
     ap.add_argument('--precision', type=float, default=8.0, help='precisión (m) que verá la app en modo --navegador (por defecto 8: una lectura buena)')
@@ -369,6 +389,9 @@ def principal(argv=None):
         print('Navegador:', ', '.join(disp))
     else:
         print('Emulador:', ', '.join(disp) if disp else 'NO se ve ningún emulador encendido (enciéndelo y vuelve a abrir la página).')
+        if disp and not a.prueba and not a.no_preparar:
+            hechos = preparar_emulador(a.adb, a.serial)
+            print('Preparando el emulador:', ', '.join(n for n, ok in hechos if ok and 'chrome' in n.lower() or (ok and 'ubicación' in n)) or 'sin cambios')
         if a.url and disp and not a.prueba:
             ok, msg = abrir_en_emulador(a.adb, a.serial, a.url)
             print('Abriendo', a.url, 'en el emulador:', 'listo' if ok else 'no se pudo (' + msg + ')')

@@ -722,7 +722,8 @@ def una_direccion_larga_confirmada_se_ve_completa_y_el_campo_sigue_editable(nav)
                [larga, larga + ', Villavicencio, Meta, Colombia'])
     p.wait_for_timeout(400)
     d = p.evaluate("""() => { const el = document.getElementById('originCompleto'), i = document.getElementById('tripOrigin');
-        return { visible: !!el && !el.hidden && el.offsetParent !== null, texto: el && el.textContent, titulo: i.title, desborde: document.documentElement.scrollWidth - innerWidth, valor: i.value }; }""")
+        return { visible: !!el && !!(el.textContent || '').trim() && el.hidden, texto: el && el.textContent, titulo: i.title, desborde: document.documentElement.scrollWidth - innerWidth, valor: i.value }; }""")
+    # (4.15.x) la dirección completa ya no se dibuja bajo el campo: «visible» significa que el texto existe y está oculto (tooltip + lector de pantalla)
     assert d['visible'] and 'Villavicencio, Meta, Colombia' in d['texto'] and d['titulo'] == d['texto'] and d['desborde'] <= 0, d
     assert d['valor'] == larga, 'el input conserva el texto completo y editable (no se fuerza multilínea)'
     p.click('#tripOrigin'); p.keyboard.press('End'); p.keyboard.type('X'); p.wait_for_timeout(300)

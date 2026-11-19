@@ -14,16 +14,8 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2" />
     <meta name="description" content="Planificador de rutas de buses de Villavicencio basado en recorridos registrados en SEVB." />
     <title>SEVB · Rutas de buses de Villavicencio</title>
-    <link rel="stylesheet" href="/css/motion.css" />
-    <link rel="stylesheet" href="/css/styles.css" />
-    <link rel="stylesheet" href="/css/mapa.css" />
-    <link rel="stylesheet" href="/css/home.css" />
-    <link rel="stylesheet" href="/css/bus3d.css" />
-    <link rel="stylesheet" href="/css/panel-ocultable.css" />
-    <link rel="stylesheet" href="/css/viaje.css" />
-    <link rel="stylesheet" href="/css/recomendacion.css" />
-    <link rel="stylesheet" href="/css/guia.css" />
-    <link rel="stylesheet" href="/css/guiado.css" />
+    <!-- Un solo archivo de estilos: junta y minifica las hojas de css/app.sources.txt (en ese orden). Se regenera con: node scripts/build-css.mjs -->
+    <link rel="stylesheet" href="/css/app.min.css" />
     <script defer src="/js/mapa/geo.js"></script>
     <script defer src="/js/mapa/nucleo.js"></script>
     <script defer src="/js/common.js"></script>
@@ -223,7 +215,7 @@
     </section>
     </details>
 
-    <div class="menu-brand" id="menuMarca"><img src="/img/marca/sevb-chiguiro-360.png" alt="" width="160" height="160" loading="lazy" decoding="async"><span class="menu-brand-name">SEVB</span></div>
+    <div class="menu-brand" id="menuMarca"><img src="/img/marca/sevb-chiguiro-menu.webp" alt="" width="160" height="160" loading="lazy" decoding="async"><span class="menu-brand-name">SEVB</span></div>
 </aside>
 
 <div class="app">
@@ -241,7 +233,7 @@
         <div id="sheetHandle" class="sheet-handle" role="button" tabindex="0" aria-label="Subir o bajar el panel"><span></span></div>
         <header class="sheet-head">
             <a class="brand" href="/" aria-label="SEVB, inicio">
-                <div class="brand-mark brand-mark-logo"><img src="/img/marca/sevb-chiguiro-192.png" alt="" width="52" height="52" decoding="async"></div>
+                <div class="brand-mark brand-mark-logo"><img src="/img/marca/sevb-chiguiro-logo.webp" alt="" width="52" height="52" decoding="async"></div>
                 <div><h1>SEVB</h1><p>Rutas de Villavicencio</p></div>
             </a>
             <button id="helpButton" class="menu-button help-button" type="button" aria-label="Ayuda: qué hago ahora" title="Ayuda">?</button>
@@ -294,6 +286,7 @@
                     <button id="planTrip" class="primary-plan-button" type="button">Buscar rutas</button>
                     <button id="clearTripPoints" class="clear-trip clear-trip-main" type="button" aria-label="Borrar origen y destino" disabled><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Limpiar A y B</span></button>
                 </div>
+                <div id="mejorOpcion" class="mejor-opcion" hidden></div>
                 <div id="startTripBar" class="start-trip-bar" hidden>
                     <button id="startTrip" class="start-trip-main" type="button"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 3l7 17-7-4-7 4z" fill="currentColor"/></svg><span>Iniciar viaje</span></button>
                     <small id="startTripInfo" class="start-trip-info"></small>
@@ -427,5 +420,7 @@
 <script defer src="/js/inicio.js"></script>
 <script defer src="/js/pwa.js"></script>
 <script defer src="/js/instalar.js"></script>
+<script defer src="/js/animaciones.js"></script>
+<script defer src="/js/mejor-opcion.js"></script>
 </body>
 </html>

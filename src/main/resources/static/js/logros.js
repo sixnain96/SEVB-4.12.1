@@ -327,9 +327,10 @@
         if (nota) { nota.hidden = !(v.deCuenta && pend); nota.textContent = pend ? (pend === 1 ? 'Un viaje por sincronizar: se enviará cuando haya conexión.' : pend + ' viajes por sincronizar: se enviarán cuando haya conexión.') : ''; }
         if (!lista || !resumen) return;
         resumen.textContent = v.m.viajes ? 'Has terminado ' + v.m.viajes + (v.m.viajes === 1 ? ' viaje' : ' viajes') + '.' : 'Aún no has terminado ningún viaje. ¡Tu primer viaje te da un logro!';
-        lista.replaceChildren(...CATALOGO.map((l) => {
+        lista.replaceChildren(...CATALOGO.map((l, i) => {
             const li = document.createElement('li'), ganado = v.ids.has(l.id);
             li.className = 'logro' + (ganado ? ' ganado' : '');
+            li.style.setProperty('--i', String(i));      // orden de entrada: css/motion.css los hace aparecer uno tras otro
             const b = document.createElement('button'); b.type = 'button'; b.className = 'logro-boton'; b.dataset.logro = l.id;
             b.setAttribute('aria-label', l.titulo + ', ' + (ganado ? 'ganado' : 'por conseguir') + '. Toca para ver ' + (ganado ? 'tu recompensa.' : 'cómo se consigue.'));
             const ico = document.createElement('span'); ico.className = 'logro-ico'; ico.setAttribute('aria-hidden', 'true'); ico.append(S.Iconos.el(ganado ? l.icono : 'candado', { tam: 22 }));

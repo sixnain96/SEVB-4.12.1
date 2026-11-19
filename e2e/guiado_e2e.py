@@ -434,8 +434,8 @@ def en_el_flujo_guiado_lo_escrito_se_conserva_y_la_direccion_de_google_se_ve_al_
     assert p.input_value('#tripDestination') == 'goodir carrera 27 numero 35A 50', 'el campo no se reescribe'
     p.keyboard.press('ArrowDown'); p.keyboard.press('Enter')
     esperar_paso(p, 'confirmar_destino')
-    B.esperar(p, "!document.getElementById('destinationCompleto').hidden", 3000)
-    assert 'Cra. 27 #35A-50' in p.inner_text('#destinationCompleto'), p.inner_text('#destinationCompleto')
+    B.esperar(p, "document.getElementById('destinationCompleto').textContent.trim() !== ''", 3000)
+    assert 'Cra. 27 #35A-50' in p.text_content('#destinationCompleto'), p.text_content('#destinationCompleto')
     s.limpio('guiado nomenclatura'); s.cerrar()
 
 
