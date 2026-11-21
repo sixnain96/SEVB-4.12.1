@@ -32,6 +32,14 @@ Leyenda de las columnas de modo: ✅ configurable desde `.env`; 🔒 valor fijad
 | `LIMITE_SOLICITUDES` | Limitador de solicitudes por cliente | `true` | No | ✅ | ✅ | ✅ | No |
 | `ADMIN_CORREOS` | Correos (coma) que administran entrando con Google | vacía | No | ✅ | ✅ | ✅ | Dato personal |
 | `LOGROS_CUENTAS_DEMO` | Correos (coma) cuya cuenta ve TODOS los logros desbloqueados (modo demostración; no modifica los viajes reales) | vacía | No | ✅ | ✅ | ✅ | Dato personal |
+| `LOGROS_RACHA_DEMO_BASE` | Racha de las cuentas de demostración (`LOGROS_CUENTAS_DEMO` y la cuenta del proyecto `sebvadmin@gmail.com`) | `31` | No | ✅ | ✅ | ✅ | estática salvo que pongas fecha de inicio |
+| `LOGROS_RACHA_DEMO_INICIO` | Fecha (AAAA-MM-DD, Bogotá) desde la que esa racha pierde un día por día; vacía = no baja | vacía | No | ✅ | ✅ | ✅ | |
+| `SMTP_HOST` | Servidor de correo para avisar a los administradores de cada reporte (Gmail: `smtp.gmail.com`); vacío = no se envía correo | vacía | No | ✅ | ✅ | ✅ | |
+| `SMTP_PUERTO` | Puerto del servidor de correo | `587` | No | ✅ | ✅ | ✅ | 465 con `SSL` |
+| `SMTP_SEGURIDAD` | `STARTTLS`, `SSL` o `NINGUNA` | `STARTTLS` | No | ✅ | ✅ | ✅ | |
+| `SMTP_USUARIO` | Usuario (el correo) del servidor de correo | vacía | No | ✅ | ✅ | ✅ | Dato personal |
+| `SMTP_CLAVE` | Contraseña de aplicación del correo | vacía | No | ✅ | ✅ | ✅ | Secreto: solo en `.env` |
+| `SMTP_REMITENTE` | Correo que figura como remitente (por defecto, el usuario) | vacía | No | ✅ | ✅ | ✅ | |
 | `GOOGLE_CLIENT_ID` | ID de cliente de Google (público): sin él nadie puede abrir sesión (Fase B: única vía de acceso) | vacío (el diálogo dice que Google no está configurado) | No | ✅ | ✅ | ✅ | No (público) |
 | `DIRECCION_OFICIAL` | Dirección https oficial que se muestra al intentar entrar desde una dirección temporal de túnel | vacía (no se menciona ninguna) | No | ✅ | ✅ | ✅ | No (público) |
 | `SOPORTE_CORREO` | Correo al que se pide la recuperación de una cuenta anterior con contraseña | vacío («pide la recuperación al equipo de SEVB») | No | ✅ | ✅ | ✅ | Dato personal |
@@ -60,6 +68,8 @@ Leyenda de las columnas de modo: ✅ configurable desde `.env`; 🔒 valor fijad
 | `RED_PEATONAL_HABILITADA` | Red de calles propia en memoria | `true` | No | ✅ | ✅ | ✅ | No |
 | `RED_PEATONAL_ARCHIVO` | Archivo de caché de la red | `data/red-peatonal.bin.gz` | No | ✅ | ✅ (volumen `/app/data`) | ✅ (volumen) | No |
 | `RED_PEATONAL_REFRESCO_DIAS` | Días entre descargas de la red | `60` | No | ✅ | ✅ | ✅ | No |
+| `RED_CRUCE_VIA_PRINCIPAL_METROS` | Metros equivalentes de cruzar a nivel una vía principal/secundaria CERCA de un puente registrado (≤ 120 m de sus extremos; lejos de los puentes se cruza libre). No se muestran como distancia; pesan al elegir parada y puente | `30` | No | ✅ | ✅ | ✅ | No |
+| `RED_CRUCE_TRONCAL_METROS` | Ídem para una vía troncal; una doble calzada paga dos veces. `0` = sin cobro | `50` | No | ✅ | ✅ | ✅ | No |
 | `RED_VIAL_HABILITADA` | Red vial propia para buses (separada de la peatonal) | `true` | No | ✅ | ✅ | ✅ | No |
 | `RED_VIAL_ARCHIVO` | Archivo de caché de la red vial de buses | `data/red-vial-bus.json.gz` | No | ✅ | ✅ (volumen `/app/data`) | ✅ (volumen) | No |
 | `RED_VIAL_REFRESCO_DIAS` | Días entre descargas de la red vial | `60` | No | ✅ | ✅ | ✅ | No |

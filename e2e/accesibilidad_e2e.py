@@ -115,7 +115,7 @@ def verificar_modal(p, id_, abrir, abridor, escape_cierra=True):
 
 def desde_menu(p, boton):
     p.click('#menuButton'); p.wait_for_timeout(400)
-    p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")      # «Ayuda» y otras secciones van plegadas
+    p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")      # «Ayuda» y otras secciones van plegadas
     p.click(boton)
 
 
@@ -141,7 +141,7 @@ def modales_nombre_y_reporte_con_un_solo_controlador(nav):
     B.esperar(p, "!document.getElementById('tripTools').hidden", 12000)
     p.wait_for_timeout(800)
     verificar_modal(p, 'nameModal', lambda: p.click('#saveTrip'), 'saveTrip')
-    verificar_modal(p, 'reportModal', lambda: p.click('#reportProblem'), 'reportProblem')
+    verificar_modal(p, 'reportModal', lambda: (p.click('#tripToolsMas'), p.click('#reportProblem')), 'reportProblem')
     s.limpio('modales 2'); s.cerrar()
 
 

@@ -85,7 +85,7 @@ def menu(p):
     if not p.evaluate("document.getElementById('sideMenu').classList.contains('open')"):
         p.click('#menuButton')
     p.wait_for_timeout(450)
-    p.evaluate("document.getElementById('logros').open = true")
+    p.evaluate("document.getElementById('menuMas').open = true; document.getElementById('logros').open = true")
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------- racha
@@ -116,17 +116,17 @@ def la_racha_usa_dias_de_bogota_aunque_el_telefono_este_en_otra_zona(nav):
 
 
 @prueba
-def la_racha_sigue_con_un_dia_de_gracia_y_se_corta_con_dos(nav):
+def la_racha_sigue_con_un_dia_de_gracia_y_despues_baja_un_dia_por_dia(nav):
     s, p = invitado(nav)
     fijar(p, bog(2026, 3, 2)); llegada(p, 1, bog(2026, 3, 2))                    # lunes
     assert estado(p)['racha'] == 1
     fijar(p, bog(2026, 3, 4)); assert estado(p)['racha'] == 1, 'el miércoles aún se puede continuar'
     llegada(p, 2, bog(2026, 3, 4))                                               # miércoles
     assert estado(p)['racha'] == 2, 'lunes y miércoles: continúa'
-    fijar(p, bog(2026, 3, 7)); assert estado(p)['racha'] == 0 and estado(p)['mejorRacha'] == 2, 'tras dos días sin viajar: 0 y se conserva la mejor'
+    fijar(p, bog(2026, 3, 7)); assert estado(p)['racha'] == 1 and estado(p)['mejorRacha'] == 2, '4.17: pasado el margen la racha baja un día por día (2 → 1) y se conserva la mejor'
     llegada(p, 3, bog(2026, 3, 7)); llegada(p, 4, bog(2026, 3, 7, 13))
     e = estado(p)
-    assert e['racha'] == 1 and e['viajes'] == 4, 'el primer día nuevo vale 1 y todos los viajes cuentan en el total'
+    assert e['racha'] == 2 and e['viajes'] == 4, 'viajar de nuevo continúa desde lo que quedaba (1 + 1) y todos los viajes cuentan en el total'
     s.limpio('gracia'); s.cerrar()
 
 
@@ -387,6 +387,70 @@ def al_cambiar_de_cuenta_se_limpia_la_vista_y_una_respuesta_vieja_no_aparece(nav
     s.limpio('cambio de cuenta'); s.cerrar()
 
 
+@prueba
+def la_racha_baja_un_dia_por_cada_dia_sin_viajar_y_continua_desde_lo_que_quedaba(nav):
+    s, p = invitado(nav)
+    menu(p)
+    for d in (1, 2, 3):
+        fijar(p, bog(2026, 4, d)); llegada(p, 'g%d' % d, bog(2026, 4, d))
+    assert p.inner_text('#rachaTexto') == 'Racha de 3 días'
+    # lunes–miércoles de gracia: entera; después baja un día por día hasta 0 (no cae a 0 de golpe)
+    for dia, texto in ((4, 'Racha de 3 días'), (5, 'Racha de 3 días'), (6, 'Racha de 2 días'), (7, 'Racha de 1 día'), (8, 'Empieza tu racha con tu próximo viaje')):
+        fijar(p, bog(2026, 4, dia)); p.wait_for_timeout(80)
+        assert p.inner_text('#rachaTexto') == texto, (dia, p.inner_text('#rachaTexto'))
+    # volver antes de llegar a 0 continúa desde lo que quedaba: el día 7 valía 1 y al viajar suma 1 → 2 (no vuelve a 1)
+    fijar(p, bog(2026, 4, 7)); llegada(p, 'g7', bog(2026, 4, 7)); p.wait_for_timeout(80)
+    assert p.inner_text('#rachaTexto') == 'Racha de 2 días', p.inner_text('#rachaTexto')
+    assert p.inner_text('#rachaChip .racha-num') == '2', 'el número grande acompaña al texto'
+    s.limpio('racha gradual'); s.cerrar()
+
+
+@prueba
+def la_cuenta_de_demostracion_muestra_una_racha_estatica_que_baja_sola_y_se_puede_simular_en_la_presentacion(nav):
+    import datetime
+    s, p = con_ana(nav, sub='985', correo='demo@example.com', nombre='Cuenta Demo')
+    menu(p)
+    hoy = (datetime.datetime.utcnow() - datetime.timedelta(hours=5)).date()
+    esperada = max(0, 30 - max(0, (hoy - datetime.date(2026, 11, 19)).days))
+    p.evaluate("document.getElementById('logros').open = true"); p.wait_for_timeout(500)
+    B.esperar(p, "!!Spevb.Logros.leer() && Spevb.Logros.leer().hitos.length >= 10", 6000)      # todos los logros desbloqueados
+    txt = p.inner_text('#rachaTexto')
+    assert txt == ('Racha de %d días' % esperada if esperada != 1 else 'Racha de 1 día') or esperada == 0, (txt, esperada)
+    assert p.is_visible('#rachaSimular') and p.is_visible('#rachaSimMas'), 'el simulador de la presentación aparece solo en la cuenta de demostración'
+    if esperada >= 3:
+        p.click('#rachaSimMas'); p.wait_for_timeout(300)
+        assert p.inner_text('#rachaTexto') == 'Racha de %d días' % (esperada - 1), p.inner_text('#rachaTexto')
+        assert 'pasó 1 día' in p.inner_text('#rachaSimularTxt')
+        p.click('#rachaSimMas'); p.click('#rachaSimMas'); p.wait_for_timeout(300)
+        assert p.inner_text('#rachaTexto') == 'Racha de %d días' % (esperada - 3), 'cada día simulado quita uno'
+        p.click('#rachaSimHoy'); p.wait_for_timeout(300)
+        assert p.inner_text('#rachaTexto') == txt, 'volver a hoy'
+    s.limpio('racha demo'); s.cerrar()
+    # otra cuenta: sin simulador y con su racha normal
+    s2, p2 = con_ana(nav)
+    menu(p2)
+    p2.evaluate("document.getElementById('logros').open = true"); p2.wait_for_timeout(300)
+    assert not p2.is_visible('#rachaSimular'), 'las demás cuentas no ven el simulador'
+    assert p2.inner_text('#rachaTexto') == 'Empieza tu racha con tu próximo viaje'
+    s2.limpio('racha otra cuenta'); s2.cerrar()
+
+
+@prueba
+def la_cuenta_del_proyecto_muestra_31_dias_y_todos_los_logros_siempre_y_el_simulador_enseña_como_baja(nav):
+    s, p = con_ana(nav, sub='777', correo='SebvAdmin@gmail.com', nombre='Admin SEVB')
+    menu(p)
+    p.evaluate("document.getElementById('logros').open = true"); p.wait_for_timeout(500)
+    B.esperar(p, "Spevb.Logros.leer().hitos.length >= 10", 6000)
+    assert p.inner_text('#rachaTexto') == 'Racha de 31 días', p.inner_text('#rachaTexto')
+    assert p.inner_text('#rachaChip .racha-num') == '31'
+    assert p.locator('#logrosLista .logro.ganado').count() == 10, 'todos los logros desbloqueados'
+    p.click('#rachaSimMas'); p.wait_for_timeout(300)
+    assert p.inner_text('#rachaTexto') == 'Racha de 30 días', 'el simulador enseña cómo baja'
+    p.click('#rachaSimHoy'); p.wait_for_timeout(300)
+    assert p.inner_text('#rachaTexto') == 'Racha de 31 días'
+    s.limpio('cuenta del proyecto'); s.cerrar()
+
+
 # ------------------------------------------------------------------------------------------------------------------------------------------- presentación y recompensas
 @prueba
 def el_menu_muestra_racha_llama_por_nivel_y_detalle_con_la_explicacion_del_dia_de_gracia(nav):
@@ -403,7 +467,7 @@ def el_menu_muestra_racha_llama_por_nivel_y_detalle_con_la_explicacion_del_dia_d
             assert p.inner_text('#rachaTexto') == esperado[n][1] and p.get_attribute('#rachaIcono', 'data-icono') == esperado[n][0], (n, p.inner_text('#rachaTexto'), p.get_attribute('#rachaIcono', 'data-icono'))
     assert 'Mejor racha: 14 días' in p.inner_text('#rachaDetalle') and 'Un día sin viajar no rompe tu racha' in p.inner_text('#rachaDetalle')
     ancho = p.evaluate("(() => { const c = document.getElementById('rachaChip').getBoundingClientRect(), i = document.getElementById('rachaIcono').getBoundingClientRect(); return { chip: c.height, icono: document.getElementById('rachaIcono').offsetHeight, mismaFila: Math.abs((i.top + i.height / 2) - (c.top + c.height / 2)) < 14 }; })()")
-    assert ancho['mismaFila'] and ancho['icono'] <= 28, f'el icono cabe en la misma fila que el texto en todos los niveles: {ancho}'
+    assert ancho['mismaFila'] and ancho['icono'] <= 44, f'el icono cabe en la misma fila que el texto en todos los niveles (4.17: la llama es más grande): {ancho}'
     foto(p, 'logros-racha-menu-320.png')
     s.limpio('racha menu'); s.cerrar()
 

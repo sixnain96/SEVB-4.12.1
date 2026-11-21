@@ -156,6 +156,7 @@ def el_menu_se_usa_durante_el_viaje_se_desplaza_y_el_viaje_sigue(nav):
     # el menú recibe el toque: lo que hay en su centro es el menú, no la tarjeta ni una capa transparente
     arriba = p.evaluate("(() => { const m = document.getElementById('sideMenu').getBoundingClientRect(); const el = document.elementFromPoint(m.left + m.width / 2, m.top + m.height * 0.8); return !!el && !!el.closest('#sideMenu'); })()")
     assert arriba, 'el centro del menú recibe los toques'
+    p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })"); p.wait_for_timeout(200)      # 4.17: plegado el menú cabe en pantalla; abierto todo, se desplaza
     antes = p.evaluate("document.getElementById('sideMenu').scrollTop")
     p.mouse.move(180, 400); p.mouse.wheel(0, 500); p.wait_for_timeout(300)
     despues = p.evaluate("document.getElementById('sideMenu').scrollTop")
@@ -637,7 +638,7 @@ def texto_ampliado_y_modo_oscuro_no_rompen_la_tarjeta_ni_los_botones(nav):
         s = movil(nav, 360, 640, color_scheme=esquema); p = s.abrir()
         p.evaluate("document.documentElement.dataset.letra = 'enorme'; try { localStorage.setItem('spevb-confort', JSON.stringify({ letra: 'enorme' })); } catch (e) {}")
         p.click('#menuButton'); p.wait_for_timeout(300)
-        p.evaluate("document.getElementById('menuVista').open = true"); p.wait_for_timeout(200)
+        p.evaluate("document.getElementById('menuMas').open = true; document.getElementById('menuVista').open = true"); p.wait_for_timeout(200)
         p.click('button[data-letra="enorme"]')      # el botón del menú (el selector sin «button» también coincidía con <html data-letra>)
         p.click('#closeMenu'); p.wait_for_timeout(300)
         V.planear(p); V.destino_lejos(p)
@@ -770,6 +771,7 @@ def una_ventana_estrecha_con_raton_sin_tactil_tambien_funciona(nav):
     assert p.is_visible('#menuFlotante')
     p.click('#menuFlotante'); p.wait_for_timeout(400)
     assert sup(p)['overlay'] == 'menu'
+    p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })"); p.wait_for_timeout(200)      # 4.17: el menú simplificado ya cabe plegado; con todo abierto vuelve a desplazarse
     p.mouse.move(300, 500); p.mouse.wheel(0, 400); p.wait_for_timeout(250)
     assert p.evaluate("document.getElementById('sideMenu').scrollTop") > 0
     p.keyboard.press('Escape'); p.wait_for_timeout(300)

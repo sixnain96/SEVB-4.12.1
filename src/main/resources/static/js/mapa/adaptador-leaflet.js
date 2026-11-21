@@ -274,7 +274,12 @@
             this.n.on('click dragstart zoomstart', () => abrir(false));
         }
         /** Lienzo (canvas) aparte para una línea que se repinta muy seguido (la estela del bus): no obliga a redibujar las demás capas. */
-        _lienzoPropio() { return this._lienzo || (this._lienzo = L.canvas({ padding: 0.2 })); }
+        /** Lienzo propio de la estela del bus. Va en su PROPIO panel (por encima de las líneas del viaje y de los tramos a pie) para que la línea blanca recorrida se vea siempre: con el panel
+         *  por defecto quedaba debajo del lienzo principal y la ruta roja/azul la tapaba (4.17). */
+        _lienzoPropio() {
+            if (!this._lienzo) { this.n.createPane('estelaPane').style.zIndex = 460; this._lienzo = L.canvas({ padding: 0.2, pane: 'estelaPane' }); }
+            return this._lienzo;
+        }
         _rendererCaminata() {
             // Las líneas punteadas de caminata se dibujan en SVG (el mapa usa canvas, que no admite animación CSS) y se mueven muy despacio.
             if (!this._walk) { this.n.createPane('walkPane').style.zIndex = 450; this._walk = L.svg({ pane: 'walkPane', padding: 0.3 }); }

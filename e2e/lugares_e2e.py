@@ -120,8 +120,9 @@ def un_favorito_antiguo_de_invitado_sigue_sirviendo_y_nunca_pasa_a_la_cuenta(nav
     s.ctx.add_init_script("try { if (!localStorage.getItem('__s1')) { localStorage.setItem('__s1', '1'); localStorage.setItem('spevb-favoritos', JSON.stringify([{ id: 'v1', nombre: 'Casa', lat: 4.145, lng: -73.654 }])); } } catch (e) {}")
     p = s.abrir()
     menu(p)
-    assert 'Ir a casa' in p.inner_text('#atajos'), 'un favorito llamado Casa se interpreta como la casa'
-    p.click('#atajos [data-atajo="Casa"]'); p.wait_for_timeout(700)
+    assert 'Guardar mi casa' not in p.inner_text('#atajos') and 'Casa' in p.inner_text('#atajos'), 'un favorito llamado Casa se interpreta como la casa'
+    p.click('#atajos [data-atajo="Casa"]'); p.wait_for_timeout(300)
+    p.click('.lugar-uso-b[data-uso="destination"]'); p.wait_for_timeout(700)      # 4.17: se elige si SALE de ahí o VA para allá
     assert p.input_value('#tripDestination') == 'Casa'
     G.entrar(p, '111', 'ana@example.com', 'Ana')
     menu(p)
@@ -129,7 +130,7 @@ def un_favorito_antiguo_de_invitado_sigue_sirviendo_y_nunca_pasa_a_la_cuenta(nav
     assert p.evaluate("JSON.parse(localStorage.getItem('spevb-favoritos') || '[]').length") == 1, 'y sigue en este dispositivo para cuando se use como invitado'
     p.click('#accountLogout'); p.wait_for_timeout(700)
     menu(p)
-    assert 'Ir a casa' in p.inner_text('#atajos'), 'al salir, el invitado recupera lo suyo'
+    assert 'Guardar mi casa' not in p.inner_text('#atajos') and 'Casa' in p.inner_text('#atajos'), 'al salir, el invitado recupera lo suyo'
     s.limpio('favorito antiguo'); s.cerrar()
 
 
@@ -147,13 +148,13 @@ def casa_y_trabajo_guardan_el_punto_exacto_del_pin_y_los_textos_cambian(nav):
     f = lugares(p)
     assert len(f) == 1 and f[0]['tipo'] == 'casa' and f[0]['nombre'] == 'Casa' and cerca(f[0], esperado), f'se guardó el punto exacto bajo el pin: {f} vs {esperado}'
     assert not p.evaluate("Spevb.Lugares.estado().activo") and p.evaluate("document.getElementById('sideMenu').classList.contains('open')")
-    assert 'Ir a casa' in p.inner_text('#atajos')
+    assert 'Guardar mi casa' not in p.inner_text('#atajos') and 'Casa' in p.inner_text('#atajos')
     abrir_modo(p, '#atajos [data-atajo="Trabajo"]') if False else None
     p.click('#atajos [data-atajo="Trabajo"]'); p.wait_for_timeout(500)
     assert p.inner_text('#lugarTitulo') == 'Marca tu trabajo en el mapa'
     mover(p, 4.1522, -73.6180)
     guardar_en_modo(p)
-    assert sorted(x['tipo'] for x in lugares(p)) == ['casa', 'trabajo'] and 'Ir al trabajo' in p.inner_text('#atajos')
+    assert sorted(x['tipo'] for x in lugares(p)) == ['casa', 'trabajo'] and 'Guardar mi trabajo' not in p.inner_text('#atajos') and 'Trabajo' in p.inner_text('#atajos')
     p.screenshot(path=os.path.join(CAPTURAS, 'lugares-menu-320.png'))
     s.limpio('casa y trabajo'); s.cerrar()
 
@@ -226,14 +227,45 @@ def hay_un_limite_de_30_lugares_y_el_mensaje_lo_explica(nav):
 
 # ------------------------------------------------------------------------------------------------------------------------------------------- usar, editar, borrar
 @prueba
+def un_lugar_guardado_sirve_como_salida_o_como_destino_y_se_puede_ir_de_un_lugar_a_otro(nav):
+    s, p = con_ana(nav)
+    for nombre, lat, lng in (('Universidad', 4.14, -73.64), ('Casa de mamá', 4.15, -73.63)):
+        p.click('#lugarAgregar') if p.is_visible('#lugarAgregar') else (menu(p), p.click('#lugarAgregar'))
+        p.wait_for_timeout(500); mover(p, lat, lng); nombre_y_guardar(p, nombre)
+    menu(p)
+    p.click('#lugaresLista .lugar-usar >> nth=0'); p.wait_for_timeout(300)
+    assert p.get_attribute('#lugaresLista .lugar-usar >> nth=0', 'aria-expanded') == 'true'
+    # sin destino todavía: lo sugerido es «Voy para aquí»; con un destino puesto y sin salida, «Salgo de aquí»
+    assert 'sugerido' in p.get_attribute('.lugar-uso-b[data-uso="destination"]', 'class')
+    p.click('.lugar-uso-b[data-uso="origin"]'); p.wait_for_timeout(700)
+    primero = p.input_value('#tripOrigin')
+    assert primero in ('Universidad', 'Casa de mamá') and p.input_value('#tripDestination') == '', 'la salida quedó en A y el destino sigue libre'
+    assert not p.evaluate("document.getElementById('sideMenu').classList.contains('open')"), 'el menú se cierra al elegir'
+    menu(p)
+    p.click('#lugaresLista .lugar-usar >> nth=1'); p.wait_for_timeout(300)
+    assert 'sugerido' in p.get_attribute('.lugar-uso-b[data-uso="destination"]', 'class'), 'con A puesta se sugiere «Voy para aquí»'
+    p.click('.lugar-uso-b[data-uso="destination"]'); p.wait_for_timeout(700)
+    segundo = p.input_value('#tripDestination')
+    assert segundo in ('Universidad', 'Casa de mamá') and segundo != primero, 'de un lugar guardado a otro: A y B puestos'
+    # un segundo toque sobre el mismo lugar cierra la elección sin hacer nada
+    menu(p)
+    p.click('#lugaresLista .lugar-usar >> nth=0'); p.wait_for_timeout(200)
+    p.click('#lugaresLista .lugar-usar >> nth=0'); p.wait_for_timeout(200)
+    assert p.locator('.lugar-uso').count() == 0
+    s.limpio('lugar como salida o destino'); s.cerrar()
+
+
+@prueba
 def tocar_un_lugar_lo_pone_como_destino_y_editar_renombrar_y_eliminar_funcionan(nav):
     s, p = con_ana(nav)
     for nombre, lat, lng in (('Universidad', 4.14, -73.64), ('Casa de mamá', 4.15, -73.63)):
         p.click('#lugarAgregar') if p.is_visible('#lugarAgregar') else (menu(p), p.click('#lugarAgregar'))
         p.wait_for_timeout(500); mover(p, lat, lng); nombre_y_guardar(p, nombre)
     menu(p)
-    p.click('#lugaresLista .lugar-usar >> nth=0'); p.wait_for_timeout(700)
-    assert p.input_value('#tripDestination') in ('Universidad', 'Casa de mamá'), 'un toque pone el lugar como destino'
+    p.click('#lugaresLista .lugar-usar >> nth=0'); p.wait_for_timeout(300)
+    assert p.is_visible('.lugar-uso-b[data-uso="origin"]') and p.is_visible('.lugar-uso-b[data-uso="destination"]'), 'al tocar un lugar se ofrece «Salgo de aquí» y «Voy para aquí»'
+    p.click('.lugar-uso-b[data-uso="destination"]'); p.wait_for_timeout(700)
+    assert p.input_value('#tripDestination') in ('Universidad', 'Casa de mamá'), 'elegir «Voy para aquí» pone el lugar como destino'
     # renombrar
     menu(p); p.click('#lugaresLista .lugar-fila >> nth=0 >> .lugar-mas'); p.wait_for_timeout(200)
     p.click('#lugaresLista .lugar-fila >> nth=0 >> text=Cambiar nombre'); p.wait_for_timeout(400)

@@ -126,4 +126,20 @@ class RutaCodigoAliasTest {
         mvc.perform(get("/api/rutas/codigo/R000")).andExpect(status().isOk()).andExpect(jsonPath("$.codigo").value("RX009")).andExpect(jsonPath("$.aliasUsado").value(true)).andExpect(jsonPath("$.id").value(1));
         mvc.perform(get("/api/rutas/codigo/R404")).andExpect(status().isNotFound());
     }
+
+    // ---- Eliminar una ruta desde el editor (4.17): solo con el código como confirmación
+    @Test void eliminarRutaPideElCodigoYBorraSoloConLaConfirmacionCorrecta() {
+        when(repo.eliminar(1L)).thenReturn(true);
+        assertThrows(IllegalArgumentException.class, () -> service.eliminarRuta(1L, null));
+        assertThrows(IllegalArgumentException.class, () -> service.eliminarRuta(1L, "R999"));
+        verify(repo, never()).eliminar(anyLong());
+        assertEquals("R001", service.eliminarRuta(1L, " r001 "));
+        verify(repo).eliminar(1L);
+    }
+
+    @Test void eliminarUnaRutaQueNoExisteDaNoEncontrada() {
+        when(repo.findById(77L)).thenReturn(Optional.empty());
+        assertThrows(co.edu.usta.spevb.exception.RutaNoEncontradaException.class, () -> service.eliminarRuta(77L, "R001"));
+        verify(repo, never()).eliminar(anyLong());
+    }
 }

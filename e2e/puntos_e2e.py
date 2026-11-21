@@ -63,6 +63,7 @@ def con_viaje_y_cercanas(p):
     p.evaluate("document.querySelector('#planTrip').click()")
     p.wait_for_timeout(2500)
     p.click('#menuButton'); p.wait_for_timeout(500)         # 4.14: «Rutas cerca del origen» vive en el menú lateral
+    p.evaluate("document.getElementById('menuMas').open = true; document.getElementById('menuExplorar').open = true")      # 4.17: «Rutas cerca del origen» vive en Más → Explorar recorridos
     p.click('#nearOriginRoutes')
     B.esperar(p, "document.querySelectorAll('#nearbyResults .nearby-card').length >= 1", 8000)
     p.click('#closeMenu'); p.wait_for_timeout(500)

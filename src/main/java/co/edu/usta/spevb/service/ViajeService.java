@@ -52,8 +52,14 @@ public class ViajeService {
      * Orden de las opciones refinadas: sentido correcto primero, luego lo que menos se camina, el recorrido en bus y el código.
      * Todas las rutas activas registradas por el equipo cuentan igual: la revisión interna («validada») ya no desempata.
      */
+    /** Costo puerta a puerta de una opción en minutos (caminar pesa el doble): ver {@link Recomendador#costo}. */
+    static double costoMin(double accesoMetros, double busKm) {
+        return 2 * accesoMetros / TransbordoService.CAMINA_M_MIN + busKm * 1000 / TransbordoService.BUS_M_MIN;
+    }
+
     static final Comparator<ViajeRepository.OpcionRow> ORDEN_OPCIONES = Comparator
             .comparing((ViajeRepository.OpcionRow r) -> !r.sentidoPermitido())
+            .thenComparingDouble((ViajeRepository.OpcionRow r) -> costoMin(r.accesoTotalMetros(), r.tramoKm()))
             .thenComparingDouble(ViajeRepository.OpcionRow::accesoTotalMetros)
             .thenComparingDouble(ViajeRepository.OpcionRow::tramoKm)
             .thenComparing(ViajeRepository.OpcionRow::codigo);
@@ -151,6 +157,9 @@ public class ViajeService {
             alcance += " También se muestran viajes con un transbordo (dos buses) cuando no hay ruta directa o ahorran tiempo o caminata;"
                     + " su tiempo incluye una espera estimada de 8 min en el cambio.";
         }
+        // Regla de negocio (4.17): solo las mejores (máximo 3) y sin caminatas excesivas. Ver MejoresOpciones.
+        var regla = MejoresOpciones.aplicar(directas, alternativas, transbordos);
+        directas = regla.directas(); alternativas = regla.alternativas(); transbordos = regla.transbordos(); alcance += regla.nota();
         // Política de recomendación (ver PoliticaRecomendacion y docs/CONTRATO-RECOMENDACION-Y-BUSQUEDA.md): ids estables y una sola decisión.
         directas = conIds(directas, "D");
         alternativas = conIds(alternativas, "A");
@@ -195,7 +204,7 @@ public class ViajeService {
                 ? (p.bajada().fraccion() >= p.subida().fraccion() ? p.bajada().fraccion() - p.subida().fraccion()
                         : 1 - p.subida().fraccion() + p.bajada().fraccion()) * p.subida().largoMetros()
                 : (p.subida().fraccion() - p.bajada().fraccion()) * p.subida().largoMetros();
-        return (p.subida().caminataMetros() + p.bajada().caminataMetros()) / 80.0 + bus / 267.0;
+        return (p.subida().costoCaminata() + p.bajada().costoCaminata()) / 80.0 + bus / 267.0;
     }
 
     /** ¿Se ofrece una variante «más rápida» para esta ruta? Solo depende de los dos pares elegidos (no consulta la base). */
@@ -416,7 +425,7 @@ public class ViajeService {
                 double bus = b.fraccion() >= a.fraccion() ? (b.fraccion() - a.fraccion()) * a.largoMetros()
                         : circular ? (1 - a.fraccion() + b.fraccion()) * a.largoMetros()
                         : (a.fraccion() - b.fraccion()) * a.largoMetros();
-                double costo = a.caminataMetros() - a.ventaja() + b.caminataMetros() - b.ventaja() + PESO_BUS * bus;
+                double costo = a.costoCaminata() - a.ventaja() + b.costoCaminata() - b.ventaja() + PESO_BUS * bus;
                 // Una opción con el sentido correcto siempre gana a una de sentido contrario.
                 if (mejor == null || (permitido && !mejor.permitido())
                         || (permitido == mejor.permitido() && costo < mejor.costo()))
@@ -433,7 +442,8 @@ public class ViajeService {
         String subida = par.subida().parada() == null ? tramo.subida() : punto(par.subida());
         String bajada = par.bajada().parada() == null ? tramo.bajada() : punto(par.bajada());
         return new ViajeRepository.OpcionRow(base.id(), base.codigo(), base.nombre(), base.color(), base.validada(),
-                inicio, fin, tramo.km(), inicio + fin, inicio <= referencia && fin <= referencia,
+                inicio, fin, tramo.km(), inicio + fin + par.subida().penalizacionMetros() + par.bajada().penalizacionMetros(),
+                inicio <= referencia && fin <= referencia,
                 par.permitido() ? "SENTIDO_DEL_TRAZADO" : "SENTIDO_INVERSO", base.sentidoRuta(), par.permitido(),
                 subida, bajada, tramo.tramo());
     }

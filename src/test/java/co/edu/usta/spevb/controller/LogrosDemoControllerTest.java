@@ -76,4 +76,54 @@ class LogrosDemoControllerTest {
         verify(logros).equipar(eq(7L), eq("llano"), anyLong(), eq(true));
         verify(logros, never()).equipar(anyLong(), any(), anyLong());
     }
+
+    // ---- racha estática de la cuenta de demostración (4.17): 30 el primer día y un día menos por cada día que pasa
+    @Test void laRachaDeLaCuentaDemoEmpiezaEn30YPierdeUnDiaPorDia() {
+        ReflectionTestUtils.setField(c, "rachaDemoBase", 30); ReflectionTestUtils.setField(c, "rachaDemoInicio", "2026-11-19");
+        assertEquals(30, c.rachaDemo(LocalDate.of(2026, 11, 19)));
+        assertEquals(29, c.rachaDemo(LocalDate.of(2026, 11, 20)));
+        assertEquals(20, c.rachaDemo(LocalDate.of(2026, 11, 29)));
+        assertEquals(0, c.rachaDemo(LocalDate.of(2026, 12, 19)));
+        assertEquals(0, c.rachaDemo(LocalDate.of(2027, 3, 1)), "nunca baja de 0");
+        assertEquals(30, c.rachaDemo(LocalDate.of(2026, 10, 1)), "antes de la fecha de inicio vale la base");
+    }
+
+    @Test void laRespuestaDeLaCuentaDemoTrae_rachaDemo_ylaRachaEstatica() {
+        sesion();
+        ReflectionTestUtils.setField(c, "cuentasDemo", "ana@gmail.com");
+        ReflectionTestUtils.setField(c, "rachaDemoBase", 30);
+        ReflectionTestUtils.setField(c, "rachaDemoInicio", "2026-03-01");      // la fecha del estado de prueba es 2026-03-02: pasó 1 día
+        when(logros.estadoDemo(eq(7L), anyLong())).thenReturn(estado(LogrosService.CATALOGO));
+        Map<String, Object> r = c.estado(req());
+        assertEquals(29, r.get("rachaActual"));
+        assertEquals(30, r.get("mejorRacha"));
+        assertEquals(Map.of("base", 30, "inicio", "2026-03-01"), r.get("rachaDemo"));
+    }
+
+    @Test void lasDemasCuentasNoRecibenLaRachaEstatica() {
+        sesion();
+        when(logros.estado(eq(7L), anyLong())).thenReturn(estado(List.of("primero")));
+        Map<String, Object> r = c.estado(req());
+        assertFalse(r.containsKey("rachaDemo"));
+        assertEquals(1, r.get("rachaActual"));
+    }
+
+    // ---- cuenta del PROYECTO (sebvadmin@gmail.com): siempre demostración, con racha estática de 31
+    private static final Usuario PROYECTO = new Usuario(9, "Admin SEVB", "SebvAdmin@Gmail.com", false, true, true);
+
+    @Test void laCuentaDelProyectoSiempreVeTodosLosLogrosAunqueNoHayaVariable() {
+        when(cuentas.usuarioDeSesion(SESION)).thenReturn(Optional.of(PROYECTO));
+        when(limitador.permitir(anyString(), anyInt(), any())).thenReturn(true);
+        when(logros.estadoDemo(eq(9L), anyLong())).thenReturn(estado(LogrosService.CATALOGO));
+        Map<String, Object> r = c.estado(req());
+        assertEquals(LogrosService.CATALOGO, r.get("logros"));
+        assertEquals(31, r.get("rachaActual"), "31 días, estática (sin fecha de inicio)");
+        verify(logros, never()).estado(anyLong(), anyLong());
+    }
+
+    @Test void sinFechaDeInicioLaRachaDemoEsEstaticaYConFechaBaja() {
+        assertEquals(31, c.rachaDemo(LocalDate.of(2030, 1, 1)), "por defecto: 31 siempre");
+        ReflectionTestUtils.setField(c, "rachaDemoInicio", "2026-11-19");
+        assertEquals(21, c.rachaDemo(LocalDate.of(2026, 11, 29)), "con fecha: un día menos por día");
+    }
 }

@@ -197,6 +197,7 @@
         $('editFields').disabled = value || !route;
         $('editorRoute').disabled = value;
         $('newRoute').disabled = value;
+        sincronizarEliminar();
         if (route) $('editorCode').disabled = value;
         redraw();
     }
@@ -397,6 +398,27 @@
             msg('Guardado en PostgreSQL. ' + saved.codigo + ' quedó en versión ' + saved.version + ' y permanecerá disponible al reiniciar el proyecto.', 'success');
         } catch (error) { msg(error.message, 'error'); }
         finally { if (locked) lock(false); }
+    };
+
+    /** Eliminar la ruta abierta (con su historial y paraderos). Pide escribir el código: un clic suelto nunca borra nada. */
+    function sincronizarEliminar() { const b = document.getElementById('deleteRoute'); if (b) b.disabled = busy || !route?.id; }
+    window.addEventListener('spevb-editor-ruta', sincronizarEliminar);
+    $('deleteRoute').onclick = async () => {
+        if (!route?.id || busy) return;
+        const codigo = route.codigo;
+        const escrito = prompt('Vas a ELIMINAR la ruta ' + codigo + ' · ' + route.nombre + ', con sus paraderos y su historial. No se puede deshacer.' + String.fromCharCode(10, 10) + 'Para confirmar escribe su código (' + codigo + '):');
+        if (escrito === null) return;
+        if (escrito.trim().toUpperCase() !== String(codigo).toUpperCase()) { msg('No se eliminó nada: el código escrito no coincide.', 'error'); return; }
+        const current = ++generation; lock(true); msg('Eliminando ' + codigo + '…');
+        try {
+            await Spevb.api('/api/editor/rutas/' + route.id + '?codigo=' + encodeURIComponent(codigo), { method: 'DELETE', headers: { 'X-Editor-Token': $('editorToken').value } });
+            if (current !== generation) return;
+            setDirty(false); discardDraft(); route = null; points = []; anchors = new Set(); selectedIndex = -1; undo = []; redo = []; drawing = false;
+            $('revisionList').replaceChildren(); $('editorMapTitle').textContent = 'Villavicencio'; applyFields({ codigo: '', nombre: '', origen: '', destino: '', sentido: 'IDA', descripcion: '', color: '#176650', fuente: '', validada: false, version: 0 });
+            await refreshRoutes(null, false); $('editorRoute').value = ''; redraw(); window.dispatchEvent(new CustomEvent('spevb-editor-ruta'));
+            msg('La ruta ' + codigo + ' fue eliminada.', 'success');
+        } catch (error) { msg(error.message, 'error'); }
+        finally { if (current === generation) lock(false); sincronizarEliminar(); }
     };
 
     $('loadHistory').onclick = async () => {

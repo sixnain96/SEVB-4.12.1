@@ -164,7 +164,7 @@
     const go = (name, porque = 'app') => { if (mobile.matches) pedirEstado(name, porque); };
 
     let justDragged = false, tiempoClic = 0;
-    handle.addEventListener('click', () => { if (!justDragged) go(state === 'peek' ? 'half' : state === 'half' ? 'full' : 'peek', 'asa'); });
+    handle.addEventListener('click', () => { if (!justDragged) go(state === 'peek' ? 'half' : state === 'half' ? 'full' : 'half', 'asa'); });
     handle.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowUp') { e.preventDefault(); go(STATES[Math.min(2, STATES.indexOf(state) + 1)], 'teclado-asa'); }
         if (e.key === 'ArrowDown') { e.preventDefault(); go(STATES[Math.max(0, STATES.indexOf(state) - 1)], 'teclado-asa'); }
@@ -188,7 +188,12 @@
     function terminarArrastre() {
         const current = Number((/translateY\(([-\d.]+)px\)/.exec(sheet.style.transform) || [0, dragging.base])[1]);
         const shown = full() - current - dragging.v * 180;       // la velocidad empuja hacia el siguiente punto
-        const target = STATES.reduce((best, name) => Math.abs(visible(name) - shown) < Math.abs(visible(best) - shown) ? name : best, 'peek');
+        let target = STATES.reduce((best, name) => Math.abs(visible(name) - shown) < Math.abs(visible(best) - shown) ? name : best, 'peek');
+        // El panel solo se mueve hacia donde el usuario lo arrastra: subir nunca lo baja y bajar nunca lo sube; un toque sin arrastre lo deja donde está.
+        const dyTotal = dragging.lastY - dragging.y, i0 = STATES.indexOf(state), i1 = STATES.indexOf(target);
+        if (!dragging.moved || Math.abs(dyTotal) < 8) target = state;
+        else if (dyTotal < 0 && i1 < i0) target = state;
+        else if (dyTotal > 0 && i1 > i0) target = state;
         justDragged = dragging.moved;          // el clic que el navegador genere al soltar tras un arrastre no cambia la altura de nuevo
         clearTimeout(tiempoClic); tiempoClic = setTimeout(() => { justDragged = false; }, 500);
         limpiarArrastre();
@@ -253,20 +258,34 @@
     // Tras buscar, la prioridad es EMPEZAR: el panel queda compacto con el botón «Iniciar viaje» y la ruta elegida a la vista, y el mapa grande
     // con la ruta dibujada. Las demás rutas siguen ahí: «Ver otras opciones» (o arrastrar el panel hacia arriba) las muestra.
     // Si no hay rutas, sí se abre el panel para leer el mensaje. El posicionamiento se hace UNA vez y se cancela con el primer gesto de la persona.
+    let temporizadoresPos = [];
+    function posicionarResultados(sinRutas) {
+        temporizadoresPos.forEach(clearTimeout); temporizadoresPos = [];
+        if (!mobile.matches || !body) return;
+        const intentar = () => {
+            if (auto.usuario) return;                                  // la persona ya tocó la lista o se desplazó: no se le mueve nada
+            const f = document.activeElement;
+            if (f && f.tagName === 'INPUT' && sheet.contains(f)) return;     // vuelve a escribir: no se mueve nada
+            const tarjeta = document.getElementById('mejorOpcion');
+            if (sinRutas) { alinearArriba(document.getElementById('tripResults')); return; }
+            // La prioridad es la tarjeta «Mejor opción» (con «Iniciar viaje» debajo): se lleva al inicio del área visible. Si no hay tarjeta (el servidor no recomendó), «Iniciar viaje»; si tampoco, la lista.
+            if (tarjeta && !tarjeta.hidden && tarjeta.offsetHeight) alinearArriba(tarjeta, 6);
+            else if (!alinearBarraInicio()) alinearArriba(document.getElementById('tripResults'));
+        };
+        // El teclado se cierra y el panel se vuelve a medir en los siguientes instantes: se reintenta hasta que todo se asienta (se cancela con el primer gesto de la persona).
+        [0, 90, 260, 600, 1100].forEach((ms) => temporizadoresPos.push(setTimeout(() => requestAnimationFrame(intentar), ms)));
+    }
     function irAlInicio(e) {
         if (window.Spevb.Superficies && !window.Spevb.Superficies.puedeAbrir('resultados')) return;      // menú/diálogo abierto, viaje o panel ocultado por la persona: los resultados esperan
         const sinRutas = !!(e && e.detail && e.detail.sinRutas);
+        // Ya hay resultados: se cierra el teclado (si no, el campo enfocado impedía mostrar la tarjeta y el panel se quedaba en «¿A dónde vamos?»).
+        const f = document.activeElement;
+        if (f && f.tagName === 'INPUT' && sheet.contains(f)) { try { f.blur(); } catch { /* nada */ } }
+        peekResultado = 0;
         go(sinRutas ? 'half' : 'peek', 'resultados');
-        auto.pendiente = !auto.usuario;      // si la persona ya tocó la lista mientras el mapa dibujaba, no se posiciona nada
+        auto.pendiente = !auto.usuario;      // si la persona ya tocó la lista mientras el mapa dibujaba, no se posiciona nada (un resultado NUEVO reinicia esa marca: ver el observador de #tripResults)
         cancelAnimationFrame(auto.raf);
-        auto.raf = requestAnimationFrame(() => {
-            auto.raf = requestAnimationFrame(() => {
-                if (!auto.pendiente || auto.usuario || !mobile.matches || !body) return;
-                auto.pendiente = false;
-                // El botón vive justo debajo de «Buscar rutas»: se alinea por el borde inferior de esa fila (su posición natural).
-                if (sinRutas || !alinearBarraInicio()) alinearArriba(document.getElementById('tripResults'));
-            });
-        });
+        posicionarResultados(sinRutas);
     }
     window.addEventListener('spevb-results', irAlInicio);
     window.addEventListener('spevb-ir-inicio', () => { go('half', 'ir-inicio'); if (body) fijarScroll(0); });      // casita del modo viaje: panel a media altura, arriba del todo

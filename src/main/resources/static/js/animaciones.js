@@ -89,6 +89,29 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) reiniciarEspera(); });
     window.addEventListener('spevb-point-cleared', reiniciarEspera);
 
+    // ---------------------------------------------------------------- el botón de buscar «llama» mientras se escribe (4.17)
+    // Mientras hay texto escrito que todavía no es un punto confirmado, la lupa de ESE campo emite un halo suave (clase `busca-pulso`, solo CSS) para decir «toca aquí»;
+    // cuando A y B ya están confirmados y aún no se han buscado rutas, el halo pasa a «Buscar rutas». Solo clases: el movimiento vive en css/menu-simple.css.
+    const lupas = { origin: $('searchOrigin'), destination: $('searchDestination') }, buscar = $('planTrip');
+    const hayResultados = () => { const b = $('startTripBar'); return !!(b && !b.hidden) || !!document.querySelector('#tripResults > *'); };
+    function pintarPulsos() {
+        ['origin', 'destination'].forEach((modo) => {
+            const lupa = lupas[modo]; if (!lupa) return;
+            const escribiendo = !vacio(modo) && !confirmado(modo) && campos[modo].dataset.campoEstado !== 'resolviendo' && !lupa.disabled;
+            if (lupa.classList.contains('busca-pulso') !== escribiendo) lupa.classList.toggle('busca-pulso', escribiendo);
+        });
+        if (buscar) {
+            const listo = confirmado('origin') && confirmado('destination') && !hayResultados() && !buscar.disabled && !document.body.classList.contains('viaje-activo');
+            if (buscar.classList.contains('busca-pulso') !== listo) buscar.classList.toggle('busca-pulso', listo);
+        }
+    }
+    ['input', 'focusin', 'focusout', 'click'].forEach((ev) => form.addEventListener(ev, () => setTimeout(pintarPulsos, 0), { passive: true }));
+    [origen, destino].forEach((el) => new MutationObserver(pintarPulsos).observe(el, { attributes: true, attributeFilter: ['data-campo-estado'] }));
+    window.addEventListener('spevb-results', () => setTimeout(pintarPulsos, 50));
+    window.addEventListener('spevb-point-cleared', () => setTimeout(pintarPulsos, 0));
+    window.addEventListener('spevb-point-selected', () => setTimeout(pintarPulsos, 0));
+    window.addEventListener('spevb-inicio', () => setTimeout(pintarPulsos, 0));
+
     // ---------------------------------------------------------------- arranque
     function arrancar() {
         intro();
@@ -100,5 +123,5 @@
     else window.addEventListener('load', () => setTimeout(arrancar, 300), { once: true });
 
     // para probar desde la consola o los e2e: Spevb.Animaciones.fijado('origin'), .avisar(), .intro()
-    (window.Spevb || (window.Spevb = {})).Animaciones = { fijado, avisar, intro, reiniciarEspera, ESPERA_MS };
+    (window.Spevb || (window.Spevb = {})).Animaciones = { fijado, avisar, intro, reiniciarEspera, ESPERA_MS, pintarPulsos };
 })();

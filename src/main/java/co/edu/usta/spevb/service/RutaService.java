@@ -127,6 +127,19 @@ public class RutaService {
         return obtenerRuta(id);
     }
 
+    /**
+     * Elimina una ruta del sistema (editor). Pide el código como confirmación para que un clic equivocado o una solicitud suelta no borren nada.
+     * Devuelve el código eliminado. Sus revisiones, paraderos y alias se borran con ella.
+     */
+    @Transactional
+    public String eliminarRuta(Long id, String codigoConfirmado) {
+        RutaRepository.RutaDetalleRow actual = rutaRepository.findById(id).orElseThrow(() -> new RutaNoEncontradaException(id));
+        if (codigoConfirmado == null || !actual.codigo().equalsIgnoreCase(codigoConfirmado.strip()))
+            throw new IllegalArgumentException("Para eliminar la ruta escribe su código (" + actual.codigo() + ") como confirmación.");
+        if (!rutaRepository.eliminar(id)) throw new RutaNoEncontradaException(id);
+        return actual.codigo();
+    }
+
     /** Resuelve un código vigente o anterior (alias) hacia la ruta actual. Vacío si no existe ni existió. */
     @Transactional(readOnly = true)
     public java.util.Map<String, String> nombresPopulares() { return rutaRepository.nombresPopulares(); }

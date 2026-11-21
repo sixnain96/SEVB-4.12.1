@@ -84,17 +84,17 @@
         const tx2 = lugarSube(b.paraderoSubida, 'Sube al segundo bus'), bx2 = lugarBaja(b.paraderoBajada, 'Bajada final');
         const cambio = num(t.caminataCambio && t.caminataCambio.metros);
         const calles = (w) => !!(w && Array.isArray(w.coordinates) && w.coordinates.length > 1);
-        const m = { tipo: 'transbordo', id: t.id || null, codigos: [a.codigo, b.codigo], titulo: 'Ruta ' + ruta(a.codigo) + ' + Ruta ' + ruta(b.codigo), detalle: '1 transbordo · 2 buses', pasos: [], aviso: null, aproximada: false };
+        const m = { tipo: 'transbordo', id: t.id || null, codigos: [a.codigo, b.codigo], titulo: 'Ruta ' + ruta(a.codigo) + ' + Ruta ' + ruta(b.codigo), detalle: '1 transbordo · 2 buses', pasos: [], aviso: null, aproximada: false, explicacion: { a: ruta(a.codigo), b: ruta(b.codigo), espera: Math.round(num(t.esperaCambioMinutos) || 8) } };
         const ini = caminar(0, t.caminataInicio && t.caminataInicio.metros, calles(t.caminataInicio), c.origen, 'hasta ' + tx1, { sinCaminata: 'Ya estás en el punto de subida del primer bus.' });
         const camb = caminar(1, cambio, calles(t.caminataCambio), null, 'hasta ' + tx2, { sinCaminata: 'Cambia de bus: el segundo bus se toma donde te bajaste, sin caminar.' });
         const fin = caminar(2, t.caminataFin && t.caminataFin.metros, calles(t.caminataFin), null, 'hasta ' + c.destino, { prefijo: b.paraderoBajada ? 'Desde el paradero ' + comillas(b.paraderoBajada) + ',' : null, sinCaminata: 'Llegas a tu destino.' });
         m.pasos.push(
             { ...ini, foco: sube1 && { ...sube1, etiqueta: 'Ver subida', clave: 'sube1' } },
-            { tipo: 'bus', verbo: 'Toma', texto: 'Toma el primer bus: la ruta ' + ruta(a.codigo) + '.', detalle: a.recorridoKm ? 'Vas unos ' + num(a.recorridoKm).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + ' km en este bus.' : null },
-            { tipo: 'baja', verbo: 'Bájate', texto: 'Bájate en ' + bx1 + '.', foco: baja1 && { ...baja1, etiqueta: 'Ver bajada', clave: 'baja1' } },
-            { ...camb, verbo: cambio < CORTA_M ? 'Cambia de bus' : 'Camina', foco: sube2 && { ...sube2, etiqueta: 'Ver cambio', clave: 'sube2' } },
-            { tipo: 'bus', verbo: 'Toma', texto: 'Toma el segundo bus: la ruta ' + ruta(b.codigo) + '.', detalle: b.recorridoKm ? 'Vas unos ' + num(b.recorridoKm).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + ' km en este bus.' : null },
-            { tipo: 'baja', verbo: 'Bájate', texto: 'Bájate en ' + bx2 + '.', foco: baja2 && { ...baja2, etiqueta: 'Ver bajada', clave: 'baja2' } },
+            { bus: 1, tipo: 'bus', verbo: 'Toma', texto: 'Toma el primer bus: la ruta ' + ruta(a.codigo) + '.', detalle: a.recorridoKm ? 'Vas unos ' + num(a.recorridoKm).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + ' km en este bus.' : null },
+            { bus: 1, tipo: 'baja', verbo: 'Bájate', texto: 'Bájate en ' + bx1 + '.', foco: baja1 && { ...baja1, etiqueta: 'Ver bajada', clave: 'baja1' } },
+            { ...camb, cambio: true, verbo: cambio < CORTA_M ? 'Cambia de bus' : 'Camina', foco: sube2 && { ...sube2, etiqueta: 'Ver cambio', clave: 'sube2' } },
+            { bus: 2, tipo: 'bus', verbo: 'Toma', texto: 'Toma el segundo bus: la ruta ' + ruta(b.codigo) + '.', detalle: b.recorridoKm ? 'Vas unos ' + num(b.recorridoKm).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + ' km en este bus.' : null },
+            { bus: 2, tipo: 'baja', verbo: 'Bájate', texto: 'Bájate en ' + bx2 + '.', foco: baja2 && { ...baja2, etiqueta: 'Ver bajada', clave: 'baja2' } },
             fin);
         m.aproximada = m.pasos.some((p) => p.tipo === 'walk' && p.metros >= CORTA_M && !p.calles);
         return m;
@@ -121,16 +121,29 @@
         const etiqueta = document.createElement('span'); etiqueta.className = 'itin-etiqueta';
         const titulo = document.createElement('strong'); titulo.className = 'itin-titulo'; titulo.textContent = modelo.titulo;
         const det = document.createElement('span'); det.className = 'itin-detalle'; det.textContent = modelo.detalle;
-        enc.append(etiqueta, titulo, document.createTextNode(' · '), det);
+        const sep = document.createElement('span'); sep.className = 'itin-sep'; sep.setAttribute('aria-hidden', 'true'); sep.textContent = ' · ';      // el texto sigue en el DOM; el CSS lo oculta
+        enc.append(etiqueta, titulo, sep, det);
         const pq = document.createElement('p'); pq.className = 'itin-porque'; pq.hidden = true;
         sec.append(enc, pq);
         const filas = [];
         if (modelo.aviso) {
             const a = document.createElement('p'); a.className = 'itin-aviso'; a.setAttribute('role', 'note'); a.textContent = modelo.aviso; sec.append(a);
         } else {
+            if (modelo.explicacion) {
+                // «Este viaje lleva DOS buses»: quién es el primero (rojo en el mapa) y quién el segundo (azul), qué se hace en el cambio y que son dos pasajes.
+                const ex = modelo.explicacion, caja = document.createElement('div'); caja.className = 'itin-trans';
+                const fila = document.createElement('div'); fila.className = 'itin-trans-fila';
+                const chip = (n, nombre) => { const c = document.createElement('span'); c.className = 'itin-trans-chip bus' + n; const k = document.createElement('b'); k.textContent = String(n); k.setAttribute('aria-hidden', 'true'); const t = document.createElement('span'); t.textContent = nombre; c.append(k, t); return c; };
+                const flecha = document.createElement('span'); flecha.className = 'itin-trans-flecha'; flecha.setAttribute('aria-hidden', 'true'); flecha.textContent = '→';
+                fila.append(chip(1, ex.a), flecha, chip(2, ex.b));
+                const txt = document.createElement('p'); txt.className = 'itin-trans-texto';
+                txt.textContent = 'Dos buses, dos pasajes: bájate del primero, camina al segundo y espéralo (unos ' + ex.espera + ' min).';
+                caja.append(fila, txt); sec.append(caja);
+            }
             const ol = document.createElement('ol'); ol.className = 'itin-pasos';
             modelo.pasos.forEach((p, i) => {
-                const li = document.createElement('li'); li.className = 'itin-paso ' + p.tipo; li.dataset.paso = String(i + 1);
+                const li = document.createElement('li'); li.className = 'itin-paso ' + p.tipo + (p.bus ? ' bus' + p.bus : '') + (p.cambio ? ' cambio' : ''); li.dataset.paso = String(i + 1); li.style.setProperty('--i', String(i));
+                if (S.Iconos) { const ic = document.createElement('span'); ic.className = 'itin-ico'; ic.setAttribute('aria-hidden', 'true'); ic.append(S.Iconos.el(p.cambio ? 'transbordo' : p.tipo === 'bus' ? 'bus' : p.tipo === 'baja' ? 'paradero' : 'caminar', { tam: 18 })); li.append(ic); }
                 const texto = document.createElement('span'); texto.className = 'itin-texto';
                 li.append(texto);
                 if (p.detalle) { const d = document.createElement('small'); d.className = 'itin-nota-paso'; d.textContent = p.detalle; li.append(d); }
@@ -163,8 +176,16 @@
                 if (sec._pintar) sec._pintar();
                 window.dispatchEvent(new CustomEvent('spevb-itinerario', { detail: { caminata: indice } }));
             },
-            encabezado(esRecomendada) { etiqueta.textContent = esRecomendada ? 'Recomendada · ' : 'Opción seleccionada · '; },
-            porQue(texto) { pq.textContent = texto ? 'Por qué la recomendamos: ' + texto : ''; pq.hidden = !texto; },
+            encabezado(esRecomendada) { etiqueta.textContent = esRecomendada ? 'Recomendada · ' : 'Opción seleccionada · '; sec.classList.toggle('itin--reco', !!esRecomendada); },
+            porQue(texto) {
+                pq.replaceChildren(); pq.hidden = !texto;
+                if (!texto) return;
+                // El mismo texto de siempre («Por qué la recomendamos: …»), pero en tarjeta: un título y una marca por cada razón.
+                const t = document.createElement('span'); t.className = 'itin-pq-t'; t.textContent = 'Por qué la recomendamos: ';
+                pq.append(t);
+                const razones = String(texto).split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 2);      // dos razones como máximo: lo demás es ruido
+                razones.forEach((r, i) => { if (i) pq.append(' '); const x = document.createElement('span'); x.className = 'itin-pq-i'; x.textContent = r; pq.append(x); });
+            },
             /** Texto plano de los pasos (para anunciar o resumir en el flujo guiado). */
             pasos() { return modelo.pasos.map((p) => ({ tipo: p.tipo, texto: frase(p), foco: p.foco || null })); },
         };

@@ -4,7 +4,7 @@
    · Un viaje cuenta SOLO al llegar de verdad con al menos una subida a un bus confirmada (el evento «spevb-viaje-llegada» trae un id lógico del viaje, la hora de llegada y cuántas subidas
      se confirmaron). Abandonar, «Cerrar» una llegada ya registrada, recargar, repetir el evento o practicar NO suman. Cada viaje cuenta una vez (idempotente por id).
    · Racha: días de calendario de BOGOTÁ (UTC-5 fijo, no la zona del teléfono). Un día cuenta una vez aunque tenga varios viajes (el total cuenta todos). Hay UN día vacío de gracia entre dos
-     días con viaje; dos seguidos sin viajar la cortan. Sigue vigente mientras el último día con viaje no esté a más de 2 días de hoy. «3 días seguidos» y «Una semana» siguen pidiendo
+     días con viaje. Sigue entera mientras el último día con viaje no esté a más de 2 días de hoy y, desde ahí, BAJA UN DÍA por cada día sin viajar (4.17) hasta llegar a 0. «3 días seguidos» y «Una semana» siguen pidiendo
      días consecutivos (racha estricta). El cálculo es espejo exacto de Racha.java (mismos vectores: src/test/resources/racha-vectores.json).
    · Con sesión, el progreso y la insignia destacada son de la CUENTA (servidor; cada viaje se envía con su id y no se suman contadores del dispositivo); sin sesión, de este dispositivo.
      El progreso antiguo de un dispositivo (spevb-logros) se conserva para quien lo usa como invitado y NUNCA se adjudica a la primera cuenta que entra.
@@ -34,17 +34,19 @@
     const numDia = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / 86400000);
     const isoDe = (n) => new Date(n * 86400000).toISOString().slice(0, 10);
     const GRACIA = 1;
+    /** Lo que queda de una racha de `cadena` días tras `dias` días desde el último viaje: pierde uno por cada día pasado el margen de gracia (espejo de Racha.perdida). */
+    const perdida = (cadena, dias) => Math.max(0, cadena - Math.max(0, dias - (GRACIA + 1)));
     function racha(dias, hoy) {
         const d = [...new Set(dias.map(numDia))].sort((a, b) => a - b);
         if (!d.length) return { actual: 0, mejor: 0, estricta: 0, dias: 0, ultimo: null };
         let cadena = 0, estricta = 0, mejor = 0, mejorE = 0, previo = null;
         for (const x of d) {
             const hueco = previo === null ? 0 : x - previo;
-            cadena = previo === null || hueco > GRACIA + 1 ? 1 : cadena + 1;
+            cadena = previo === null ? 1 : hueco > GRACIA + 1 ? perdida(cadena, hueco) + 1 : cadena + 1;
             estricta = previo === null || hueco !== 1 ? 1 : estricta + 1;
             mejor = Math.max(mejor, cadena); mejorE = Math.max(mejorE, estricta); previo = x;
         }
-        return { actual: numDia(hoy) - previo <= GRACIA + 1 ? cadena : 0, mejor, estricta: mejorE, dias: d.length, ultimo: isoDe(previo) };
+        return { actual: numDia(hoy) - previo <= GRACIA + 1 ? cadena : perdida(cadena, numDia(hoy) - previo), mejor, estricta: mejorE, dias: d.length, ultimo: isoDe(previo) };
     }
     /** Nivel de la llama: 0 sin racha, 1 (1–2 días), 2 (3–6), 3 (7–13), 4 (14 o más). */
     const nivelLlama = (n) => (n >= 14 ? 4 : n >= 7 ? 3 : n >= 3 ? 2 : n >= 1 ? 1 : 0);
@@ -80,7 +82,7 @@
         let f;
         if (conCuenta()) {
             const e = cacheCuenta() || { viajes: 0, transbordos: 0, madrugador: false, nocturno: false, practica: false, dias: [], mejorRacha: 0, mejorEstricta: 0, logros: [], insignia: null };
-            f = { viajes: e.viajes || 0, transbordos: e.transbordos || 0, madrugador: !!e.madrugador, nocturno: !!e.nocturno, practica: !!e.practica, dias: e.dias || [], mejorRacha: e.mejorRacha || 0, mejorEstricta: e.mejorEstricta || 0, extra: e.logros || [], insignia: e.insignia || null, deCuenta: true };
+            f = { viajes: e.viajes || 0, transbordos: e.transbordos || 0, madrugador: !!e.madrugador, nocturno: !!e.nocturno, practica: !!e.practica, dias: e.dias || [], mejorRacha: e.mejorRacha || 0, mejorEstricta: e.mejorEstricta || 0, extra: e.logros || [], insignia: e.insignia || null, deCuenta: true, rachaDemo: e.rachaDemo || null };
         } else {
             const l = legado() || {}, g = localGuest(), dias = g.viajes.map((x) => diaDe(x.t));
             if (l.ultimoDia && l.racha > 0) for (let i = 0; i < Math.min(l.racha, 400); i++) dias.push(isoDe(numDia(l.ultimoDia) - i));      // la racha antigua del dispositivo (días seguidos de este teléfono)
@@ -90,6 +92,14 @@
         }
         const r = racha(f.dias, hoy);
         const m = { viajes: f.viajes, transbordos: f.transbordos, madrugador: f.madrugador, nocturno: f.nocturno, practica: f.practica, rachaActual: r.actual, mejorRacha: Math.max(f.mejorRacha, r.mejor), mejorEstricta: Math.max(f.mejorEstricta, r.estricta), ultimoDia: r.ultimo, hoy };
+        // Cuenta de demostración (4.17): racha ESTÁTICA que pierde un día por cada día que pasa; se recalcula aquí con la fecha de Bogotá (también a medianoche).
+        if (f.rachaDemo && Number.isFinite(f.rachaDemo.base)) {
+            // Sin fecha de inicio la racha es estática: parte del día REAL de hoy, así solo baja con el simulador de la presentación (Reloj adelantado).
+            const inicio = /^\d{4}-\d{2}-\d{2}$/.test(f.rachaDemo.inicio || '') ? f.rachaDemo.inicio : diaDe(Date.now());
+            m.rachaActual = Math.max(0, f.rachaDemo.base - Math.max(0, numDia(hoy) - numDia(inicio)));
+            m.mejorRacha = Math.max(m.mejorRacha, f.rachaDemo.base);
+            m.ultimoDia = hoy; m.demo = true;
+        }
         const ids = new Set(desbloqueados(m)); f.extra.forEach((id) => { if (porId(id)) ids.add(id); });
         return { m, ids, insignia: f.insignia && ids.has(f.insignia) ? f.insignia : null, deCuenta: f.deCuenta };
     }
@@ -276,18 +286,76 @@
         const g = document.createElement('span'); g.textContent = (ganado ? 'Tu recompensa: ' : 'Recompensa: ') + l.premio; caja.append(g);
         caja.hidden = false;
     }
+    /** Número grande de la racha (decorativo: el texto «Racha de N días» ya lo dice): sube contando hasta el valor nuevo y «late» al cambiar. Sin movimiento, aparece de una vez. */
+    let rachaMostrada = null, contando = 0, ultimaRacha = 0;
+    const sinMovimiento = () => document.documentElement.dataset.motion === 'reduce' || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    function numeroRacha(chip, n) {
+        let num = chip.querySelector('.racha-num');
+        if (!num) {
+            num = document.createElement('span'); num.className = 'racha-num'; num.setAttribute('aria-hidden', 'true');
+            const txt = $('rachaTexto'); chip.insertBefore(num, txt || null);
+            const brasas = document.createElement('span'); brasas.className = 'racha-brasas'; brasas.setAttribute('aria-hidden', 'true');
+            for (let i = 0; i < 5; i++) brasas.append(document.createElement('i'));
+            chip.append(brasas);
+        }
+        cancelAnimationFrame(contando); ultimaRacha = n;
+        const abierto = $('sideMenu') && $('sideMenu').classList.contains('open');
+        const de = rachaMostrada === null ? 0 : rachaMostrada;
+        rachaMostrada = n;
+        if (!n) { num.textContent = ''; return; }
+        if (sinMovimiento() || !abierto || de === n) { num.textContent = String(n); return; }
+        const t0 = performance.now(), dur = Math.min(1100, 350 + Math.abs(n - de) * 40);
+        const paso = (t) => {
+            const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+            num.textContent = String(Math.round(de + (n - de) * e));
+            if (k < 1) contando = requestAnimationFrame(paso);
+            else { num.classList.remove('late'); void num.offsetWidth; num.classList.add('late'); }
+        };
+        contando = requestAnimationFrame(paso);
+    }
+    // Cada vez que se abre el menú la llama «entra» y el número sube contando desde 0 (una vez por apertura; sin movimiento reducido).
+    (() => {
+        const menu = $('sideMenu'); if (!menu) return;
+        let estabaAbierto = menu.classList.contains('open');
+        new MutationObserver(() => {
+            const abierto = menu.classList.contains('open');
+            if (abierto && !estabaAbierto && ultimaRacha > 0 && !sinMovimiento()) {
+                const chip = $('rachaChip');
+                if (chip) { rachaMostrada = 0; numeroRacha(chip, ultimaRacha); chip.classList.remove('entra'); void chip.offsetWidth; chip.classList.add('entra'); setTimeout(() => chip.classList.remove('entra'), 1800); }
+            }
+            estabaAbierto = abierto;
+        }).observe(menu, { attributes: true, attributeFilter: ['class'] });
+    })();
     const textoRacha = (n) => (n >= 1 ? 'Racha de ' + pl(n, 'día', 'días') : 'Empieza tu racha con tu próximo viaje');
+    /** Solo cuentas de demostración: para MOSTRAR cómo baja la racha sin esperar días. Mueve únicamente el reloj de ESTA pantalla (Spevb.Reloj); no cambia nada en el servidor. */
+    function pintarSimulador(v) {
+        let caja = $('rachaSimular');
+        if (!v.m.demo) { if (caja) caja.hidden = true; return; }
+        const det = $('rachaDetalle'); if (!det) return;
+        if (!caja) {
+            caja = document.createElement('div'); caja.id = 'rachaSimular'; caja.className = 'racha-simular'; caja.setAttribute('role', 'group'); caja.setAttribute('aria-label', 'Simulación de la racha (demostración)');
+            const t = document.createElement('p'); t.className = 'racha-simular-t'; t.id = 'rachaSimularTxt'; t.setAttribute('role', 'status');
+            const mk = (id, txt, fn) => { const b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'secondary'; b.textContent = txt; b.onclick = fn; return b; };
+            const fila = document.createElement('div'); fila.className = 'racha-simular-fila';
+            fila.append(mk('rachaSimMas', 'Pasa 1 día sin viajar', () => Reloj.avanzar(86400000)), mk('rachaSimHoy', 'Volver a hoy', () => Reloj.restaurar()));
+            caja.append(t, fila); det.after(caja);
+        }
+        caja.hidden = false;
+        const dias = Math.round(desfase / 86400000), t = $('rachaSimularTxt');
+        if (t) t.textContent = dias > 0 ? 'Simulación: ' + (dias === 1 ? 'pasó 1 día' : 'pasaron ' + dias + ' días') + ' sin viajar. Mira cómo baja la racha.' : 'Demostración: avanza los días para ver cómo baja la racha cuando no viajas.';
+        const hoyB = $('rachaSimHoy'); if (hoyB) hoyB.disabled = dias === 0;
+    }
     function pintarRacha(v) {
         const n = v.m.rachaActual, nivel = nivelLlama(n);
         const chip = $('rachaChip'), ico = $('rachaIcono'), txt = $('rachaTexto'), det = $('rachaDetalle');
         if (txt) txt.textContent = textoRacha(n);
-        if (chip) { chip.dataset.nivel = String(nivel); chip.classList.toggle('sin-racha', nivel === 0); }
+        if (chip) { chip.dataset.nivel = String(nivel); chip.classList.toggle('sin-racha', nivel === 0); numeroRacha(chip, n); }
         if (ico) { const nombre = nivel ? 'llamaN' + nivel : 'llama'; if (ico.dataset.icono !== nombre) { ico.replaceChildren(S.Iconos.el(nombre, { tam: 24 })); ico.dataset.icono = nombre; } }
         if (det) {
             const l = [];
             if (v.m.mejorRacha >= 1) l.push('Mejor racha: ' + pl(v.m.mejorRacha, 'día', 'días') + '.');
             if (n >= 1) l.push(diaDe(Reloj.ahora()) === v.m.ultimoDia ? 'Hoy ya sumaste un día.' : 'Hoy puedes seguir tu racha con un viaje.');
-            l.push('Un día sin viajar no rompe tu racha; si pasan dos días seguidos sin viajar, vuelve a empezar.');
+            l.push('Un día sin viajar no rompe tu racha; luego baja 1 por día.');
             det.textContent = l.join(' ');
         }
     }
@@ -322,7 +390,7 @@
     function pintar() {
         const v = vista(), lista = $('logrosLista'), resumen = $('logrosResumen'), sem = $('semanaResumen');
         if (sem) { const t = textoSemana(); sem.textContent = t; sem.hidden = !t; }
-        pintarRacha(v); pintarAvatar(v); pintarPerfil(v);
+        pintarRacha(v); pintarSimulador(v); pintarAvatar(v); pintarPerfil(v);
         const pend = cola().filter((x) => String(x.uid) === String(uidActual())).length, nota = $('logrosPendiente');
         if (nota) { nota.hidden = !(v.deCuenta && pend); nota.textContent = pend ? (pend === 1 ? 'Un viaje por sincronizar: se enviará cuando haya conexión.' : pend + ' viajes por sincronizar: se enviarán cuando haya conexión.') : ''; }
         if (!lista || !resumen) return;

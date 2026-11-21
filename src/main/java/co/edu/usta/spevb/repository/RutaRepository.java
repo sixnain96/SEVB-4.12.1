@@ -137,6 +137,11 @@ public class RutaRepository {
         jdbcTemplate.update("UPDATE rutas SET codigo = ? WHERE id = ?", codigo, id);
     }
 
+    /** Borra la ruta; sus revisiones, paraderos y alias se van con ella (ON DELETE CASCADE). */
+    public boolean eliminar(long id) {
+        return jdbcTemplate.update("DELETE FROM rutas WHERE id = ?", id) > 0;
+    }
+
     public void cambiarActiva(long id, boolean activa) {
         jdbcTemplate.update("UPDATE rutas SET activa = ? WHERE id = ?", activa, id);
     }

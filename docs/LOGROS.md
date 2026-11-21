@@ -84,3 +84,11 @@ Para enseñar el catálogo completo sin tener que viajar 30 veces, `LOGROS_CUENT
 ## Qué no se probó
 
 Google real; un viaje real en bus (todo con GPS simulado); lectores de pantalla reales (se verificaron roles, nombres y regiones `aria-live`); el destello a velocidad real en un dispositivo.
+
+## Racha gradual y racha de la cuenta de demostración (4.17)
+- **Todas las cuentas:** la racha se mantiene entera mientras el último día con viaje no esté a más de 2 días de hoy; desde ahí **baja un día por cada día sin viajar** hasta 0 (3 días: jueves 2, viernes 1, sábado 0). Si se viaja de nuevo antes de llegar a 0, se continúa desde lo que quedaba. Los logros «3 días seguidos» y «Una semana» siguen pidiendo días consecutivos reales. Vectores compartidos: `src/test/resources/racha-vectores.json` (Java `Racha` y JavaScript `logros.js`).
+- **Cuenta de demostración** (`LOGROS_CUENTAS_DEMO` y la **cuenta del proyecto** `sebvadmin@gmail.com`, que va escrita en `CuentaProyecto.java` y siempre cuenta): ve todos los logros y su racha vale `LOGROS_RACHA_DEMO_BASE` (**31**). Sin `LOGROS_RACHA_DEMO_INICIO` es **estática** (siempre 31; solo baja con el simulador de la presentación); con una fecha (AAAA-MM-DD) pierde un día por cada día que pasa desde ella. El servidor manda `rachaDemo` y el dispositivo la recalcula con la fecha de Bogotá. Los demás correos suman con cada viaje.
+- **Si en la página publicada no aparecen los logros ni la racha de tu cuenta:** `LOGROS_CUENTAS_DEMO` (y, si quieres cambiarlas, las dos variables de racha) existen solo en tu `.env` local, que no se sube con el código. Defínelas también en el panel del servicio donde se publica (variables de entorno) y reinícialo.
+
+### Cómo enseñar la racha en la presentación (cuenta de demostración)
+Con la cuenta de `LOGROS_CUENTAS_DEMO` el menú muestra, bajo la racha, «Pasa 1 día sin viajar» y «Volver a hoy»: mueven únicamente el reloj de esa pantalla (nada se guarda ni cambia en el servidor) y la racha baja un día por cada toque (30 → 29 → 28…). En la página publicada hay que definir `LOGROS_CUENTAS_DEMO` en el `.env` **del servidor** y reconstruir/reiniciar: `docker compose -f compose.prod.supabase.yml up -d --build` (o el compose que uses).

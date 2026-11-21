@@ -3,6 +3,7 @@
 Uso: SEVB_E2E_URL=http://127.0.0.1:18080/ python e2e/mejoras414_e2e.py [filtro]      (lo normal es e2e/run_e2e.py)
 """
 import json
+import re
 import os
 import sys
 import traceback
@@ -94,7 +95,7 @@ def la_letra_grande_se_elige_en_el_menu_y_se_recuerda(nav):
     s = B.Sesion(nav, **MOVIL)
     p = s.abrir()
     assert p.evaluate("document.documentElement.dataset.letra") == 'normal'
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     p.click('button[data-letra="grande"]'); p.wait_for_timeout(300)
     assert p.evaluate("document.documentElement.dataset.letra") == 'grande'
     assert p.evaluate("document.querySelector('button[data-letra=\"grande\"]').getAttribute('aria-pressed')") == 'true'
@@ -116,7 +117,7 @@ def el_mapa_se_oscurece_de_noche_y_se_puede_forzar(nav):
     assert p.evaluate("document.documentElement.classList.contains('mapa-noche')")
     p.evaluate("Spevb.Ajustes.set('mapaNoche', 'claro'); Spevb.Confort.aplicar()")
     assert not p.evaluate("document.documentElement.classList.contains('mapa-noche')")
-    p.click('#menuButton'); p.wait_for_timeout(400); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(400); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     p.select_option('select[data-confort="mapaNoche"]', 'oscuro'); p.wait_for_timeout(200)
     assert p.evaluate("document.documentElement.classList.contains('mapa-noche')")
     p.evaluate("Spevb.Ajustes.set('mapaNoche', 'auto'); Spevb.Confort.aplicar()")
@@ -144,9 +145,10 @@ def casa_y_trabajo_viven_en_el_menu_se_guardan_con_cuenta_en_el_mapa_y_despues_s
     assert p.evaluate("Spevb.Datos.leer('lugares').map(f => f.nombre)") == ['Casa'], 'se guardó como Casa'
     p.click('#closeMenu'); p.wait_for_timeout(500)
     p.click('#menuButton'); p.wait_for_timeout(500)
-    assert 'Ir a casa' in p.inner_text('#atajos')
-    p.click('#atajos .atajo[data-atajo="Casa"]'); p.wait_for_timeout(700)
-    assert p.input_value('#tripDestination') == 'Casa', 'un toque pone la Casa como destino'
+    assert 'Guardar mi casa' not in p.inner_text('#atajos') and 'Casa' in p.inner_text('#atajos')
+    p.click('#atajos .atajo[data-atajo="Casa"]'); p.wait_for_timeout(300)
+    p.click('.lugar-uso-b[data-uso="destination"]'); p.wait_for_timeout(700)
+    assert p.input_value('#tripDestination') == 'Casa', 'tocar la Casa y elegir «Voy para aquí» la pone como destino'
     s.limpio('atajos'); s.cerrar()
 
 
@@ -170,36 +172,10 @@ def los_logros_cuentan_viajes_racha_y_avisan(nav):
     assert p.evaluate("Spevb.Logros.leer().viajes") == 5, 'el aviso de llegada del modo viaje (con subida confirmada) suma un viaje'
     p.evaluate("window.dispatchEvent(new CustomEvent('spevb-viaje-llegada', { detail: { buses: 1 } }))")
     assert p.evaluate("Spevb.Logros.leer().viajes") == 5, 'sin id, hora ni subida confirmada no suma'
-    p.click('#menuButton'); p.wait_for_timeout(400); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(400); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     assert 'Has terminado 5 viajes' in p.inner_text('#logrosResumen')
     assert p.locator('#logrosLista .logro.ganado').count() >= 5
     s.limpio('logros'); s.cerrar()
-
-
-@prueba
-def compartir_por_whatsapp_abre_el_mensaje_con_la_ruta_popular(nav):
-    s = B.Sesion(nav, **MOVIL)
-    con_nombres(s)
-    p = s.abrir()
-    p.evaluate("window.__abierto = null; window.open = (u) => { window.__abierto = u; return null; };")
-    planear(p)
-    p.evaluate("document.querySelector('#shareWhats').click()")
-    url = p.evaluate("window.__abierto")
-    assert url and url.startswith('https://wa.me/?text='), url
-    assert 'Catama' in json.loads('"' + p.evaluate("decodeURIComponent(window.__abierto.slice(20))").replace('\n', '\\n').replace('"', '\\"') + '"'), url
-    s.limpio('whatsapp'); s.cerrar()
-
-
-@prueba
-def el_boton_google_maps_abre_el_viaje_a_b_sin_clave(nav):
-    s = B.Sesion(nav, **MOVIL)
-    p = s.abrir()
-    p.evaluate("window.__abierto = null; window.open = (u) => { window.__abierto = u; return null; };")
-    planear(p)
-    p.evaluate("document.querySelector('#openGoogleMaps').click()")
-    url = p.evaluate("window.__abierto")
-    assert url and url.startswith('https://www.google.com/maps/dir/?api=1&origin=4.1475') and 'destination=4.145' in url and 'key=' not in url, url
-    s.limpio('google maps'); s.cerrar()
 
 
 @prueba

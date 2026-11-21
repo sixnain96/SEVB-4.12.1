@@ -74,6 +74,12 @@ public class RutaController {
         return ResponseEntity.ok(rutaService.actualizarRecorrido(id, request));
     }
 
+    /** Elimina una ruta (solo editor). `codigo` debe ser el código de la ruta: es la confirmación. */
+    @DeleteMapping("/editor/rutas/{id}")
+    public Map<String, Object> eliminarRuta(@PathVariable Long id, @RequestParam(required = false) String codigo) {
+        return Map.of("ok", true, "codigo", rutaService.eliminarRuta(id, codigo));
+    }
+
     public record ParaderosRequest(List<ParaderoService.Entrada> paraderos) {}
 
     /** Reemplaza los paraderos de la ruta (lista completa). Devuelve la ruta con los paraderos ya ordenados a lo largo del recorrido. */

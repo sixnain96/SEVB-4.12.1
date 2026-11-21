@@ -71,7 +71,9 @@ def el_menu_planificando_tiene_secciones_con_icono_cabecera_fija_y_se_cierra_con
     cierra_visible(p, 568)
     # la animación solo corre cuando la persona toca el título de la sección
     assert p.evaluate("document.querySelectorAll('#sideMenu details.anima').length") == 0, 'al abrir el menú no hay animaciones de sección'
-    p.evaluate("document.getElementById('menuLugares').scrollIntoView()")
+    p.evaluate("document.getElementById('menuMas').open = true"); p.wait_for_timeout(100)      # 4.17: Ayuda y lo demás viven dentro de «Más»
+    assert p.evaluate("document.getElementById('menuAyuda').closest('#menuMas') !== null")
+    p.evaluate("document.getElementById('menuMas').scrollIntoView()")
     p.click('#menuAyuda > summary'); p.wait_for_timeout(60)
     assert p.evaluate("document.getElementById('menuAyuda').classList.contains('anima')"), 'al tocar una sección se anima'
     p.wait_for_timeout(500)
@@ -223,13 +225,13 @@ def casa_trabajo_y_un_lugar_propio_se_usan_en_un_toque_y_editar_o_cancelar_no_to
     s, p = L.con_ana(nav)
     L.abrir_modo(p, '#atajos [data-atajo="Casa"]'); L.guardar_en_modo(p)
     L.menu(p)
-    assert 'Ir a casa' in p.inner_text('#atajos') and 'Guardar mi trabajo' in p.inner_text('#atajos'), p.inner_text('#atajos')
+    assert 'Guardar mi casa' not in p.inner_text('#atajos') and 'Casa' in p.inner_text('#atajos') and 'Guardar mi trabajo' in p.inner_text('#atajos'), p.inner_text('#atajos')
     assert 'Casa' in p.get_attribute('#atajos .atajo-fila[data-tipo="casa"] .atajo-mas', 'aria-label'), 'el botón de más acciones nombra el lugar'
     L.abrir_modo(p, '#lugarAgregar'); p.fill('#lugarNombre', 'Universidad'); L.guardar_en_modo(p)
     L.menu(p)
     fila = '#lugaresLista .lugar-fila .lugar-usar'
-    assert p.is_visible(fila) and 'Universidad' in p.inner_text(fila) and p.inner_text('#lugaresLista .lugar-ir') == 'Ir', 'el lugar propio conserva su nombre y se reconoce como destino'
-    assert 'Ir a Universidad' in p.get_attribute(fila, 'aria-label')
+    assert p.is_visible(fila) and 'Universidad' in p.inner_text(fila) and p.inner_text('#lugaresLista .lugar-ir') == 'Usar', 'el lugar propio conserva su nombre y se reconoce como usable de un toque'
+    assert 'Usar Universidad como salida o destino' in p.get_attribute(fila, 'aria-label')
     guardada = [x for x in L.lugares(p) if x['nombre'] == 'Casa'][0]
     antes = p.evaluate("JSON.stringify(Spevb.Planner.puntos())")
     # editar: abre en el punto anterior, con la instrucción breve
@@ -246,10 +248,12 @@ def casa_trabajo_y_un_lugar_propio_se_usan_en_un_toque_y_editar_o_cancelar_no_to
     assert p.evaluate("document.activeElement.closest('.atajo-fila') && document.activeElement.closest('.atajo-fila').dataset.tipo") == 'casa', 'el foco vuelve a la fila'
     assert p.evaluate("JSON.stringify(Spevb.Planner.puntos())") == antes, 'abrir, mover y cancelar no cambia A ni B'
     # un toque: prepara el destino
-    p.click('#atajos .atajo-fila[data-tipo="casa"] .atajo'); p.wait_for_timeout(700)
+    p.click('#atajos .atajo-fila[data-tipo="casa"] .atajo'); p.wait_for_timeout(300)
+    assert not cerrado(p), '4.17: el primer toque ofrece «Salgo de aquí» / «Voy para aquí» sin cerrar el menú'
+    p.click('.lugar-uso-b[data-uso="destination"]'); p.wait_for_timeout(700)
     assert cerrado(p), 'el menú se cierra'
     d = p.evaluate("Spevb.Planner.puntos().destino")
-    assert d and abs(d['lat'] - guardada['lat']) < 1e-6, 'Ir a casa deja Casa como destino'
+    assert d and abs(d['lat'] - guardada['lat']) < 1e-6, '«Voy para aquí» deja Casa como destino'
     s.limpio('lugares'); s.cerrar()
 
 

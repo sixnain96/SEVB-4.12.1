@@ -32,47 +32,6 @@
     window.addEventListener('spevb-seleccion', mostrarBarra);
 
     // ------------------------------------------------------------------ compartir
-    const num = (n) => Number(n).toFixed(6);
-    function enlace() {
-        const { origen, destino } = P().puntos();
-        if (!origen || !destino) return null;
-        const q = new URLSearchParams({ a: num(origen.lat) + ',' + num(origen.lng), b: num(destino.lat) + ',' + num(destino.lng) });
-        if (origen.nombre && !/^\d/.test(origen.nombre) && !/^Punto en mapa/.test(origen.nombre)) q.set('an', origen.nombre.slice(0, 80));
-        if (destino.nombre && !/^\d/.test(destino.nombre) && !/^Punto en mapa/.test(destino.nombre)) q.set('bn', destino.nombre.slice(0, 80));
-        return location.origin + '/?' + q.toString();
-    }
-    $('shareTrip').onclick = async () => {
-        const url = enlace();
-        if (!url) return S.toast('Primero elige A y B.', { tipo: 'info', ms: 3000 });
-        const { origen, destino } = P().puntos();
-        const texto = 'Mi viaje en bus por Villavicencio: de ' + origen.nombre + ' a ' + destino.nombre;
-        try {
-            if (navigator.share) { await navigator.share({ title: 'SEVB · Mi viaje', text: texto, url }); return; }
-        } catch (e) { if (e.name === 'AbortError') return; }
-        try { await navigator.clipboard.writeText(url); S.toast('Enlace copiado. Pégalo en WhatsApp o donde quieras.', { tipo: 'success', ms: 4000, clave: 'compartir' }); }
-        catch { window.prompt('Copia este enlace:', url); }
-    };
-    // «Google Maps»: abre el mismo viaje (A → B) en Google Maps para compararlo o ver la calle. Es solo un enlace público: no usa clave ni envía datos de la persona.
-    const botonGoogle = $('openGoogleMaps');
-    if (botonGoogle) botonGoogle.onclick = () => {
-        const { origen, destino } = P().puntos();
-        if (!origen || !destino) return S.toast('Primero elige A y B.', { tipo: 'info', ms: 3000 });
-        const pt = (p) => Number(p.lat).toFixed(6) + ',' + Number(p.lng).toFixed(6);
-        window.open('https://www.google.com/maps/dir/?api=1&origin=' + pt(origen) + '&destination=' + pt(destino) + '&travelmode=transit', '_blank', 'noopener');
-    };
-    // WhatsApp: abre el chat con el mensaje ya escrito (la persona elige a quién se lo manda). Dice la ruta como la conoce la gente («la Catama»).
-    const botonWhats = $('shareWhats');
-    if (botonWhats) botonWhats.onclick = () => {
-        const url = enlace();
-        if (!url) return S.toast('Primero elige A y B.', { tipo: 'info', ms: 3000 });
-        const { origen, destino } = P().puntos();
-        const sel = P().seleccion;
-        const rutas = sel && sel.codigos && sel.codigos.length ? sel.codigos.map((c) => S.rutaNombre(c)).join(' y luego la ') : '';
-        const min = sel && sel.resumen && sel.resumen.minutos ? sel.resumen.minutos : null;
-        const texto = 'Voy de ' + origen.nombre + ' a ' + destino.nombre + (rutas ? ' en la ruta ' + rutas : '') + (min ? ' (unos ' + min + ' min)' : '')
-            + '\nMíralo en el mapa: ' + url + '\n— SEVB · Rutas de Villavicencio';
-        window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank', 'noopener');
-    };
     // Al abrir un enlace compartido: se ponen A y B y se busca.
     function abrirCompartido() {
         const q = new URLSearchParams(location.search);
@@ -186,7 +145,7 @@
             await S.api('/api/reportes', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    categoria: $('reportType').value, mensaje: $('reportMessage').value,
+                    categoria: $('reportType').value, gravedad: $('reportSeverity').value, mensaje: $('reportMessage').value,
                     rutaCodigo: sel ? sel.codigos.join('+') : null,
                     origenLat: origen?.lat, origenLng: origen?.lng, destinoLat: destino?.lat, destinoLng: destino?.lng,
                     contacto: $('reportContact').value || null,

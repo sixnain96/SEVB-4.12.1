@@ -21,7 +21,7 @@ package co.edu.usta.spevb.service;
 public record PoliticaRecomendacion(int version, double reduccionAccesoMinimaMetros, double reduccionAccesoMinimaRelativa,
                                     double holguraCaminataTotalMetros, double maxCaminataCambioMetros,
                                     double maxTiempoExtraMinutos, double maxCaminataExtremoMetros) {
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;      // 3 (4.17): el desempate usa el costo puerta a puerta (caminar pesa el doble) en vez de solo la caminata
 
     public static final PoliticaRecomendacion DEFECTO = new PoliticaRecomendacion(VERSION, 300, 0.5, 300, 400, 15, 1800);
 

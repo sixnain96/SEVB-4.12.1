@@ -550,6 +550,30 @@ def la_auditoria_de_calidad_lista_las_rutas_abre_el_primer_problema_y_no_modific
     s.cerrar()
 
 
+@prueba
+def eliminar_una_ruta_pide_confirmar_con_su_codigo_y_la_quita_de_la_lista(nav):
+    s = abrir_editor(nav, 'X1500')
+    p = s.page
+    assert p.is_enabled('#deleteRoute'), 'con una ruta abierta se puede eliminar'
+    antes = p.evaluate("document.querySelectorAll('#editorRoute option').length")
+    # 1) cancelar el cuadro: no se envía nada
+    p.once('dialog', lambda d: d.dismiss()); p.click('#deleteRoute'); p.wait_for_timeout(400)
+    assert not [e for e in s.escrituras if e.startswith('DELETE')], 'cancelar no borra'
+    # 2) código equivocado: tampoco
+    p.once('dialog', lambda d: d.accept('OTRA')); p.click('#deleteRoute'); p.wait_for_timeout(500)
+    assert not [e for e in s.escrituras if e.startswith('DELETE')], 'un código distinto no borra'
+    assert 'no coincide' in p.inner_text('#editorMessage') if p.locator('#editorMessage').count() else True
+    # 3) código correcto: se elimina y desaparece de la lista
+    p.once('dialog', lambda d: d.accept('x1500')); p.click('#deleteRoute'); p.wait_for_timeout(1200)
+    assert [e for e in s.escrituras if e.startswith('DELETE') and '/api/editor/rutas/' in e and 'codigo=X1500' in e], s.escrituras
+    assert p.evaluate("document.querySelectorAll('#editorRoute option').length") == antes - 1, 'la ruta sale de la lista'
+    assert not [o for o in p.evaluate("[...document.querySelectorAll('#editorRoute option')].map(o => o.textContent)") if o.startswith('X1500 ')]
+    assert p.is_disabled('#deleteRoute'), 'sin ruta abierta el botón queda inactivo'
+    assert p.evaluate('SpevbEditor.points().length') == 0
+    s.limpio('eliminar ruta')
+    s.cerrar()
+
+
 def correr(filtro=None):
     fallos = []
     with sync_playwright() as p:

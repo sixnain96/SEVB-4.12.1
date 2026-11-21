@@ -51,7 +51,7 @@ def abrir(nav, ua=None, init=None, **opts):
 
 def ver_seccion(p):
     p.click('#menuButton'); p.wait_for_timeout(450)
-    p.evaluate("document.getElementById('menuInstalar').open = true")
+    p.evaluate("document.getElementById('menuMas').open = true; document.getElementById('menuInstalar').open = true")
     p.wait_for_timeout(200)
 
 
@@ -154,6 +154,7 @@ def si_la_deteccion_se_equivoca_la_persona_elige_su_navegador(nav):
 def la_seccion_se_abre_con_teclado_y_el_texto_es_texto_no_html(nav):
     s, p = abrir(nav, UA['android-chrome'])
     p.click('#menuButton'); p.wait_for_timeout(450)
+    p.evaluate("document.getElementById('menuMas').open = true"); p.wait_for_timeout(100)
     p.focus('#menuInstalar > summary'); p.keyboard.press('Enter'); p.wait_for_timeout(200)
     assert p.evaluate("document.getElementById('menuInstalar').open")
     assert p.evaluate("document.querySelectorAll('#instalarPasos li').length") >= 3

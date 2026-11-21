@@ -26,7 +26,15 @@ public class ReporteController {
     }
 
     public record ReporteRequest(String categoria, String mensaje, String rutaCodigo,
-                                 Double origenLat, Double origenLng, Double destinoLat, Double destinoLng, String contacto) {}
+                                 Double origenLat, Double origenLng, Double destinoLat, Double destinoLng, String contacto, String gravedad) {
+        public ReporteRequest(String categoria, String mensaje, String rutaCodigo, Double origenLat, Double origenLng, Double destinoLat, Double destinoLng, String contacto) {
+            this(categoria, mensaje, rutaCodigo, origenLat, origenLng, destinoLat, destinoLng, contacto, null);
+        }
+    }
+    static final java.util.Map<String, String> GRAVEDADES = java.util.Map.of("BAJA", "Baja: es una molestia", "MEDIA", "Media: me complica el viaje", "ALTA", "Alta: no puedo viajar");
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private co.edu.usta.spevb.service.NotificadorReportes notificador;
     public record EstadoRequest(String estado) {}
 
     private static String limpiar(String s, int max) {
@@ -48,12 +56,23 @@ public class ReporteController {
         if (!CATEGORIAS.contains(categoria)) throw new IllegalArgumentException("Elige el tipo de reporte.");
         String mensaje = limpiar(r.mensaje(), 500);
         if (mensaje == null || mensaje.length() < 5) throw new IllegalArgumentException("Cuéntanos qué pasó (mínimo 5 caracteres).");
+        String gravedad = r.gravedad() == null ? null : GRAVEDADES.get(r.gravedad().strip().toUpperCase());
+        String textoGuardado = gravedad == null ? mensaje : ('[' + gravedad.substring(0, gravedad.indexOf(':')) + "] " + mensaje);      // la gravedad va al inicio del mensaje (sin columna nueva)
+        if (textoGuardado.length() > 500) textoGuardado = textoGuardado.substring(0, 500);
         jdbc.update("""
                 INSERT INTO reportes (categoria, mensaje, ruta_codigo, origen_lat, origen_lng, destino_lat, destino_lng, contacto, agente)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                categoria, mensaje, limpiar(r.rutaCodigo(), 40),
+                categoria, textoGuardado, limpiar(r.rutaCodigo(), 40),
                 coord(r.origenLat(), -90, 90), coord(r.origenLng(), -180, 180), coord(r.destinoLat(), -90, 90), coord(r.destinoLng(), -180, 180),
                 limpiar(r.contacto(), 120), limpiar(http.getHeader("User-Agent"), 160));
+        if (notificador != null) {
+            var aviso = new java.util.LinkedHashMap<String, Object>();
+            aviso.put("categoria", categoria); aviso.put("gravedad", gravedad); aviso.put("mensaje", mensaje); aviso.put("rutaCodigo", limpiar(r.rutaCodigo(), 40));
+            if (coord(r.origenLat(), -90, 90) != null && coord(r.origenLng(), -180, 180) != null) aviso.put("origen", r.origenLat() + ", " + r.origenLng() + "  https://www.google.com/maps?q=" + r.origenLat() + "," + r.origenLng());
+            if (coord(r.destinoLat(), -90, 90) != null && coord(r.destinoLng(), -180, 180) != null) aviso.put("destino", r.destinoLat() + ", " + r.destinoLng() + "  https://www.google.com/maps?q=" + r.destinoLat() + "," + r.destinoLng());
+            aviso.put("contacto", limpiar(r.contacto(), 120)); aviso.put("agente", limpiar(http.getHeader("User-Agent"), 160));
+            try { notificador.avisar(aviso); } catch (RuntimeException e) { /* el correo nunca impide guardar el reporte */ }
+        }
         return ResponseEntity.ok(Map.of("ok", true));
     }
 

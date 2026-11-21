@@ -63,18 +63,16 @@
         <button id="closeMenu" class="icon-button" type="button" aria-label="Cerrar menú">×</button>
     </div>
     <button id="menuVolverViaje" class="primary-plan-button menu-volver-viaje" type="button" hidden>Volver a mi viaje</button>
-    <button id="menuInicio" class="secondary menu-inicio" type="button"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 11l8-7 8 7M6 10v10h4v-6h4v6h4V10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Volver al inicio</span></button>
+    <button id="menuInicio" class="primary-plan-button menu-inicio menu-plan" type="button"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.4" fill="currentColor"/></svg><span class="menu-plan-txt"><strong>Planear un viaje</strong><small>Elige de dónde sales y a dónde vas</small></span></button>
     <p id="menuInicioNota" class="menu-inicio-nota" hidden>Te pedirá confirmar: termina tu viaje en curso.</p>
     <section class="menu-account" id="menuAccount" aria-label="Mi cuenta">
         <div id="accountGuest">
-            <p class="eyebrow">Mi cuenta</p>
-            <p class="account-text">Guarda tus lugares, viajes e historial y velos igual en todos tus equipos. Sin cuenta también puedes planear y viajar.</p>
+            <p class="account-text">Guarda tus lugares y viajes en todos tus equipos.</p>
             <div class="account-buttons">
                 <button id="accountLogin" class="primary-plan-button" type="button">Continuar con Google</button>
             </div>
         </div>
         <div id="accountUser" hidden>
-            <p class="eyebrow">Mi cuenta</p>
             <div class="account-user"><span class="account-avatar" id="accountAvatar" aria-hidden="true"></span><div><strong id="accountName"></strong><small id="accountEmail"></small></div></div>
             <div class="account-buttons">
                 <button id="accountSettings" class="secondary" type="button">Ajustes de la cuenta</button>
@@ -90,13 +88,13 @@
     </div>
     <ul id="lugaresLista" class="lugares-lista" aria-label="Mis lugares con nombre" hidden></ul>
     <button id="lugarAgregar" class="secondary lugar-agregar" type="button">Agregar lugar</button>
-    <p id="lugaresHint" class="esp-hint" hidden>Tus lugares se guardan en tu cuenta de Google y los ves igual en tu otro equipo. <button class="text-button" type="button" data-abrir-cuenta="entrar">Continuar con Google</button></p>
+    <p id="lugaresHint" class="esp-hint" hidden>Se guardan en tu cuenta de Google. <button class="text-button" type="button" data-abrir-cuenta="entrar">Continuar con Google</button></p>
     <details id="favorites" class="favorites"><summary>Administrar mis lugares <b id="favCount"></b></summary><div id="favList" class="fav-list"></div></details>
     </details>
-    <details class="menu-seccion menu-space" id="menuEspacio" data-ico="reloj" open><summary><span>Mis viajes</span></summary>
+    <details class="menu-seccion menu-space" id="menuEspacio" data-ico="reloj" open><summary><span>Recientes</span></summary>
     <div id="recentTrips" class="recent-trips" hidden></div>
     <details id="espacio" class="favorites espacio">
-        <summary>Historial y viajes guardados <b id="espCount"></b></summary>
+        <summary>Historial y guardados <b id="espCount"></b></summary>
         <div class="esp-section">
             <h4>Viajes guardados</h4>
             <div id="savedList" class="fav-list"></div>
@@ -105,44 +103,29 @@
             <div class="esp-head"><h4>Historial</h4><button id="histClear" class="text-button" type="button">Borrar historial</button></div>
             <div id="histList" class="fav-list"></div>
         </div>
-        <p id="espHint" class="esp-hint">Sin cuenta, esto se guarda solo en este dispositivo. <button class="text-button" type="button" data-abrir-cuenta="entrar">Continuar con Google</button> para verlo también en tu otro equipo.</p>
+        <p id="espHint" class="esp-hint">Sin cuenta, esto se guarda solo en este dispositivo. <button class="text-button" type="button" data-abrir-cuenta="entrar">Continuar con Google</button> para verlo en todos tus equipos.</p>
     </details>
     </details>
-    <details class="menu-seccion menu-logros" id="logros" data-ico="medalla" aria-label="Mis viajes y logros"><summary><span>Mis viajes y logros</span>
+    <details class="menu-seccion menu-logros" id="logros" data-ico="medalla" aria-label="Logros y racha"><summary><span>Logros y racha</span>
         <span class="racha-chip sin-racha" id="rachaChip" data-nivel="0"><span class="racha-llama" id="rachaIcono" aria-hidden="true"></span><span id="rachaTexto">Empieza tu racha con tu próximo viaje</span></span></summary>
         <p id="rachaDetalle" class="racha-detalle"></p>
         <p id="logrosPendiente" class="logros-resumen" role="status" hidden></p>
-        <p class="eyebrow">Mis viajes</p>
         <p id="semanaResumen" class="logros-resumen semana-resumen" hidden></p>
         <p id="logrosResumen" class="logros-resumen">Aún no has terminado ningún viaje. ¡Tu primer viaje te da un logro!</p>
         <ul id="logrosLista" class="logros-lista"></ul>
         <div id="logroDetalle" class="logro-detalle" role="status" aria-live="polite" hidden></div>
     </details>
-    <details class="menu-seccion menu-ayuda" id="menuAyuda" data-ico="ayuda"><summary><span>Ayuda</span></summary>
+    <details class="menu-mas" id="menuMas">
+        <summary><span class="menu-mas-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><circle cx="5.5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor"/></svg></span><span class="menu-mas-txt"><strong>Más</strong><small>Ayuda, pantalla y más</small></span></summary>
+        <div class="menu-mas-cuerpo">
+    <details class="menu-seccion menu-sub menu-ayuda" id="menuAyuda" data-ico="ayuda"><summary><span>Ayuda</span></summary>
         <div class="menu-ayuda-botones">
             <button id="menuBienvenida" class="secondary" type="button">Ver la bienvenida otra vez</button>
             <button id="menuPractica" class="secondary" type="button">Hacer un viaje de práctica</button>
         </div>
     </details>
-    <details class="menu-seccion menu-instalar" id="menuInstalar" data-ico="bajar"><summary><span>Instalar en tu celular</span></summary>
-        <p class="instalar-intro">Instala SEVB como una app: tendrá su propio icono, se abrirá en pantalla completa y cargará más rápido. <strong>No necesitas Play Store ni un archivo APK</strong>: se instala desde tu navegador.</p>
-        <p id="instalarDetectado" class="instalar-detectado" role="status" aria-live="polite"></p>
-        <div id="instalarAhoraCaja" class="instalar-ahora" hidden><button id="instalarAhora" class="primary-plan-button" type="button">Instalar ahora</button></div>
-        <ol id="instalarPasos" class="instalar-pasos" aria-label="Pasos para instalar SEVB"></ol>
-        <p id="instalarNota" class="instalar-nota"></p>
-        <div class="instalar-otro"><label for="instalarOtro">¿No es tu navegador? Elige el tuyo:</label><select id="instalarOtro"></select></div>
-    </details>
-    <nav class="menu-links" id="menuLinks" aria-label="Funciones del sistema">
-        <a class="admin-only" hidden href="/lugares.html">Direcciones y lugares</a>
-        <a class="admin-only" hidden href="/paraderos.html">Paraderos de bus</a>
-        <a class="admin-only" hidden href="/puentes.html">Puentes peatonales</a>
-        <a class="admin-only" hidden href="/pasos.html">Pasos peatonales</a>
-        <a class="admin-only" hidden href="/reportes.html">Reportes</a>
-        <a class="admin-only" hidden href="/editor.html">Editor de recorridos</a>
-    </nav>
-    <details class="menu-seccion menu-view" id="menuVista" data-ico="sol" aria-labelledby="viewTitle"><summary><span>Pantalla y accesibilidad</span></summary>
-        <p class="eyebrow">Pantalla</p>
-        <h3 id="viewTitle">Mapa y accesibilidad</h3>
+    <details class="menu-seccion menu-sub menu-view" id="menuVista" data-ico="sol" aria-labelledby="viewTitle"><summary><span>Pantalla y accesibilidad</span></summary>
+        <h3 id="viewTitle" class="sr-only">Mapa y accesibilidad</h3>
         <div class="confort-row" role="group" aria-label="Tamaño de la letra">
             <span class="confort-label">Tamaño de la letra</span>
             <div class="letra-opciones">
@@ -157,8 +140,7 @@
         <label class="switch-row"><input type="checkbox" data-ajuste="panelBajar" /><span>Bajar el panel al buscar una ruta<small>Apagado: al buscar, el panel queda compacto con el botón «Iniciar viaje». Actívalo si prefieres que baje solo y deje el mapa libre en el celular; el botón «Ver rutas» lo vuelve a abrir.</small></span></label>
         <label class="switch-row"><input type="checkbox" data-ajuste="daltonico" /><span>Colores para daltónicos<small>Tramos en azul y naranja, el segundo bus con línea discontinua y cada tramo numerado.</small></span></label>
         <label class="switch-row"><input type="checkbox" data-ajuste="paraderosMapa" /><span>Mostrar paraderos del sistema<small>Dibuja en el mapa los paraderos registrados cerca de lo que ves (desde el zoom 14). Los de tu viaje se muestran siempre.</small></span></label>
-    </details>
-    <details id="colorGuide" class="favorites color-guide">
+        <details id="colorGuide" class="favorites color-guide">
         <summary>Guía de colores</summary>
         <ul class="guide-list">
             <li><i class="g-walk"></i><span><b>A pie (línea punteada con puntos que avanzan):</b> camina en ese sentido. Oscura de día y clara de noche.</span></li>
@@ -169,25 +151,30 @@
         </ul>
         <label class="switch-row guide-switch"><input type="checkbox" data-ajuste="daltonico" /><span>Colores para daltónicos</span></label>
     </details>
-    <details class="menu-seccion menu-offline" id="menuOffline" data-ico="mapa" aria-labelledby="offlineTitle"><summary><span>Mala señal o sin internet</span></summary>
-        <p class="eyebrow">Mala señal o sin internet</p>
-        <h3 id="offlineTitle">Uso sin conexión</h3>
+    </details>
+    <details class="menu-seccion menu-sub menu-instalar" id="menuInstalar" data-ico="bajar"><summary><span>Instalar en tu celular</span></summary>
+        <p class="instalar-intro">Instala SEVB como una app: tendrá su propio icono, se abrirá en pantalla completa y cargará más rápido. <strong>No necesitas Play Store ni un archivo APK</strong>: se instala desde tu navegador.</p>
+        <p id="instalarDetectado" class="instalar-detectado" role="status" aria-live="polite"></p>
+        <div id="instalarAhoraCaja" class="instalar-ahora" hidden><button id="instalarAhora" class="primary-plan-button" type="button">Instalar ahora</button></div>
+        <ol id="instalarPasos" class="instalar-pasos" aria-label="Pasos para instalar SEVB"></ol>
+        <p id="instalarNota" class="instalar-nota"></p>
+        <div class="instalar-otro"><label for="instalarOtro">¿No es tu navegador? Elige el tuyo:</label><select id="instalarOtro"></select></div>
+    </details>
+    <details class="menu-seccion menu-sub menu-offline" id="menuOffline" data-ico="mapa" aria-labelledby="offlineTitle"><summary><span>Mala señal o sin internet</span></summary>
+        <h3 id="offlineTitle" class="sr-only">Uso sin conexión</h3>
         <p id="offlineInfo" class="offline-info" role="status" aria-live="polite">Revisando…</p>
         <progress id="offlineProgress" class="offline-progress" value="0" max="1" hidden></progress>
         <button id="offlineDownload" class="secondary" type="button">Guardar mapa de Villavicencio</button>
         <button id="offlineDelete" class="text-button" type="button" hidden>Borrar el mapa guardado</button>
-        <p class="offline-hint">¿Quieres SEVB como app? Mira «Instalar en tu celular» en este menú.</p>
         <p class="offline-hint">Descárgalo una vez con buena señal (Wi-Fi si puedes). Las rutas y tus últimos viajes se guardan solos.</p>
     </details>
+    <details class="menu-seccion menu-sub menu-route-browser" id="menuExplorar" data-ico="ruta"><summary><span>Explorar recorridos</span></summary>
     <section class="menu-near" id="menuCerca" aria-label="Rutas cerca del origen">
     <div class="nearby-origin-block">
         <button id="nearOriginRoutes" class="text-button chip-button" type="button" disabled>Rutas cerca del origen</button>
         <div id="nearbyResults" class="nearby-results"></div>
     </div>
     </section>
-    <details class="menu-seccion menu-route-browser" id="menuExplorar" data-ico="ruta"><summary><span>Explorar recorridos</span></summary>
-        <p class="eyebrow">Rutas registradas</p>
-        <h3>Explorar recorridos</h3>
         <label for="routeSearch">Buscar ruta</label>
         <input id="routeSearch" type="search" placeholder="Galán, Porfía, Catama, Álamos…" autocomplete="off" />
         <label for="validationFilter" class="sr-only">Filtrar rutas</label>
@@ -215,6 +202,16 @@
     </section>
     </details>
 
+    <nav class="menu-links" id="menuLinks" aria-label="Funciones del sistema">
+        <a class="admin-only" hidden href="/lugares.html">Direcciones y lugares</a>
+        <a class="admin-only" hidden href="/paraderos.html">Paraderos de bus</a>
+        <a class="admin-only" hidden href="/puentes.html">Puentes peatonales</a>
+        <a class="admin-only" hidden href="/pasos.html">Pasos peatonales</a>
+        <a class="admin-only" hidden href="/reportes.html">Reportes</a>
+        <a class="admin-only" hidden href="/editor.html">Editor de recorridos</a>
+    </nav>
+        </div>
+    </details>
     <div class="menu-brand" id="menuMarca"><img src="/img/marca/sevb-chiguiro-menu.webp" alt="" width="160" height="160" loading="lazy" decoding="async"><span class="menu-brand-name">SEVB</span></div>
 </aside>
 
@@ -251,6 +248,7 @@
                         <button id="siempreNo" class="text-button" type="button">Ahora no</button>
                     </div>
                 </div>
+                <div class="plan-intro" id="planIntro"><h2>¿A dónde vamos?</h2><p>Dinos de dónde sales y a dónde vas.</p></div>
                 <div class="endpoints" id="formAB" role="group" aria-label="Origen y destino (A y B)" tabindex="-1">
                     <div class="endpoint-block">
                         <span class="endpoint-letter a" aria-hidden="true">A</span>
@@ -297,12 +295,12 @@
                 </div>
                 <div id="tripStatus" class="status info" role="status" aria-live="polite">Marca A y B en el mapa o escribe una dirección.</div>
                 <div id="tripTools" class="trip-tools" hidden>
-                    <button id="shareTrip" class="tool-chip" type="button"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3v12M12 3L8 7m4-4l4 4M5 12v7h14v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Compartir</span></button>
-                    <button id="openGoogleMaps" class="tool-chip" type="button"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.4" fill="currentColor"/></svg><span>Google Maps</span></button>
-                    <button id="shareWhats" class="tool-chip" type="button"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 20l1.3-4.2A8 8 0 1 1 8.4 18.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.2 8.8c.3 2.5 2.6 4.9 5.8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>WhatsApp</span></button>
-                    <button id="alightAlert" class="tool-chip" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 17h12l-1.5-2v-4a4.5 4.5 0 0 0-9 0v4zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Avisarme al bajar</span></button>
                     <button id="saveTrip" class="tool-chip" type="button"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Guardar viaje</span></button>
+                    <button id="alightAlert" class="tool-chip" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 17h12l-1.5-2v-4a4.5 4.5 0 0 0-9 0v4zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Avisarme al bajar</span></button>
+                    <button id="tripToolsMas" class="tool-chip tool-chip-mas" type="button" aria-expanded="false" aria-controls="tripToolsExtra"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor"/></svg><span>Más</span></button>
+                    <div id="tripToolsExtra" class="trip-tools-extra" hidden>
                     <button id="reportProblem" class="tool-chip" type="button"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 21V4m0 0h11l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Reportar</span></button>
+                    </div>
                 </div>
                 <div id="tripItinerario" class="trip-itinerario"></div>
                 <div id="tripResults" class="trip-results"></div>
@@ -403,6 +401,12 @@
             <option value="SUGERENCIA">Tengo una sugerencia</option>
             <option value="OTRO">Otro</option>
         </select>
+        <label for="reportSeverity">¿Qué tan grave es?</label>
+        <select id="reportSeverity">
+            <option value="BAJA">Baja: es una molestia</option>
+            <option value="MEDIA" selected>Media: me complica el viaje</option>
+            <option value="ALTA">Alta: no puedo viajar</option>
+        </select>
         <label for="reportMessage">Cuéntanos</label>
         <textarea id="reportMessage" rows="4" maxlength="500" required minlength="5" placeholder="Ej.: el bus no gira en la Calle 38, sigue derecho hasta la Cra 22."></textarea>
         <label for="reportContact">Contacto (opcional)</label>
@@ -422,5 +426,6 @@
 <script defer src="/js/instalar.js"></script>
 <script defer src="/js/animaciones.js"></script>
 <script defer src="/js/mejor-opcion.js"></script>
+<script defer src="/js/menu-simple.js"></script>
 </body>
 </html>

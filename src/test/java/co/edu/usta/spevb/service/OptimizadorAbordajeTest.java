@@ -74,7 +74,9 @@ class OptimizadorAbordajeTest {
 
     @Test void sinSentidoPosibleLaOpcionQuedaMarcadaComoInversa() {
         var s = servicio("IDA");
-        double[] a = {LAT0 + 0.0035, LNG0 + 0.0065}, b = {LAT0 + 0.0035, LNG0 + 0.0005};   // de este a oeste
+        // De este a oeste, lo más separados que permite la retícula: así la opción en el sentido correcto (caminar hacia el oeste para subir y
+        // bajar casi enseguida) cuesta claramente más de 600 m que la inversa y no queda en el borde de esa tolerancia.
+        double[] a = {LAT0 + 0.0035, LNG0 + 0.0065}, b = {LAT0 + 0.0035, LNG0 + 0.0001};
         var optimo = s.optimizar(a, b, List.of(1L), 2000, 2000).get(1L).menosCaminata();
         assertNotNull(optimo);
         assertFalse(optimo.permitido());

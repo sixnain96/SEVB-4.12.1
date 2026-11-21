@@ -46,9 +46,34 @@ public class LogrosController {
     private String cuentasDemo = "";
 
     private boolean esDemo(Usuario u) {
+        if (u.correo() != null && co.edu.usta.spevb.service.CuentaProyecto.es(u.correo())) return true;      // la cuenta del proyecto siempre es de demostración
         if (u.correo() == null || cuentasDemo == null || cuentasDemo.isBlank()) return false;
         String correo = u.correo().strip().toLowerCase(Locale.ROOT);
         return Arrays.stream(cuentasDemo.split(",")).map(s -> s.strip().toLowerCase(Locale.ROOT)).anyMatch(correo::equals);
+    }
+
+    /** Racha ESTÁTICA de las cuentas de demostración (4.17): empieza en {@code rachaDemoBase} el día {@code rachaDemoInicio} y baja un día por cada día que pasa (nunca por debajo de 0). Con {@code rachaDemoInicio} vacío es ESTÁTICA: siempre vale la base (31) y solo baja en el simulador de la presentación. */
+    @Value("${spevb.logros.racha-demo-base:31}")
+    private int rachaDemoBase = 31;
+    @Value("${spevb.logros.racha-demo-inicio:}")
+    private String rachaDemoInicio = "";
+
+    /** Racha de la cuenta de demostración a la fecha {@code hoy}: base menos los días transcurridos desde el inicio. */
+    int rachaDemo(java.time.LocalDate hoy) {
+        java.time.LocalDate inicio;
+        try { inicio = java.time.LocalDate.parse(rachaDemoInicio.strip()); } catch (RuntimeException e) { inicio = hoy; }
+        long pasados = Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(inicio, hoy));
+        return (int) Math.max(0, rachaDemoBase - pasados);
+    }
+
+    /** La respuesta de una cuenta de demostración lleva la racha estática (y cómo recalcularla en el dispositivo a medianoche sin preguntar al servidor). */
+    private Map<String, Object> demo(LogrosService.Estado e, boolean nuevo, List<String> nuevos) {
+        var m = respuesta(e, nuevo, nuevos);
+        int racha = rachaDemo(e.hoy());
+        m.put("rachaActual", racha);
+        m.put("mejorRacha", Math.max(rachaDemoBase, ((Number) m.get("mejorRacha")).intValue()));
+        m.put("rachaDemo", Map.of("base", rachaDemoBase, "inicio", rachaDemoInicio.strip()));
+        return m;
     }
 
     private void limite(Usuario u) {
@@ -67,7 +92,8 @@ public class LogrosController {
         Usuario u = exigirUsuario(r);
         limite(u);
         long ahora = System.currentTimeMillis();
-        return respuesta(esDemo(u) ? logros.estadoDemo(u.id(), ahora) : logros.estado(u.id(), ahora), false, List.of());
+        if (esDemo(u)) return demo(logros.estadoDemo(u.id(), ahora), false, List.of());
+        return respuesta(logros.estado(u.id(), ahora), false, List.of());
     }
 
     @PostMapping("/viaje")
@@ -78,7 +104,7 @@ public class LogrosController {
         if (q == null || q.llegadaMs() == null || q.buses() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faltan datos del viaje.");
         long ahora = System.currentTimeMillis();
         var reg = logros.registrar(u.id(), q.viajeId(), q.llegadaMs(), q.buses(), ahora);
-        if (esDemo(u)) return respuesta(logros.estadoDemo(u.id(), ahora), reg.nuevo(), List.of());      // el viaje se guarda de verdad; los logros ya estaban todos desbloqueados
+        if (esDemo(u)) return demo(logros.estadoDemo(u.id(), ahora), reg.nuevo(), List.of());      // el viaje se guarda de verdad; los logros ya estaban todos desbloqueados
         return respuesta(reg.estado(), reg.nuevo(), reg.nuevos());
     }
 
@@ -89,7 +115,7 @@ public class LogrosController {
         limite(u);
         long ahora = System.currentTimeMillis();
         var reg = logros.practica(u.id(), ahora);
-        if (esDemo(u)) return respuesta(logros.estadoDemo(u.id(), ahora), reg.nuevo(), List.of());
+        if (esDemo(u)) return demo(logros.estadoDemo(u.id(), ahora), reg.nuevo(), List.of());
         return respuesta(reg.estado(), reg.nuevo(), reg.nuevos());
     }
 
@@ -100,6 +126,7 @@ public class LogrosController {
         limite(u);
         String id = q == null ? null : q.id();
         long ahora = System.currentTimeMillis();
-        return respuesta(esDemo(u) ? logros.equipar(u.id(), id, ahora, true) : logros.equipar(u.id(), id, ahora), false, List.of());
+        if (esDemo(u)) return demo(logros.equipar(u.id(), id, ahora, true), false, List.of());
+        return respuesta(logros.equipar(u.id(), id, ahora), false, List.of());
     }
 }

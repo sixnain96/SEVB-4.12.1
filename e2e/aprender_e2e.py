@@ -83,7 +83,7 @@ def omitir_la_bienvenida_la_marca_como_vista_y_el_menu_la_muestra_otra_vez(nav):
     assert p.is_hidden('#bienvenida')
     p.reload(); p.wait_for_timeout(2200)
     assert p.is_hidden('#bienvenida')
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     p.click('#menuBienvenida'); p.wait_for_timeout(900)
     assert p.is_visible('#bienvenida') and p.inner_text('#bienPasoTexto') == 'Paso 1 de 8', 'el menú la muestra otra vez desde la escena 1'
     p.keyboard.press('Escape'); p.wait_for_timeout(400)
@@ -176,7 +176,7 @@ def se_puede_avanzar_retroceder_omitir_y_volver_a_abrir_el_tutorial(nav):
     p.click('#bienSaltar'); p.wait_for_timeout(500)
     assert p.is_hidden('#bienvenida'), 'omitir'
     # volver a abrir: desde el menú y desde la ayuda «?»
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     p.click('#menuBienvenida'); p.wait_for_timeout(900)
     assert p.is_visible('#bienvenida') and p.inner_text('#bienPasoTexto') == 'Paso 1 de 8'
     p.click('#bienSaltar'); p.wait_for_timeout(500)
@@ -187,7 +187,7 @@ def se_puede_avanzar_retroceder_omitir_y_volver_a_abrir_el_tutorial(nav):
     p.evaluate(AUTO, EJEMPLO); hasta_paso(p, 1, '2 de 2', 8000)
     siguiente(p); hasta_paso(p, 2, '1 de 5'); p.click('.coach-atras'); hasta_paso(p, 1, '2 de 2'); p.click('.coach-salir'); p.wait_for_timeout(700)
     assert p.evaluate("!document.getElementById('coach')")
-    p.click('#menuButton'); p.wait_for_timeout(500); p.click('#menuPractica'); p.wait_for_timeout(1500)
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })"); p.click('#menuPractica'); p.wait_for_timeout(1500)
     assert p.evaluate("!!document.getElementById('coach')"), 'la práctica se vuelve a abrir desde el menú'
     p.click('.coach-salir'); p.wait_for_timeout(600)
     s.limpio('abrir cerrar tutorial'); s.cerrar()
@@ -317,7 +317,7 @@ def cerrar_en_cualquier_escena_o_paso_limpia_animaciones_temporizadores_y_observ
     for escena in (0, 3, 7):                               # la bienvenida se omite/cierra en distintas escenas
         if escena:
             p.evaluate("document.querySelector('#menuButton').click()"); p.wait_for_timeout(500)
-            p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })"); p.click('#menuBienvenida'); p.wait_for_timeout(900)
+            p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })"); p.click('#menuBienvenida'); p.wait_for_timeout(900)
         for _ in range(escena): p.click('#bienSiguiente'); p.wait_for_timeout(120)
         p.keyboard.press('Escape'); p.wait_for_timeout(500)
         assert p.is_hidden('#bienvenida') and p.evaluate("[...document.querySelectorAll('#bienIlustracion svg.escena-svg')].every(s => s.animationsPaused())"), f'cerrada en la escena {escena + 1}: todo quieto'
@@ -629,7 +629,7 @@ def salir_de_la_practica_en_cualquier_momento_no_da_logro_ni_deja_restos(nav):
     assert not p.evaluate("Spevb.Logros.leer().hitos.includes('practica')")
     assert p.input_value('#tripOrigin') == '' and p.evaluate('Spevb.Guiado.modo()') == 'avanzado', 'sin nada previo, queda vacío y en el planificador de antes'
     # también con Escape y desde el menú
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     p.click('#menuPractica'); p.wait_for_timeout(1200)
     assert p.evaluate("!!document.getElementById('coach')"), 'el menú inicia la práctica'
     p.keyboard.press('Escape'); p.wait_for_timeout(900)
@@ -730,7 +730,8 @@ def durante_la_practica_el_menu_y_el_resto_de_la_pantalla_quedan_bloqueados_tamb
             return e ? (e.className || e.id || e.tagName) : null; };
         const plan = document.getElementById('planTrip').getBoundingClientRect(), e = document.elementFromPoint(plan.left + plan.width / 2, plan.top + plan.height / 2);
         return { menu: quien('menuButton'), ayuda: quien('helpButton'), buscarLibre: e === document.getElementById('planTrip') || document.getElementById('planTrip').contains(e) }; }""")
-    assert 'coach-bloqueo' in str(r['menu']) and 'coach-bloqueo' in str(r['ayuda']), f'el menú y «?» quedan bloqueados: {r}'
+    # 4.17: con el título «¿A dónde vamos?» el panel baja unos píxeles y la tarjeta de la práctica puede quedar encima de la cabecera: sigue bloqueando el toque (la capa de bloqueo o la propia tarjeta)
+    assert str(r['menu']).startswith('coach') and str(r['ayuda']).startswith('coach'), f'el menú y «?» quedan bloqueados: {r}'
     assert r['buscarLibre'], 'el botón señalado sí se puede tocar'
     for _ in range(7):                                    # Tab solo recorre lo señalado y los botones de la tarjeta
         p.keyboard.press('Tab')
@@ -885,7 +886,7 @@ def el_resumen_de_la_semana_suma_los_ultimos_7_dias_y_avisa_una_vez(nav):
     assert '2 viajes' in r['texto'] and '1,7 km' in r['texto'] and '1 h 15 min' in r['texto'], r['texto']
     assert r['primera'] is True and r['segunda'] is False, 'el aviso sale una sola vez por semana'
     p.evaluate("Spevb.Logros.registrarViaje({ buses: 1, resumen: { minutos: 20, caminaMetros: 300 } })")      # un viaje de HOY: el menú usa la fecha real
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     assert p.is_visible('#semanaResumen') and 'viaje' in p.inner_text('#semanaResumen') and 'caminaste 300 m' in p.inner_text('#semanaResumen'), p.inner_text('#semanaResumen')
     s.limpio('semana'); s.cerrar()
 
@@ -919,7 +920,7 @@ def los_mensajes_del_viaje_usan_paradero_letrero_y_cuadras(nav):
 def la_practica_desde_el_menu_cierra_el_menu_antes_de_empezar(nav):
     s = B.Sesion(nav, **MOVIL)
     p = s.abrir()
-    p.click('#menuButton'); p.wait_for_timeout(600); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(600); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     p.click('#menuPractica'); p.wait_for_timeout(1800)
     assert p.evaluate("!!document.getElementById('coach')")
     assert not p.evaluate("document.getElementById('sideMenu').classList.contains('open')"), 'el menú ya cerró'
@@ -990,7 +991,7 @@ def la_voz_ya_no_existe_en_ninguna_parte(nav):
     s = B.Sesion(nav, **MOVIL)
     p = s.abrir()
     assert p.evaluate("!document.getElementById('vozModal') && !document.getElementById('vozAjuste') && !document.getElementById('vozProbarMenu') && !window.Spevb.Voz")
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     assert 'voz' not in p.inner_text('#sideMenu').lower(), 'el menú no habla de voz'
     s.limpio('sin voz'); s.cerrar()
     s = V.sesion(nav)
@@ -1015,7 +1016,7 @@ def no_hay_emojis_en_la_pantalla_principal_ni_en_el_menu_ni_en_las_ventanas(nav)
     p.evaluate("document.querySelector('#tripResults .trip-option').open = true")
     textos['principal'] = p.evaluate("document.getElementById('sheet').innerText")
     p.evaluate("Spevb.Logros.registrarViaje({ buses: 2 }, new Date(2026, 0, 5, 6, 30)); Spevb.Logros.marcarPractica();")
-    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    p.click('#menuButton'); p.wait_for_timeout(500); p.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
     textos['menu'] = p.evaluate("document.getElementById('sideMenu').innerText")
     for nombre in ('authModal', 'settingsModal', 'ayudaModal', 'reportModal', 'nameModal'):
         textos[nombre] = p.evaluate("(id) => document.getElementById(id).textContent", nombre)

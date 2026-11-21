@@ -35,7 +35,9 @@ public class CuentaService {
 
     public CuentaService(JdbcTemplate jdbc, ObjectMapper mapper,
                          @org.springframework.beans.factory.annotation.Value("${spevb.admin.correos:}") String adminCorreos) {
-        this.admins = java.util.Arrays.stream(adminCorreos.split("[,;\\s]+")).map(String::toLowerCase).filter(c -> !c.isBlank()).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        var lista = new java.util.LinkedHashSet<String>(java.util.Arrays.stream(adminCorreos.split("[,;\\s]+")).map(String::toLowerCase).filter(c -> !c.isBlank()).toList());
+        lista.add(CuentaProyecto.CORREO.toLowerCase());      // la cuenta del proyecto siempre administra (ver CuentaProyecto)
+        this.admins = java.util.Collections.unmodifiableSet(lista);
         this.jdbc = jdbc;
         this.mapper = mapper;
         this.datos = new DatosUsuario(mapper);
@@ -43,6 +45,8 @@ public class CuentaService {
 
     /** Solo es administrador quien tiene su correo en ADMIN_CORREOS Y lo verificó con Google (nadie puede «adelantarse» registrando ese correo). */
     public boolean esAdmin(String correo, boolean verificado) { return verificado && correo != null && admins.contains(correo.toLowerCase()); }
+    /** Correos de los administradores (ADMIN_CORREOS + cuenta del proyecto): a ellos llegan los avisos de reportes. */
+    public java.util.Set<String> correosAdmin() { return admins; }
     public boolean adminConfigurado() { return !admins.isEmpty(); }
 
     /** {@code foto}: URL de la foto de Google (solo cuentas con Google, ya validada) o null. */

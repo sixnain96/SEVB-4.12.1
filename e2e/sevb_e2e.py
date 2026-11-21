@@ -135,7 +135,7 @@ def abrir_menu(page):
 
 def abrir_secciones(page):
     """4.14: las secciones largas del menú vienen plegadas (<details class="menu-seccion">); las pruebas que usan sus controles las abren."""
-    page.evaluate("document.querySelectorAll('#sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
+    page.evaluate("document.querySelectorAll('#sideMenu details.menu-mas, #sideMenu details.menu-seccion').forEach((d) => { d.open = true; })")
 
 
 def centro(page):

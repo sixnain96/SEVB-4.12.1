@@ -57,10 +57,13 @@ public class RedPeatonalService {
     /** Hasta dónde se busca una calle para unir cada extremo de un paso propio. */
     private static final double ENLACE_PASO_METROS = 12;
     /** Calles que se prueban a la vez en el punto de partida/llegada si están casi igual de cerca. */
-    private static final int CALLES_PROBADAS = 4;
+    private static final int CALLES_PROBADAS = 6;
     /** Calles que se prueban en cada punto candidato de subida/bajada de la matriz de distancias. */
-    private static final int CALLES_DESTINO = 5;
+    private static final int CALLES_DESTINO = 8;
     private static final double MARGEN_CALLES_METROS = 40;
+    /** Calles y margen con que se prueba cada extremo del trayecto dibujado (más holgado que la matriz, para no dibujar nunca algo peor). */
+    private static final int CALLES_TRAYECTO = 10;
+    private static final double MARGEN_TRAYECTO_METROS = 60;
     private static final double COSTO_MAXIMO_RUTA = 15_000;
     private static final double COSTO_MAXIMO_MATRIZ = 8_000;
     private static final int MAGIA = 0x53455650; // «SEVP»
@@ -106,6 +109,15 @@ public class RedPeatonalService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void usarPasos(co.edu.usta.spevb.repository.PasoPeatonalRepository pasos) { this.pasos = pasos; }
 
+    /** Metros equivalentes de cruzar a nivel una vía principal/secundaria y una troncal (0 = sin cobro). Ver {@link RedPeatonal.Constructor}. */
+    private volatile double cruceViaPrincipal = RedPeatonal.CRUCE_VIA_PRINCIPAL_METROS, cruceTroncal = RedPeatonal.CRUCE_TRONCAL_METROS;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void usarCruces(@Value("${spevb.red.cruce-via-principal-metros:30}") double viaPrincipal,
+                    @Value("${spevb.red.cruce-troncal-metros:50}") double troncal) {
+        this.cruceViaPrincipal = viaPrincipal;
+        this.cruceTroncal = troncal;
+    }
+
     public boolean lista() { return red.get() != null; }
     /** Tramos de la red en una caja pequeña (máx. 0,03° por lado), para dibujarlos en el mapa de administración. */
     public List<double[]> segmentos(double sur, double oeste, double norte, double este) {
@@ -123,13 +135,29 @@ public class RedPeatonalService {
     public Optional<CaminataService.Tramo> ruta(double latA, double lngA, double latB, double lngB) {
         RedPeatonal r = red.get();
         if (r == null) return Optional.empty();
-        var a = r.ajustarVarios(latA, lngA, AJUSTE_EXTREMO_METROS, CALLES_PROBADAS, MARGEN_CALLES_METROS);
-        var b = r.ajustarVarios(latB, lngB, AJUSTE_EXTREMO_METROS, CALLES_PROBADAS, MARGEN_CALLES_METROS);
+        var a = candidatosDeTrayecto(r, latA, lngA);
+        var b = candidatosDeTrayecto(r, latB, lngB);
         if (a.isEmpty() || b.isEmpty()) return Optional.empty();
         var camino = r.camino(a, b, COSTO_MAXIMO_RUTA);
         if (camino == null) return Optional.empty();
         // 4,8 km/h: mismo ritmo que usa la interfaz para estimar el tiempo.
         return Optional.of(new CaminataService.Tramo(camino.coordenadas(), camino.metros(), camino.metros() / 1.333));
+    }
+
+    /**
+     * Calles a las que se prueba pegar un extremo del trayecto DIBUJADO. Es la unión de lo que prueba el cálculo de la matriz (que elige el punto de
+     * subida) para un origen y para un destino, más un margen: así el tramo que se dibuja nunca es peor que el que se midió al elegir. Antes se
+     * probaban menos calles que en la matriz y, cuando la mejor era la quinta, el mapa dibujaba una vuelta enorme (p. ej. 27 m informados y
+     * 1 283 m dibujados) hasta una parada que en realidad estaba al lado.
+     */
+    private List<RedPeatonal.Snap> candidatosDeTrayecto(RedPeatonal r, double la, double lo) {
+        Map<Integer, RedPeatonal.Snap> porArista = new java.util.LinkedHashMap<>();
+        for (var s : r.ajustarVarios(la, lo, AJUSTE_EXTREMO_METROS, CALLES_PROBADAS, MARGEN_CALLES_METROS)) porArista.putIfAbsent(s.arista(), s);
+        for (var s : r.ajustarVarios(la, lo, AJUSTE_EXTREMO_METROS, CALLES_DESTINO, MARGEN_CALLES_METROS, RedPeatonal.TOLERANCIA_LADO_DESTINO_METROS))
+            porArista.putIfAbsent(s.arista(), s);
+        for (var s : r.ajustarVarios(la, lo, AJUSTE_EXTREMO_METROS, CALLES_TRAYECTO, MARGEN_TRAYECTO_METROS, RedPeatonal.TOLERANCIA_LADO_DESTINO_METROS))
+            porArista.putIfAbsent(s.arista(), s);
+        return new ArrayList<>(porArista.values());
     }
 
     /**
@@ -148,7 +176,22 @@ public class RedPeatonalService {
         return distancias(origenes, destinos, true);
     }
 
+    /**
+     * Matrices de la caminata: {@code costo} (lo que se compara para elegir: metros + lo que vale cruzar avenidas a nivel) y
+     * {@code penal} (la parte del costo que es cruce, no metros caminados). Metros que se caminan ≈ {@code costo - penal}.
+     */
+    public record Matrices(double[][] costo, double[][] penal) {}
+
+    /** Como {@link #distanciasDeMuestras} pero separando la penalización por cruzar avenidas: lo que se muestra son metros reales. */
+    public Optional<Matrices> distanciasDeMuestrasDetalle(List<double[]> origenes, List<double[]> destinos) {
+        return calcular(origenes, destinos, true);
+    }
+
     private Optional<double[][]> distancias(List<double[]> origenes, List<double[]> destinos, boolean recordar) {
+        return calcular(origenes, destinos, recordar).map(Matrices::costo);
+    }
+
+    private Optional<Matrices> calcular(List<double[]> origenes, List<double[]> destinos, boolean recordar) {
         RedPeatonal r = red.get();
         if (r == null) return Optional.empty();
         // Cada destino se prueba con varias calles cercanas (igual que el origen y que la ruta dibujada): con una sola, un punto de
@@ -159,25 +202,29 @@ public class RedPeatonalService {
         for (int j = 0; j < destinos.size(); j++) {
             double[] p = destinos.get(j);
             d.addAll(recordar ? r.ajustarVariosGuardado(p[1], p[0], AJUSTE_MAXIMO_METROS, CALLES_DESTINO, MARGEN_CALLES_METROS)
-                    : r.ajustarVarios(p[1], p[0], AJUSTE_MAXIMO_METROS, CALLES_DESTINO, MARGEN_CALLES_METROS));
+                    : r.ajustarVarios(p[1], p[0], AJUSTE_MAXIMO_METROS, CALLES_DESTINO, MARGEN_CALLES_METROS,
+                            RedPeatonal.TOLERANCIA_LADO_DESTINO_METROS));
             desde[j + 1] = d.size();
         }
         double[][] m = new double[origenes.size()][destinos.size()];
+        double[][] penal = new double[origenes.size()][destinos.size()];
         for (int i = 0; i < m.length; i++) {
             var o = r.ajustarVarios(origenes.get(i)[1], origenes.get(i)[0], AJUSTE_EXTREMO_METROS, CALLES_PROBADAS, MARGEN_CALLES_METROS);
             if (o.isEmpty()) return Optional.empty();
-            double[] costos = r.costosDesde(o, d, COSTO_MAXIMO_MATRIZ);
+            double[][] res = r.costosDesdeDetallado(o, d, COSTO_MAXIMO_MATRIZ);
+            double[] costos = res[0], penalizaciones = res[1];
             for (int j = 0; j < destinos.size(); j++) {
-                double mejor = Double.NaN;
+                double mejor = Double.NaN, penalMejor = 0;
                 for (int k = desde[j]; k < desde[j + 1]; k++) {
                     if (Double.isNaN(costos[k])) continue;
                     double c = costos[k] + d.get(k).distM();
-                    if (Double.isNaN(mejor) || c < mejor) mejor = c;
+                    if (Double.isNaN(mejor) || c < mejor) { mejor = c; penalMejor = penalizaciones[k]; }
                 }
                 m[i][j] = mejor;
+                penal[i][j] = penalMejor;
             }
         }
-        return Optional.of(m);
+        return Optional.of(new Matrices(m, penal));
     }
 
     // ------------------------------------------------------------------ ciclo de vida
@@ -250,7 +297,7 @@ public class RedPeatonalService {
     }
 
     private synchronized Map<Long, Integer> reconstruir(String origen) {
-        var c = new RedPeatonal.Constructor();
+        var c = new RedPeatonal.Constructor(cruceViaPrincipal, cruceTroncal);
         for (var w : base) c.agregarCamino(w.ids(), w.lats(), w.lngs(), w.clase());
         Map<Long, Integer> conexiones = new java.util.HashMap<>();
         int nPasos = 0, nBloqueos = 0;

@@ -385,7 +385,9 @@ def el_menu_mide_menos_en_cada_fase_y_conserva_todas_las_funciones(nav):
     viaje = p.evaluate(JS_MENU)
     assert viaje <= 2.0 and viaje < inicial, f'menú durante el viaje: {viaje} pantallas (antes ≈ 3,6; Fase J suma «Viaje en curso» y la nota de «Volver al inicio»); inicial {inicial}'
     orden = p.evaluate("[...document.getElementById('sideMenu').children].map(e => e.id).filter(Boolean)")
-    assert orden.index('menuVista') < orden.index('menuLugares') and orden.index('menuOffline') < orden.index('menuLugares'), f'en viaje lo que necesita el pasajero va primero: {orden}'
+    assert orden.index('menuMas') < orden.index('menuLugares'), f'en viaje «Más» (letra, mapa sin internet, ayuda) va antes que los lugares: {orden}'
+    assert p.evaluate("['menuVista', 'menuOffline', 'menuAyuda'].every((id) => document.getElementById(id).closest('#menuMas') !== null)"), 'letra, mapa sin internet y ayuda viven dentro de «Más»'
+    assert not p.evaluate("document.getElementById('menuMas').open"), '«Más» llega plegado'
     assert not p.evaluate("document.getElementById('menuEspacio').open || document.getElementById('menuLugares').open"), 'en viaje lo de planear y los lugares quedan plegados (siguen disponibles)'
     for sel in FUNCIONES:
         assert p.locator(sel).count() == 1, f'durante el viaje falta {sel}'
@@ -398,7 +400,7 @@ def el_menu_mide_menos_en_cada_fase_y_conserva_todas_las_funciones(nav):
     p.evaluate('Spevb.Viaje.detener()'); p.wait_for_timeout(400)
     p.click('#menuButton') if p.is_visible('#menuButton') else p.click('#menuFlotante'); espera_menu(p)
     orden = p.evaluate("[...document.getElementById('sideMenu').children].map(e => e.id).filter(Boolean)")
-    assert orden.index('menuLugares') < orden.index('menuEspacio') < orden.index('menuVista'), f'de nuevo el orden de planificación: {orden}'
+    assert orden.index('menuLugares') < orden.index('menuEspacio') < orden.index('menuMas'), f'de nuevo el orden de planificación: {orden}'
     s.limpio('menu fases'); s.cerrar()
 
 

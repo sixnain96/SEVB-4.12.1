@@ -12,7 +12,7 @@
    versiones previas (solo esas: el mapa guardado, las teselas y las copias de rutas conservan sus nombres y no se tocan), así ningún worker viejo
    sigue sirviendo scripts incompatibles. Volver a Leaflet NO requiere cambiar esto: el proveedor se lee de /api/config/mapa en cada carga. */
 const VERSION = "spevb-v@project.version@";
-const CACHE_APP = VERSION + "-mapa9";
+const CACHE_APP = VERSION + "-mapa11";
 const MAPA = "spevb-mapa-v1";
 const TESELAS = "spevb-teselas-v1";
 const DATOS = "spevb-datos-v1";
@@ -27,7 +27,7 @@ const HOSTS_MAPA = new Set(["tiles.openfreemap.org", "server.arcgisonline.com", 
 
 const SHELL = ["/", "/css/app.min.css", "/css/styles.css", "/css/mapa.css",
     "/js/mapa/geo.js", "/js/mapa/nucleo.js",
-    "/js/motion.js", "/js/common.js", "/js/modales.js", "/js/carga.js", "/js/superficies.js", "/js/mapa-salud.js", "/js/inicio.js", "/js/iconos.js", "/js/rutas-nombres.js", "/js/offline.js", "/js/extras.js", "/js/paraderos-publicos.js", "/js/puentes-publicos.js", "/js/ajustes.js", "/js/confort.js", "/js/avatares.js", "/js/cuenta.js", "/js/espacio.js", "/js/lugares.js", "/js/logros.js", "/js/instalar.js", "/js/siempre.js", "/js/guia.js", "/js/siguiente.js", "/js/gps.js", "/js/viaje-nucleo.js", "/js/viaje-ruta.js", "/js/viaje.js", "/js/compartir.js", "/js/bus.js", "/js/app.js", "/js/itinerario.js", "/js/planner.js", "/js/flujo-guiado.js", "/js/ui.js", "/js/sheet.js", "/js/panel-ocultable.js", "/js/seguir-bus.js", "/js/pwa.js", "/js/animaciones.js", "/js/mejor-opcion.js",
+    "/js/motion.js", "/js/common.js", "/js/modales.js", "/js/carga.js", "/js/superficies.js", "/js/mapa-salud.js", "/js/inicio.js", "/js/iconos.js", "/js/rutas-nombres.js", "/js/offline.js", "/js/extras.js", "/js/paraderos-publicos.js", "/js/puentes-publicos.js", "/js/ajustes.js", "/js/confort.js", "/js/avatares.js", "/js/cuenta.js", "/js/espacio.js", "/js/lugares.js", "/js/logros.js", "/js/instalar.js", "/js/siempre.js", "/js/guia.js", "/js/siguiente.js", "/js/gps.js", "/js/viaje-nucleo.js", "/js/viaje-ruta.js", "/js/viaje.js", "/js/compartir.js", "/js/bus.js", "/js/app.js", "/js/itinerario.js", "/js/planner.js", "/js/flujo-guiado.js", "/js/ui.js", "/js/sheet.js", "/js/panel-ocultable.js", "/js/seguir-bus.js", "/js/pwa.js", "/js/animaciones.js", "/js/mejor-opcion.js", "/js/menu-simple.js",
     "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png",
     "/favicon.ico", "/icons/favicon-32.png", "/img/marca/sevb-icono-app-128.png", "/img/marca/sevb-cabeza-96.png", "/img/marca/sevb-mascota.png", "/img/marca/sevb-chiguiro-192.png", "/img/marca/sevb-chiguiro-360.png", "/img/marca/sevb-chiguiro-menu.webp", "/img/marca/sevb-chiguiro-logo.webp", "/img/avatares/chiguiro.png", "/img/avatares/danta.png", "/img/avatares/venado.png", "/img/avatares/guacamaya.png", "/img/avatares/moriche.png", "/img/avatares/saman.png",
     "/img/bus/bus_32_base.webp", "/img/bus/bus_32_mask.webp"];

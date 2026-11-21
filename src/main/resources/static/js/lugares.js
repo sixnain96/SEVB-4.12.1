@@ -14,8 +14,8 @@
     const $ = (id) => document.getElementById(id);
     const MAX = 30, NOMBRE_MAX = 40, DUP_M = 30, PIN_PASO = 60;
     const TIPOS = {
-        casa: { clave: 'Casa', art: 'tu casa', guardar: 'Guardar mi casa', ir: 'Ir a casa', hecho: 'Guardaste tu casa', titulo: 'Marca tu casa en el mapa', icono: 'casa' },
-        trabajo: { clave: 'Trabajo', art: 'tu trabajo', guardar: 'Guardar mi trabajo', ir: 'Ir al trabajo', hecho: 'Guardaste tu trabajo', titulo: 'Marca tu trabajo en el mapa', icono: 'maletin' },
+        casa: { clave: 'Casa', art: 'tu casa', guardar: 'Guardar mi casa', ir: 'Casa', hecho: 'Guardaste tu casa', titulo: 'Marca tu casa en el mapa', icono: 'casa' },
+        trabajo: { clave: 'Trabajo', art: 'tu trabajo', guardar: 'Guardar mi trabajo', ir: 'Trabajo', hecho: 'Guardaste tu trabajo', titulo: 'Marca tu trabajo en el mapa', icono: 'maletin' },
     };
     const P = () => S.Planner;
     const norm = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -90,10 +90,40 @@
     }
 
     // ------------------------------------------------------------------ acciones sobre lugares guardados
-    function usar(f) {
+    /** Usa el lugar como punto de salida (A) o de destino (B). El destino sigue siendo el valor de siempre. */
+    function usar(f, modo = 'destination') {
         if (!P()) return;
-        P().poner('destination', { id: null, lat: f.lat, lng: f.lng, nombre: f.nombre, direccion: null, fuente: 'Favorito', confirmado: true });      // el punto de entrada de siempre (también para el modo guiado)
+        P().poner(modo === 'origin' ? 'origin' : 'destination', { id: null, lat: f.lat, lng: f.lng, nombre: f.nombre, direccion: null, fuente: 'Favorito', confirmado: true });      // el punto de entrada de siempre (también para el modo guiado)
         cerrarMenu();
+    }
+    // Al tocar un lugar guardado se pregunta, ahí mismo y sin ventanas, si SALES de ahí (A) o VAS para allá (B): casa → trabajo, trabajo → casa, universidad → casa…
+    // Si ya hay un destino y falta la salida, se sugiere «Salgo de aquí» (y al revés).
+    function cerrarUso(menos) {
+        document.querySelectorAll('.lugar-uso').forEach((e) => { if (e !== menos) { const b = e.previousElementSibling; e.remove(); } });
+        document.querySelectorAll('[data-uso-abierto]').forEach((b) => { if (!menos || !menos.contains(b)) { b.removeAttribute('data-uso-abierto'); b.setAttribute('aria-expanded', 'false'); } });
+    }
+    function elegirUso(f, fila, boton) {
+        const ya = fila.querySelector(':scope > .lugar-uso');
+        cerrarUso();
+        if (ya) return;
+        const pts = (P() && P().puntos && P().puntos()) || {};
+        const sugerido = pts.destino && !pts.origen ? 'origin' : 'destination';
+        const caja2 = document.createElement('div'); caja2.className = 'lugar-uso'; caja2.setAttribute('role', 'group'); caja2.setAttribute('aria-label', 'Usar ' + f.nombre + ' como salida o como destino');
+        const mk = (modo, letra, titulo, sub) => {
+            const b = document.createElement('button'); b.type = 'button'; b.className = 'lugar-uso-b ' + (modo === 'origin' ? 'sale' : 'va') + (modo === sugerido ? ' sugerido' : ''); b.dataset.uso = modo;
+            const l = document.createElement('span'); l.className = 'lugar-uso-letra'; l.setAttribute('aria-hidden', 'true'); l.textContent = letra;
+            const t = document.createElement('span'); t.className = 'lugar-uso-txt';
+            const st = document.createElement('strong'); st.textContent = titulo; const sm = document.createElement('small'); sm.textContent = sub;
+            t.append(st, sm); b.append(l, t);
+            b.setAttribute('aria-label', titulo + ': ' + sub + ' ' + f.nombre);
+            b.onclick = () => usar(f, modo);
+            return b;
+        };
+        caja2.append(mk('origin', 'A', 'Salgo de aquí', 'Punto de salida'), mk('destination', 'B', 'Voy para aquí', 'Punto de llegada'));
+        fila.append(caja2);
+        boton.setAttribute('data-uso-abierto', ''); boton.setAttribute('aria-expanded', 'true');
+        const foco = caja2.querySelector('.sugerido'); if (foco) { try { foco.focus({ preventScroll: true }); } catch { /* nada */ } }
+        try { caja2.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch { /* nada */ }
     }
     async function renombrar(f) {
         const lista = lugares();
@@ -134,8 +164,8 @@
         const usarB = document.createElement('button'); usarB.type = 'button'; usarB.className = 'lugar-usar';
         usarB.append(S.Iconos.el('pin', { tam: 20 }));
         const t = document.createElement('span'); t.className = 'lugar-nombre'; t.textContent = etiqueta || f.nombre; usarB.append(t);       // texto, nunca HTML
-        const ir = document.createElement('span'); ir.className = 'lugar-ir'; ir.setAttribute('aria-hidden', 'true'); ir.textContent = 'Ir'; usarB.append(ir);      // se reconoce como destino de un toque
-        usarB.setAttribute('aria-label', 'Ir a ' + f.nombre + ' (usar como destino)'); usarB.onclick = () => usar(f);
+        const ir = document.createElement('span'); ir.className = 'lugar-ir'; ir.setAttribute('aria-hidden', 'true'); ir.textContent = 'Usar'; usarB.append(ir);
+        usarB.setAttribute('aria-label', 'Usar ' + f.nombre + ' como salida o destino'); usarB.setAttribute('aria-expanded', 'false'); usarB.onclick = () => elegirUso(f, fila, usarB);
         const mas = document.createElement('button'); mas.type = 'button'; mas.className = 'lugar-mas'; mas.textContent = '⋯';
         mas.setAttribute('aria-label', 'Más acciones de ' + f.nombre); mas.setAttribute('aria-expanded', String(abiertas.has(f.id))); mas.setAttribute('aria-controls', 'lugAcc-' + f.id);
         mas.onclick = () => { if (abiertas.has(f.id)) abiertas.delete(f.id); else abiertas.add(f.id); pintar(); const nuevo = document.querySelector('[data-id="' + f.id + '"] .lugar-mas'); if (nuevo) nuevo.focus({ preventScroll: true }); };
@@ -151,7 +181,8 @@
             const ico = b.querySelector('.atajo-ico'); if (ico && !ico.firstChild) ico.append(S.Iconos.el(d.icono, { tam: 26 }));
             b.classList.toggle('guardado', !!f);
             b.querySelector('.atajo-txt').textContent = f ? d.ir : d.guardar;
-            b.setAttribute('aria-label', f ? d.ir + ' (usar como destino)' : d.guardar);
+            b.setAttribute('aria-label', f ? 'Usar ' + d.art + ' como salida o destino' : d.guardar);
+            if (f) b.setAttribute('aria-expanded', 'false'); else b.removeAttribute('aria-expanded');
             mas.hidden = !f; mas.setAttribute('aria-label', 'Más acciones de ' + d.clave); mas.setAttribute('aria-expanded', String(!!f && abiertas.has(f.id)));
             acc.replaceChildren(); acc.hidden = !(f && abiertas.has(f.id));
             if (f && abiertas.has(f.id)) { const ac = filaAcciones(f, lista); ac.id = 'lugAcc-' + f.id; acc.append(...ac.children); mas.setAttribute('aria-controls', ac.id); acc.id = ac.id; }
@@ -175,7 +206,7 @@
         if (mas) { const f = reservado(lista, mas.closest('.atajo-fila').dataset.tipo); if (f) { if (abiertas.has(f.id)) abiertas.delete(f.id); else abiertas.add(f.id); pintar(); const m = caja.querySelector('.atajo-fila[data-tipo="' + tipoDe(f) + '"] .atajo-mas'); if (m) m.focus({ preventScroll: true }); } return; }
         if (!b) return;
         const tipo = b.closest('.atajo-fila').dataset.tipo, f = reservado(lista, tipo);
-        if (f) { usar(f); return; }
+        if (f) { elegirUso(f, caja, b); return; }      // la elección ocupa todo el ancho de «Casa y Trabajo» (cuelga de #atajos, no de la mitad de una fila)
         guardarPrimero(tipo);
     });
     async function guardarPrimero(tipo) {

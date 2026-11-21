@@ -17,11 +17,23 @@ public class AbordajeService {
     /** Penalización de las celdas sin camino peatonal: se prefieren siempre los puntos accesibles. */
     private static final double FACTOR_SIN_CAMINO = 2.5;
 
-    /** {@code parada} es el nombre del paradero registrado si el candidato es uno (si no, null). */
+    /**
+     * {@code parada} es el nombre del paradero registrado si el candidato es uno (si no, null). {@code caminataMetros} son los metros que se
+     * caminan hasta el punto; {@code penalizacionMetros} es lo que vale, en metros equivalentes, cruzar avenidas a nivel por el camino elegido
+     * (0 si no hay que cruzar o si el camino usa un puente): no se muestra como distancia, pero SÍ pesa al comparar opciones.
+     */
     public record Candidato(long rutaId, String sentido, double largoMetros, double fraccion,
-                            double lng, double lat, double rectaMetros, double caminataMetros, String parada) {
+                            double lng, double lat, double rectaMetros, double caminataMetros, String parada, double penalizacionMetros) {
+        public Candidato(long rutaId, String sentido, double largoMetros, double fraccion,
+                         double lng, double lat, double rectaMetros, double caminataMetros, String parada) {
+            this(rutaId, sentido, largoMetros, fraccion, lng, lat, rectaMetros, caminataMetros, parada, 0);
+        }
+
         /** Ventaja (m) al elegir: se prefiere un paradero real si no obliga a caminar mucho más. */
         public double ventaja() { return parada == null ? 0 : PARADERO_VENTAJA_METROS; }
+
+        /** Lo que se compara al elegir: metros caminados más el cobro por cruces a nivel (sin la ventaja del paradero). */
+        public double costoCaminata() { return caminataMetros + penalizacionMetros; }
     }
 
     public static final double PARADERO_VENTAJA_METROS = 25;
@@ -68,15 +80,16 @@ public class AbordajeService {
         if (filas.isEmpty()) return null;
         List<double[]> puntos = new ArrayList<>(filas.size());
         filas.forEach(c -> puntos.add(new double[]{c.lng(), c.lat()}));
-        var matriz = r.distanciasDeMuestras(List.of(new double[]{origen[1], origen[0]}, new double[]{destino[1], destino[0]}), puntos);
+        var matriz = r.distanciasDeMuestrasDetalle(List.of(new double[]{origen[1], origen[0]}, new double[]{destino[1], destino[0]}), puntos);
         if (matriz.isEmpty()) return null;
-        double[] wA = matriz.get()[0], wB = matriz.get()[1];
+        double[] wA = matriz.get().costo()[0], wB = matriz.get().costo()[1];
+        double[] pA = matriz.get().penal()[0], pB = matriz.get().penal()[1];
 
         Map<Long, List<Integer>> porRuta = new java.util.LinkedHashMap<>();
         for (int i = 0; i < filas.size(); i++) porRuta.computeIfAbsent(filas.get(i).rutaId(), k -> new ArrayList<>()).add(i);
         Map<Long, Optimos> resultado = new java.util.HashMap<>();
         for (var e : porRuta.entrySet()) {
-            var o = mejorDeRuta(filas, e.getValue(), wA, wB);
+            var o = mejorDeRuta(filas, e.getValue(), wA, wB, pA, pB);
             if (o != null) resultado.put(e.getKey(), o);
         }
         return resultado;
@@ -93,9 +106,9 @@ public class AbordajeService {
         if (filas.isEmpty()) return null;
         List<double[]> puntos = new ArrayList<>(filas.size());
         filas.forEach(c -> puntos.add(new double[]{c.lng(), c.lat()}));
-        var matriz = r.distanciasDeMuestras(List.of(new double[]{origen[1], origen[0]}), puntos);
+        var matriz = r.distanciasDeMuestrasDetalle(List.of(new double[]{origen[1], origen[0]}), puntos);
         if (matriz.isEmpty()) return null;
-        double[] w = matriz.get()[0];
+        double[] w = matriz.get().costo()[0], p = matriz.get().penal()[0];
         Map<Long, Integer> mejor = new java.util.HashMap<>();
         for (int i = 0; i < filas.size(); i++) {
             if (Double.isNaN(w[i])) continue;
@@ -103,13 +116,13 @@ public class AbordajeService {
             if (m == null || w[i] - ventaja(filas.get(i)) < w[m] - ventaja(filas.get(m))) mejor.put(filas.get(i).rutaId(), i);
         }
         Map<Long, Candidato> resultado = new java.util.HashMap<>();
-        mejor.forEach((id, i) -> resultado.put(id, candidato(filas.get(i), w[i])));
+        mejor.forEach((id, i) -> resultado.put(id, candidato(filas.get(i), w[i], p[i])));
         return resultado;
     }
 
     private static double ventaja(ViajeRepository.CandidatoRow c) { return c.parada() == null ? 0 : PARADERO_VENTAJA_METROS; }
 
-    private Optimos mejorDeRuta(List<ViajeRepository.CandidatoRow> filas, List<Integer> idx, double[] wA, double[] wB) {
+    private Optimos mejorDeRuta(List<ViajeRepository.CandidatoRow> filas, List<Integer> idx, double[] wA, double[] wB, double[] pA, double[] pB) {
         List<Integer> sube = idx.stream().filter(i -> !Double.isNaN(wA[i])).toList();
         List<Integer> baja = idx.stream().filter(i -> !Double.isNaN(wB[i])).toList();
         if (sube.isEmpty() || baja.isEmpty()) return null;
@@ -131,7 +144,7 @@ public class AbordajeService {
                 for (int k = 0; k < 2; k++) {
                     var destino = permitido ? directo : inverso;
                     if (destino[k] == null || costo[k] < destino[k].costo())
-                        destino[k] = new Optimo(candidato(a, wA[i]), candidato(b, wB[j]), permitido, costo[k]);
+                        destino[k] = new Optimo(candidato(a, wA[i], pA[i]), candidato(b, wB[j], pB[j]), permitido, costo[k]);
                 }
             }
         }
@@ -145,8 +158,10 @@ public class AbordajeService {
         return inverso != null ? inverso : directo;
     }
 
-    private static Candidato candidato(ViajeRepository.CandidatoRow c, double caminata) {
-        return new Candidato(c.rutaId(), c.sentido(), c.largoMetros(), c.fraccion(), c.lng(), c.lat(), caminata, caminata, c.parada());
+    /** {@code costo}: lo que se compara (metros + cobro de cruces); {@code penalizacion}: la parte del costo que no son metros caminados. */
+    private static Candidato candidato(ViajeRepository.CandidatoRow c, double costo, double penalizacion) {
+        double metros = costo - penalizacion;
+        return new Candidato(c.rutaId(), c.sentido(), c.largoMetros(), c.fraccion(), c.lng(), c.lat(), metros, metros, c.parada(), penalizacion);
     }
 
     /** {@code destino} puede ser null cuando sólo interesa dónde subir. Puntos en [lat, lng]. */

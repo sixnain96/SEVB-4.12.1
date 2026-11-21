@@ -56,8 +56,9 @@
     // Orden y secciones abiertas según lo que la persona necesita AHORA; nada se quita (lo secundario queda en secciones plegables). Antes de la fase de viaje el menú medía ≈ 2,6 pantallas
     // a 320 × 568 y durante el viaje ≈ 3,6 (la ficha de la ruta abierta añadía 540 px). No se mueve nada mientras el menú está abierto: se aplica al cerrarlo.
     const ORDEN = {
-        planificar: ['menuLugares', 'menuEspacio', 'logros', 'menuAyuda', 'menuInstalar', 'menuLinks', 'menuVista', 'colorGuide', 'menuOffline', 'menuCerca', 'menuExplorar'],
-        viaje: ['menuVista', 'menuOffline', 'menuAyuda', 'menuLugares', 'menuEspacio', 'logros', 'menuInstalar', 'menuLinks', 'colorGuide', 'menuCerca', 'menuExplorar'],
+        // 4.17: lo de a diario va a la vista (planear, lugares, recientes) y lo demás vive dentro de «Más» (menuMas). Durante el viaje «Más» (letra, mapa sin internet, ayuda) sube al principio.
+        planificar: ['menuLugares', 'menuEspacio', 'logros', 'menuMas'],
+        viaje: ['menuMas', 'menuLugares', 'menuEspacio', 'logros'],
     };
     const ABIERTAS = { planificar: ['menuLugares'], viaje: [] };
     let faseMenu = null, pendienteFase = null;
@@ -68,6 +69,7 @@
         const marca = $('menuMarca');
         ORDEN[fase].forEach((id) => { const el = $(id); if (el && el.parentElement === menu) menu.insertBefore(el, marca); });
         ORDEN[fase].forEach((id) => { const el = $(id); if (el && el.tagName === 'DETAILS') el.open = ABIERTAS[fase].includes(id); });
+        ['menuMas', 'logros', 'menuAyuda', 'menuVista', 'menuInstalar', 'menuOffline', 'menuExplorar', 'colorGuide'].forEach((id) => { const el = $(id); if (el && el.tagName === 'DETAILS') el.open = false; });      // lo de «Más» siempre empieza plegado
         menu.scrollTop = 0;
         faseMenu = fase; body.dataset.menuFase = fase;
         nota('menu:fase', fase);

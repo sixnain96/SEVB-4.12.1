@@ -82,11 +82,11 @@ class ViajeServiceTest {
     @Test void directOptionsKeepRepositoryOrderAndExcludeReverseTrips() {
         when(repository.planificar(any(), anyInt())).thenReturn(List.of(
                 row("R002", 50, true, "SENTIDO_DEL_TRAZADO", "IDA", true),
-                row("R003", 1200, false, "SENTIDO_DEL_TRAZADO", "REGRESO", true),
+                row("R003", 600, false, "SENTIDO_DEL_TRAZADO", "REGRESO", true),
                 row("R001", 10, true, "SENTIDO_INVERSO", "IDA", false)));
         var response = service.planificar(request());
         assertEquals(List.of("R002", "R003"), response.opciones().stream().map(o -> o.codigo()).toList());
-        assertEquals(List.of("R001"), response.alternativas().stream().map(o -> o.codigo()).toList());
+        assertTrue(response.alternativas().isEmpty(), "4.17: con opciones directas, las de sentido contrario no se muestran (MejoresOpciones)");
     }
 
     @Test void overWalkingLimitIsStillADirectOption() {
@@ -328,9 +328,13 @@ class ViajeServiceTest {
         var mismaDistancia = new java.util.ArrayList<>(List.of(fila("R009", true, 250, 5), fila("R003", false, 250, 5)));
         mismaDistancia.sort(ViajeService.ORDEN_OPCIONES);
         assertEquals("R003", mismaDistancia.getFirst().codigo(), "con todo igual decide el código");
-        var lejosPeroRevisada = new java.util.ArrayList<>(List.of(fila("R001", true, 900, 2), fila("R002", false, 300, 9)));
+        var lejosPeroRevisada = new java.util.ArrayList<>(List.of(fila("R001", true, 900, 2), fila("R002", false, 300, 3)));
         lejosPeroRevisada.sort(ViajeService.ORDEN_OPCIONES);
-        assertEquals("R002", lejosPeroRevisada.getFirst().codigo(), "lo que manda sigue siendo caminar menos");
+        assertEquals("R002", lejosPeroRevisada.getFirst().codigo(), "lo que manda es caminar menos (sin un recorrido en bus mucho más largo)");
+        // 4.17: costo puerta a puerta: una ruta unos metros más cerca pero con una vuelta enorme en bus ya no gana
+        var vueltaEnorme = new java.util.ArrayList<>(List.of(fila("R001", true, 300, 40), fila("R002", false, 500, 4)));
+        vueltaEnorme.sort(ViajeService.ORDEN_OPCIONES);
+        assertEquals("R002", vueltaEnorme.getFirst().codigo(), "300 m + 40 km de bus pierde contra 500 m + 4 km");
     }
 
     @Test void walkInsteadOfSecondBusAlternativesAreAppendedToTheDirectOptions() throws Exception {
@@ -372,15 +376,16 @@ class ViajeServiceTest {
 
     @Test void theTramesOfAllRoutesAndFasterVariantsAreRequestedInOneQueryEach() {
         var abordaje = mock(AbordajeService.class);
-        when(repository.planificar(any(), anyInt())).thenReturn(List.of(filaDeRuta(1, "R001", 1600, 3), filaDeRuta(2, "R002", 2000, 3)));
-        // R001: la de menos caminata (1.600 m) y otra más rápida (200 m a pie, ahorra ≈ 18 min); R002 solo tiene la de menos caminata.
+        when(repository.planificar(any(), anyInt())).thenReturn(List.of(filaDeRuta(1, "R001", 900, 3), filaDeRuta(2, "R002", 960, 3)));
+        // R001: la de menos caminata (900 m, dentro del límite de 1.000 m) y otra más rápida (200 m a pie, ahorra ≈ 9 min); R002 solo tiene la de menos caminata.
         when(abordaje.optimizar(any(), any(), anyList(), anyDouble(), anyDouble())).thenReturn(java.util.Map.of(
-                1L, new AbordajeService.Optimos(optimo(1, 0.30, 800, 0.60, 800), optimo(1, 0.35, 100, 0.62, 100)),
-                2L, new AbordajeService.Optimos(optimo(2, 0.20, 1000, 0.50, 1000), null)));
+                1L, new AbordajeService.Optimos(optimo(1, 0.30, 450, 0.60, 450), optimo(1, 0.35, 100, 0.62, 100)),
+                2L, new AbordajeService.Optimos(optimo(2, 0.20, 480, 0.50, 480), null)));
         tramoCualquiera();
         var response = conAbordaje(abordaje).planificar(request());
-        assertEquals(List.of("R001", "R001", "R002"), response.opciones().stream().map(ViajeResponse.Opcion::codigo).toList());
-        assertEquals(List.of("MENOS_CAMINATA", "MAS_RAPIDA", "MENOS_CAMINATA"), response.opciones().stream().map(ViajeResponse.Opcion::variante).toList());
+        // 4.17 (MejoresOpciones): una sola opción por ruta; de R001 queda la variante «más rápida» porque cuesta menos puerta a puerta (200 m a pie en vez de 900)
+        assertEquals(List.of("R001", "R002"), response.opciones().stream().map(ViajeResponse.Opcion::codigo).toList());
+        assertEquals(List.of("MAS_RAPIDA", "MENOS_CAMINATA"), response.opciones().stream().map(ViajeResponse.Opcion::variante).toList());
         @SuppressWarnings("unchecked") ArgumentCaptor<List<ViajeRepository.TramoPedido>> pedidos = ArgumentCaptor.forClass(List.class);
         verify(repository, times(2)).tramosEntre(pedidos.capture());
         assertEquals(List.of(new ViajeRepository.TramoPedido(1, 0.30, 0.60), new ViajeRepository.TramoPedido(2, 0.20, 0.50)),
@@ -390,10 +395,10 @@ class ViajeServiceTest {
 
     @Test void aRouteWhoseTramoIsMissingIsLeftOutOfTheRefinedOnesWithoutBreakingTheTrip() {
         var abordaje = mock(AbordajeService.class);
-        when(repository.planificar(any(), anyInt())).thenReturn(List.of(filaDeRuta(1, "R001", 1600, 3), filaDeRuta(2, "R002", 2000, 3)));
+        when(repository.planificar(any(), anyInt())).thenReturn(List.of(filaDeRuta(1, "R001", 900, 3), filaDeRuta(2, "R002", 960, 3)));
         when(abordaje.optimizar(any(), any(), anyList(), anyDouble(), anyDouble())).thenReturn(java.util.Map.of(
-                1L, new AbordajeService.Optimos(optimo(1, 0.30, 800, 0.60, 800), null),
-                2L, new AbordajeService.Optimos(optimo(2, 0.20, 1000, 0.50, 1000), null)));
+                1L, new AbordajeService.Optimos(optimo(1, 0.30, 450, 0.60, 450), null),
+                2L, new AbordajeService.Optimos(optimo(2, 0.20, 480, 0.50, 480), null)));
         tramoCualquiera();
         when(repository.tramoEntre(eq(2L), anyDouble(), anyDouble())).thenReturn(null);          // la ruta 2 ya no existe
         var response = conAbordaje(abordaje).planificar(request());

@@ -46,6 +46,8 @@
     const SVG = {
         estrella: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor"/></svg>',
         bus: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 11h16M8 20.5v-3M16 20.5v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8.5" cy="14.2" r="1" fill="currentColor"/><circle cx="15.5" cy="14.2" r="1" fill="currentColor"/></svg>',
+        sube: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        giro: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         flecha: '<svg class="mo-flecha" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         volver: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m0 0l5-5m-5 5l5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -59,7 +61,7 @@
 
     function montar(contenedor, config) {
         const estado = { opciones: [], seleccion: null };
-        const cfg = Object.assign({ alElegir() {}, alVerTodas() {}, maxAlternativas: 3 }, config);
+        const cfg = Object.assign({ alElegir() {}, alVerTodas() {}, maxAlternativas: 1 }, config);
         const raizMo = el('section', 'mo'); raizMo.setAttribute('aria-label', 'Mejor opción para tu viaje');
         const aviso = el('div', 'mo-sr'); aviso.setAttribute('role', 'status'); aviso.setAttribute('aria-live', 'polite');
         contenedor.replaceChildren(raizMo);
@@ -67,19 +69,44 @@
         const mejor = () => estado.opciones.find((o) => o.recomendada) || estado.opciones[0];
         const actual = () => estado.opciones.find((o) => o.id === estado.seleccion) || mejor();
 
+        const reducido = () => (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduce') || !!(raiz.matchMedia && raiz.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        /** El número sube contando de 0 a su valor (ease-out, 0,65 s). Con movimiento reducido o valores chicos queda directo. */
+        function contar(b, hasta) {
+            if (reducido() || !(hasta >= 3)) return;
+            const t0 = performance.now(), dur = 650;
+            b.textContent = '0';
+            const paso = (t) => { const k = Math.min(1, (t - t0) / dur); b.textContent = String(Math.round(hasta * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(paso); else b.textContent = String(hasta); };
+            requestAnimationFrame(paso);
+        }
+
         function tarjeta(o, esMejor) {
             const card = el('article', 'mo-card');
             const fila = el('div', 'mo-fila');
             const et = conSvg(el('span', 'mo-etiqueta', esMejor ? 'Mejor opción' : 'Otra opción'), esMejor ? SVG.estrella : SVG.bus);
             const hora = el('div', 'mo-hora'); hora.title = 'Tiempo estimado sin contar la espera del bus';
-            const t = el('div', 'mo-tiempo'); t.append(el('b', null, String(o.minutos)), el('small', null, 'min'));
+            const minutosB = el('b', null, String(o.minutos));
+            const t = el('div', 'mo-tiempo'); t.append(minutosB, el('small', null, 'min'));
             hora.append(t, el('span', 'mo-sinespera', 'sin la espera'));
             fila.append(et, hora);
+            if (raizMo.classList.contains('mo--entra')) contar(minutosB, o.minutos);      // el tiempo sube contando hasta su valor (sin movimiento reducido no se anima)
+
+            // Trayecto: A → [bus 1] (→ cambio → [bus 2]) → B. Los colores son los del mapa (bus 1 rojo, bus 2 azul); se ilumina cada parte en orden, en bucle, como en el mapa.
+            const dalt = document.documentElement.classList.contains('daltonico'), colores = dalt ? ['#D55E00', '#0072B2'] : ['#e53935', '#1e5fbf'];
+            const via = el('div', 'mo-trayecto' + (o.buses.length > 1 ? ' mo-trayecto--dos' : '')); via.setAttribute('aria-hidden', 'true');
+            const nodo = (cls, txt) => el('span', 'mo-nodo ' + cls, txt);
+            const linea = () => el('span', 'mo-linea');
+            const pastilla = (b, i) => {
+                const nombre = dicho(b.nombre).split(' ').slice(2).join(' ') || b.nombre || '';
+                const pill = conSvg(el('span', 'mo-pastilla mo-pastilla--' + (i + 1)), SVG.bus); pill.style.setProperty('--c', colores[Math.min(i, 1)]);
+                pill.append(el('span', 'mo-pastilla-txt', nombre)); pill.title = nombre; return pill;
+            };
+            via.append(nodo('mo-nodo--a', 'A'), linea(), pastilla(o.buses[0], 0));
+            if (o.buses.length > 1) { const c = conSvg(el('span', 'mo-nodo mo-nodo--cambio'), SVG.giro); c.title = 'Cambio de bus'; via.append(linea(), c, linea(), pastilla(o.buses[1], 1)); }
+            via.append(linea(), nodo('mo-nodo--b', 'B'));
 
             const titulo = el('h3');
-            const cab = el('div', 'mo-titulo'); const pts = el('span', 'mo-puntos');
-            o.buses.forEach((b, i) => { if (i) pts.insertAdjacentHTML('beforeend', SVG.flecha); pts.append(punto(b.color)); });
-            cab.append(pts, titulo);
+            const cab = el('div', 'mo-titulo');
+            cab.append(titulo);
             // «Toma el bus <em>Terminal</em>» / «Toma el bus <em>Galán</em> y luego el bus <em>Porfía</em>»: solo el nombre va resaltado
             titulo.append('Toma ');
             o.buses.forEach((b, i) => {
@@ -88,18 +115,18 @@
                 titulo.append(partes.slice(0, 2).join(' ') + ' ', el('em', null, nombre));
             });
 
-            const datos = el('p', 'mo-datos'); const trozos = [];
-            const add = (pre, fuerte, post) => { const s = document.createElement('span'); s.append(pre || '', el('strong', null, fuerte), post || ''); trozos.push(s); };
-            if (o.subeM != null) add('Subes a ', fmtM(o.subeM), '');
-            add(trozos.length ? 'caminas ' : 'Caminas ', fmtM(o.caminaM), '');
-            trozos.forEach((s, i) => { if (i) datos.append(' · '); datos.append(s); });
+            // Dos datos, cada uno en su pastilla con su icono: dónde subes y cuánto caminas.
+            const datos = el('div', 'mo-datos');
+            const dato = (svg, pre, fuerte) => { const d = conSvg(el('span', 'mo-stat'), svg); d.append(pre, el('strong', null, fuerte)); datos.append(d); };
+            if (o.subeM != null) dato(SVG.sube, 'Subes a ', fmtM(o.subeM));
+            dato(SVG.caminar, o.subeM != null ? 'caminas ' : 'Caminas ', fmtM(o.caminaM));
             datos.title = (o.subeM != null ? 'Subes al bus a ' + fmtM(o.subeM) + ' de ti. ' : '') + 'Caminas ' + fmtM(o.caminaM) + ' en total' + (o.busKm ? ' y vas ' + o.busKm.toLocaleString('es-CO', { maximumFractionDigits: 1 }) + ' km en bus.' : '.');
 
             const marcas = el('ul', 'mo-marcas');
             const m1 = conSvg(el('li', null, o.transbordo ? '1 transbordo' : 'Sin transbordo'), SVG.check); marcas.append(m1);
             (o.etiquetas || []).filter((x) => x !== 'Sin transbordo').map((x) => MARCAS[x] || x).filter((x, i, a) => a.indexOf(x) === i).slice(0, 1).forEach((x) => marcas.append(conSvg(el('li', null, x), SVG.check)));
 
-            card.append(fila, cab, datos, marcas);
+            card.append(fila, via, cab, datos, marcas);
             if (o.caminarMejor && o.directoMin) {
                 const av = conSvg(el('p', 'mo-aviso', 'Ir caminando directo tarda ≈ ' + o.directoMin + ' min: casi lo mismo, o menos, que este bus.'), SVG.caminar);
                 card.append(av);

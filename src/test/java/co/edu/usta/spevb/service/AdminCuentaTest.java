@@ -22,9 +22,12 @@ class AdminCuentaTest {
     }
 
     @Test
-    void sinAdministradoresConfiguradosNadieLoEs() {
+    void sinAdministradoresConfiguradosSoloAdministraLaCuentaDelProyecto() {
         var s = con("");
-        assertFalse(s.adminConfigurado());
+        assertTrue(s.adminConfigurado(), "la cuenta del proyecto siempre administra");
         assertFalse(s.esAdmin("admin@gmail.com", true));
+        assertTrue(s.esAdmin(CuentaProyecto.CORREO, true));
+        assertTrue(s.esAdmin("SEBVADMIN@gmail.com", true), "sin importar mayúsculas");
+        assertFalse(s.esAdmin(CuentaProyecto.CORREO, false), "y también debe estar verificada con Google");
     }
 }

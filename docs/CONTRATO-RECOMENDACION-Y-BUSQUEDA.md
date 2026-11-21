@@ -87,3 +87,7 @@ Autocomplete + Place Details de una misma búsqueda comparten un `sessionToken` 
 ## C. Estado de cada campo A/B (frontend)
 
 `vacio → editando → consultando → mostrando → resolviendo → confirmado | error`. Al **confirmar** (sugerencia elegida, coordenadas, favorito, punto en mapa, ubicación actual, búsqueda explícita resuelta): cancelar debounce y solicitudes, invalidar la generación del campo, cerrar y vaciar sugerencias, actualizar `aria-expanded`/`aria-activedescendant`, guardar texto, coordenadas, fuente y precisión, no consultar por foco/blur/cambios de layout; el campo sigue siendo editable y solo una **edición real** (no foco) invalida el punto. Sin consultas durante composición IME. Cada campo A/B tiene su propio control de solicitudes y su propio `sessionToken`.
+
+## Política 3 (4.17): costo puerta a puerta
+- El desempate estable pasa a ser **costo = tiempo total estimado + caminata/80 m·min⁻¹** (caminar pesa el doble que ir sentado), después caminata total, tiempo, número de buses, tipo e id. La **viabilidad** (límites de caminata, sentido de la ruta) y la **prioridad de acceso** de los transbordos no cambian.
+- `MejoresOpciones` (máximo 3, ≤ 1 000 m, una opción por ruta) ordena por el mismo costo. Todo es hipótesis de producto, sin datos medidos en Villavicencio: los pesos están en `Recomendador.costo` y `ViajeService.costoMin` para ajustarlos.

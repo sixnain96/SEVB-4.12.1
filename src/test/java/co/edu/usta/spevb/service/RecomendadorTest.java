@@ -113,7 +113,7 @@ class RecomendadorTest {
     // ---- Viajes sin directa, sin transbordo válido, circulares
     @Test void sinDirectaSeRecomiendaElMejorTransbordoPorAccesoYLuegoDesempate() {
         var r = Recomendador.recomendar(P, List.of(transbordo("T:1>2", 500, 100, 100, 30), transbordo("T:3>4", 200, 300, 100, 38), transbordo("T:5>6", 200, 100, 400, 33)));
-        assertEquals("T:3>4", r.idRecomendada(), "menor caminata inicial (200 m, empate con T:5>6); con empate, menor caminata total (600 m vs 700 m)");
+        assertEquals("T:5>6", r.idRecomendada(), "menor caminata inicial (200 m, empate con T:3>4); con empate, menor costo puerta a puerta (4.17: 33 min + 700 m vs 38 min + 600 m)");
         assertTrue(r.motivo().contains("no hay una ruta sin transbordo"), r.motivo());
     }
 
@@ -145,8 +145,8 @@ class RecomendadorTest {
     }
 
     @Test void siNingunaEstaDentroDelLimiteSeRecomiendaLaMenosMalaYNuncaNada() {
-        var r = Recomendador.recomendar(P, List.of(directa("D:1", 2500, 100, 50), directa("D:2", 3200, 100, 40)));
-        assertEquals("D:1", r.idRecomendada());
+        var r = Recomendador.recomendar(P, List.of(directa("D:1", 2500, 100, 50), directa("D:2", 3200, 100, 60)));
+        assertEquals("D:1", r.idRecomendada(), "la menos mala por costo puerta a puerta (menos caminata Y menos tiempo)");
         assertTrue(item(r, "D:2").elegible());
     }
 
@@ -179,7 +179,7 @@ class RecomendadorTest {
         assertFalse(P.reduccionSignificativa(500, 300));         // 200 < 300
         assertTrue(P.reduccionSignificativa(500, 200));          // 300 ≥ max(300, 250)
         assertFalse(P.reduccionSignificativa(Double.NaN, 100));
-        assertEquals(2, PoliticaRecomendacion.VERSION);
+        assertEquals(3, PoliticaRecomendacion.VERSION);
     }
 
     // ---- DTO: ids y compatibilidad
@@ -193,5 +193,17 @@ class RecomendadorTest {
         assertNull(t.id());
         assertEquals("T:1>2", t.conId("T:1>2").id());
         assertNull(new ViajeResponse(List.of(), List.of(), "x").recomendacion());
+    }
+
+    // ---- 4.17: el desempate es el costo puerta a puerta (caminar pesa el doble), no solo la caminata
+    @Test void unaRutaUnPocoMasLejosPeroMuchoMasCortaGanaAUnaQueDaUnaVueltaEnorme() {
+        // D:1 queda a 300 m pero tarda 120 min (da la vuelta a la ciudad); D:2 queda a 400 m y tarda 30 min.
+        var r = Recomendador.recomendar(P, List.of(directa("D:1", 300, 0, 120), directa("D:2", 400, 0, 30)));
+        assertEquals("D:2", r.idRecomendada());
+    }
+
+    @Test void conElMismoTiempoGanaLaQueMenosCamina() {
+        var r = Recomendador.recomendar(P, List.of(directa("D:1", 600, 0, 40), directa("D:2", 200, 0, 40)));
+        assertEquals("D:2", r.idRecomendada());
     }
 }

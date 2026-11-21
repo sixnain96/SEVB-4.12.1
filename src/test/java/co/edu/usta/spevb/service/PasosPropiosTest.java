@@ -104,9 +104,11 @@ class PasosPropiosTest {
         return camino.coordenadas().stream().anyMatch(p -> Math.abs(p[0] - medio) < 1e-6 && Math.abs(p[1] - norte) < 1e-6);
     }
 
-    @Test void losPuentesRegistradosSePrefierenSiElRodeoEsPequeno() {
-        assertFalse(caminoPasaPorElPuente(RedPeatonal.LLANA), "como paso común (sin preferencia) la calle recta es más corta");
-        assertTrue(caminoPasaPorElPuente(RedPeatonal.PUENTE), "un puente peatonal registrado se prefiere si el rodeo es de ≈ 13 %");
+    @Test void unPuenteNoSePrefierePorSerPuenteSinoPorLoQueEvita() {
+        // Sin avenida de por medio un puente es una calle más: cuesta lo que mide, así que la calle recta (más corta) gana.
+        // Su ventaja aparece al cruzar una avenida (ver CruceAvenidasTest).
+        assertFalse(caminoPasaPorElPuente(RedPeatonal.LLANA), "como paso común la calle recta es más corta");
+        assertFalse(caminoPasaPorElPuente(RedPeatonal.PUENTE), "un puente que no evita ningún cruce no se prefiere si da un rodeo");
     }
 
     @Test void distanciaEntreSegmentos() {

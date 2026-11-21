@@ -487,6 +487,11 @@ def _hora_bogota(ms):
     return (_dt.datetime.fromtimestamp(ms / 1000, _dt.timezone.utc) - _dt.timedelta(hours=5)).hour
 
 
+def _perdida(cadena, dias):
+    """4.17: lo que queda de una racha tras `dias` días desde el último viaje: pierde uno por cada día pasado el margen de gracia (2 días)."""
+    return max(0, cadena - max(0, dias - 2))
+
+
 def _racha(dias, hoy):
     d = sorted(set(dias))
     if not d:
@@ -495,10 +500,10 @@ def _racha(dias, hoy):
     previo = None
     for x in d:
         hueco = 0 if previo is None else (x - previo).days
-        cadena = 1 if previo is None or hueco > 2 else cadena + 1
+        cadena = 1 if previo is None else (_perdida(cadena, hueco) + 1 if hueco > 2 else cadena + 1)
         estricta = 1 if previo is None or hueco != 1 else estricta + 1
         mejor, mejor_e, previo = max(mejor, cadena), max(mejor_e, estricta), x
-    return (cadena if (hoy - previo).days <= 2 else 0), mejor, mejor_e, previo
+    return (cadena if (hoy - previo).days <= 2 else _perdida(cadena, (hoy - previo).days)), mejor, mejor_e, previo
 
 
 def _logros_estado(sesion, ahora_ms):
@@ -522,9 +527,18 @@ def _logros_estado(sesion, ahora_ms):
     if m['practica']: logros.append('practica')
     if m['viajes'] >= 30 and mejor >= 7: logros.append('llano')
     insignia = L['insignia'] if L['insignia'] in logros else None
-    return {'viajes': m['viajes'], 'transbordos': m['transbordos'], 'rachaActual': actual, 'mejorRacha': mejor, 'mejorEstricta': estricta, 'madrugador': m['madrugador'], 'nocturno': m['nocturno'],
-            'practica': m['practica'], 'logros': logros, 'insignia': insignia, 'hoy': hoy.isoformat(), 'ultimoDia': ultimo.isoformat() if ultimo else None,
-            'dias': [x.isoformat() for x in sorted(set(dias))][-120:]}
+    r = {'viajes': m['viajes'], 'transbordos': m['transbordos'], 'rachaActual': actual, 'mejorRacha': mejor, 'mejorEstricta': estricta, 'madrugador': m['madrugador'], 'nocturno': m['nocturno'],
+         'practica': m['practica'], 'logros': logros, 'insignia': insignia, 'hoy': hoy.isoformat(), 'ultimoDia': ultimo.isoformat() if ultimo else None,
+         'dias': [x.isoformat() for x in sorted(set(dias))][-120:]}
+    u = CUENTAS['usuarios'].get(sesion)
+    if u and u.get('correo') == 'sebvadmin@gmail.com':      # cuenta del proyecto: demo con racha ESTÁTICA de 31 (inicio vacío)
+        r.update(logros=list(_CATALOGO_LOGROS), mejorRacha=max(31, mejor), mejorEstricta=max(7, estricta), viajes=max(30, m['viajes']), transbordos=max(1, m['transbordos']),
+                 madrugador=True, nocturno=True, practica=True, rachaActual=31, rachaDemo={'base': 31, 'inicio': ''})
+    elif u and u.get('correo') == 'demo@example.com':      # como LOGROS_CUENTAS_DEMO + racha estática del servidor real
+        base, inicio = 30, _dt.date(2026, 11, 19)
+        r.update(logros=list(_CATALOGO_LOGROS), mejorRacha=max(30, mejor), mejorEstricta=max(7, estricta), viajes=max(30, m['viajes']), transbordos=max(1, m['transbordos']),
+                 madrugador=True, nocturno=True, practica=True, rachaActual=max(0, base - max(0, (hoy - inicio).days)), rachaDemo={'base': base, 'inicio': inicio.isoformat()})
+    return r
 
 
 def _credencial(c, reciente=False):
@@ -897,6 +911,16 @@ class H(BaseHTTPRequestHandler):
             if not r:
                 return self._json({'status': 404, 'message': 'Código desconocido'}, 404)
             return self._json({'id': r['id'], 'codigo': r['codigo'], 'nombre': r['nombre'], 'aliasUsado': r['codigo'].upper() != c, 'codigoConsultado': mc.group(1)})
+        md = re.fullmatch(r'/api/editor/rutas/(\d+)', ruta)
+        if md and self.command == 'DELETE':
+            rid = int(md.group(1))
+            r = RUTAS_EDITOR.get(rid) or RUTAS.get(rid)
+            if not r:
+                return self._json({'status': 404, 'message': 'Ruta no encontrada'}, 404)
+            if (consulta.get('codigo') or [''])[0].strip().upper() != r['codigo'].upper():
+                return self._json({'status': 400, 'message': 'Para eliminar la ruta escribe su código como confirmación.'}, 400)
+            RUTAS_EDITOR.pop(rid, None); RUTAS.pop(rid, None)
+            return self._json({'ok': True, 'codigo': r['codigo']})
         me = re.fullmatch(r'/api/editor/rutas/(\d+)/recorrido', ruta)
         if me and self.command == 'PUT':
             return self._guardar_ruta(int(me.group(1)), json.loads(cuerpo or b'{}'))

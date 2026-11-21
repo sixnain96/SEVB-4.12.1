@@ -19,11 +19,30 @@ public final class RedPeatonal {
 
     public record Camino(List<double[]> coordenadas, double metros) {}
 
-    /** Multiplicadores de costo por clase de vía: sólo desempatan (prefieren andenes y calles tranquilas). */
-    private static final double[] FACTOR = {1.0, 1.25, 1.1, 1.05, 1.15, 2.5, 0.75};
-    /** PUENTE: puente peatonal registrado. Cuesta 0,75 de su largo: se prefiere sobre calles normales si el rodeo es de hasta ≈ 33 %, porque cruza una vía sin riesgo. */
-    private static final double FACTOR_MINIMO = 0.75;
-    static final byte LLANA = 0, ESCALERA = 1, SENDERO = 2, VIA_LOCAL = 3, VIA_PRINCIPAL = 4, TRONCAL = 5, PUENTE = 6;
+    /**
+     * Multiplicadores de costo por clase de vía. Todos son ≥ 1: el costo nunca es menor que los metros reales, así que el número que se
+     * le muestra a la persona («caminas X m») es una cota honesta y no un valor inflado ni rebajado. Caminar POR el andén de una avenida
+     * (por donde pasan los buses) casi no se penaliza: antes costaba 2,5 veces y empujaba a elegir un punto de subida más lejano en una calle
+     * tranquila. El riesgo de una avenida se cobra al CRUZARLA (ver {@link #CRUCE}), no al caminar a su lado.
+     */
+    private static final double[] FACTOR = {1.0, 1.25, 1.1, 1.0, 1.05, 1.1, 1.0, 1.0};
+    private static final double FACTOR_MINIMO = 1.0;
+    /**
+     * LLANA…PUENTE son las clases de las calles. CRUCE es una arista virtual de longitud cero entre los dos andenes de una avenida: su
+     * «largo» es el costo en metros equivalentes de cruzarla a nivel (ver {@link Constructor#dividirBarreras}).
+     */
+    static final byte LLANA = 0, ESCALERA = 1, SENDERO = 2, VIA_LOCAL = 3, VIA_PRINCIPAL = 4, TRONCAL = 5, PUENTE = 6, CRUCE = 7;
+    /**
+     * Metros equivalentes de cruzar a nivel una vía principal/secundaria y una troncal (una calzada); una doble calzada son dos cruces. El
+     * cobro SOLO existe cerca de un puente peatonal registrado (ver {@link #RADIO_ZONA_PUENTE_METROS}): en el resto de la ciudad las avenidas se
+     * cruzan libremente por el camino más corto, como antes. Con el cobro en toda la ciudad el camino prefería cruzar por otra esquina lejana
+     * (sin cobro) y la persona caminaba cientos de metros de más.
+     */
+    public static final double CRUCE_VIA_PRINCIPAL_METROS = 30, CRUCE_TRONCAL_METROS = 50;
+    /** Hasta dónde llega la influencia de un puente peatonal: los tramos de avenida a menos de esta distancia de alguno de sus extremos se cruzan con costo. */
+    public static final double RADIO_ZONA_PUENTE_METROS = 120;
+    /** Un punto a menos de esta distancia del eje de una avenida se considera sobre la calzada: puede llegar a cualquiera de sus dos andenes. */
+    static final double TOLERANCIA_LADO_ORIGEN_METROS = 3, TOLERANCIA_LADO_DESTINO_METROS = 10;
     private static final double CELDA = 0.0025;
     private static final int TAMANO_MINIMO_ISLOTE = 30;
 
@@ -46,14 +65,21 @@ public final class RedPeatonal {
     private final int[] ini, dst, origen;
     private final float[] largo;
     private final byte[] clase;
+    /**
+     * Lado de cada mitad de arista de una avenida: +1 = el andén a la izquierda de {@code origen→dst}, -1 = el de la derecha, 0 = no es
+     * de avenida. Un punto sólo se «pega» al andén de su propio lado (así no cruza la avenida sin pagar el cruce).
+     */
+    private final byte[] lado;
+    /** Mitades de arista que son copia del andén derecho de una avenida: existen para el cálculo pero no se dibujan (misma geometría que la izquierda). */
+    private final boolean[] sombra;
     private final boolean[] valido;
     private final Map<Long, int[]> rejilla;
     private final double minLat, maxLat, minLng, maxLng;
 
-    private RedPeatonal(double[] lat, double[] lng, int[] ini, int[] dst, int[] origen, float[] largo, byte[] clase,
-                        boolean[] valido, Map<Long, int[]> rejilla) {
+    private RedPeatonal(double[] lat, double[] lng, int[] ini, int[] dst, int[] origen, float[] largo, byte[] clase, byte[] lado,
+                        boolean[] sombra, boolean[] valido, Map<Long, int[]> rejilla) {
         this.lat = lat; this.lng = lng; this.ini = ini; this.dst = dst; this.origen = origen;
-        this.largo = largo; this.clase = clase; this.valido = valido; this.rejilla = rejilla;
+        this.largo = largo; this.clase = clase; this.lado = lado; this.sombra = sombra; this.valido = valido; this.rejilla = rejilla;
         double a = 90, b = -90, c = 180, d = -180;
         for (int i = 0; i < lat.length; i++) {
             if (!valido[i]) continue;
@@ -80,7 +106,7 @@ public final class RedPeatonal {
         List<double[]> r = new ArrayList<>();
         for (int a = 0; a < dst.length && r.size() < maximo; a++) {
             int u = origen[a], v = dst[a];
-            if (u >= v || !valido[u]) continue;
+            if (u >= v || !valido[u] || clase[a] == CRUCE || sombra[a]) continue;     // sin la arista virtual de cruce ni el andén duplicado
             if ((lat[u] < sur && lat[v] < sur) || (lat[u] > norte && lat[v] > norte)
                     || (lng[u] < oeste && lng[v] < oeste) || (lng[u] > este && lng[v] > este)) continue;
             r.add(new double[]{lng[u], lat[u], lng[v], lat[v]});
@@ -98,13 +124,30 @@ public final class RedPeatonal {
         private int[] eu = new int[2048], ev = new int[2048];
         private byte[] ec = new byte[2048];
         private boolean[] ep = new boolean[2048];   // arista de un paso propio: los bloqueos no la tocan
+        private float[] ePen = new float[2048];     // aristas de cruce: costo en metros equivalentes (0 en las demás)
+        private byte[] eLado = new byte[2048];      // andén de avenida: +1 izquierda, -1 derecha de eu→ev (0 en las demás)
+        /** Punto exacto donde el paso propio quería terminar (NaN si la arista no es el extremo de un paso): decide a qué andén de una avenida se une. */
+        private double[] pistaULat = new double[2048], pistaULng = new double[2048], pistaVLat = new double[2048], pistaVLng = new double[2048];
         private int m;
         private long sintetico = -1;
         private final List<double[][]> bloqueos = new ArrayList<>();   // cada uno: {lats, lngs}
+        private final double cruceVia, cruceTroncal;
+
+        public Constructor() { this(CRUCE_VIA_PRINCIPAL_METROS, CRUCE_TRONCAL_METROS); }
+
+        /** {@code cruceVia} y {@code cruceTroncal}: metros equivalentes de cruzar a nivel esa clase de avenida; 0 desactiva el cobro. */
+        public Constructor(double cruceVia, double cruceTroncal) {
+            this.cruceVia = Math.max(0, cruceVia);
+            this.cruceTroncal = Math.max(0, cruceTroncal);
+        }
 
         private int nodo(long id, double la, double lo) {
             Integer i = indice.get(id);
             if (i != null) return i;
+            return nodoNuevo(la, lo, id);
+        }
+
+        private int nodoNuevo(double la, double lo, long id) {
             if (n == lat.length) { lat = Arrays.copyOf(lat, n * 2); lng = Arrays.copyOf(lng, n * 2); }
             lat[n] = la; lng[n] = lo;
             indice.put(id, n);
@@ -124,11 +167,21 @@ public final class RedPeatonal {
         }
 
         private void agregarArista(int u, int v, byte clase, boolean propia) {
+            agregarArista(u, v, clase, propia, Double.NaN, Double.NaN, Double.NaN, Double.NaN);
+        }
+
+        private void agregarArista(int u, int v, byte clase, boolean propia, double pUlat, double pUlng, double pVlat, double pVlng) {
             if (m == eu.length) {
-                eu = Arrays.copyOf(eu, m * 2); ev = Arrays.copyOf(ev, m * 2);
-                ec = Arrays.copyOf(ec, m * 2); ep = Arrays.copyOf(ep, m * 2);
+                int c = m * 2;
+                eu = Arrays.copyOf(eu, c); ev = Arrays.copyOf(ev, c);
+                ec = Arrays.copyOf(ec, c); ep = Arrays.copyOf(ep, c);
+                ePen = Arrays.copyOf(ePen, c); eLado = Arrays.copyOf(eLado, c);
+                pistaULat = Arrays.copyOf(pistaULat, c); pistaULng = Arrays.copyOf(pistaULng, c);
+                pistaVLat = Arrays.copyOf(pistaVLat, c); pistaVLng = Arrays.copyOf(pistaVLng, c);
             }
-            eu[m] = u; ev[m] = v; ec[m] = clase; ep[m] = propia; m++;
+            eu[m] = u; ev[m] = v; ec[m] = clase; ep[m] = propia; ePen[m] = 0; eLado[m] = 0;
+            pistaULat[m] = pUlat; pistaULng[m] = pUlng; pistaVLat[m] = pVlat; pistaVLng[m] = pVlng;
+            m++;
         }
 
         /** Nodo existente más cercano al punto, dentro de {@code maxMetros}; -1 si no hay. */
@@ -164,7 +217,7 @@ public final class RedPeatonal {
             if (mejorE >= 0 && mejorD <= enlaceMetros * 2) {
                 int u = eu[mejorE], v = ev[mejorE];
                 double nl = lat[u] + mejorT * (lat[v] - lat[u]), no = lng[u] + mejorT * (lng[v] - lng[u]);
-                int nuevo = nodo(sintetico--, nl, no);
+                int nuevo = nodoNuevo(nl, no, sintetico--);
                 byte c = ec[mejorE];
                 ev[mejorE] = nuevo;                 // u—nuevo reemplaza a u—v
                 agregarArista(nuevo, v, c, false);  // nuevo—v
@@ -172,7 +225,7 @@ public final class RedPeatonal {
                 return nuevo;
             }
             unido[0] = false;
-            return nodo(sintetico--, la, lo);
+            return nodoNuevo(la, lo, sintetico--);
         }
 
         /**
@@ -185,17 +238,24 @@ public final class RedPeatonal {
         public int agregarPaso(double[] lats, double[] lngs, double enlaceMetros, byte clase) {
             int conectados = 0;
             int anterior = -1;
-            for (int i = 0; i < lats.length; i++) {
-                boolean extremo = i == 0 || i == lats.length - 1;
+            int ultimo = lats.length - 1;
+            for (int i = 0; i <= ultimo; i++) {
+                boolean extremo = i == 0 || i == ultimo;
                 int actual;
                 if (extremo) {
                     boolean[] u = new boolean[1];
                     actual = extremo(lats[i], lngs[i], enlaceMetros, u);
                     if (u[0]) conectados++;
                 } else {
-                    actual = nodo(sintetico--, lats[i], lngs[i]);
+                    actual = nodoNuevo(lats[i], lngs[i], sintetico--);
                 }
-                if (anterior >= 0 && anterior != actual) agregarArista(anterior, actual, clase, true);
+                if (anterior >= 0 && anterior != actual) {
+                    // La pista es el punto donde el paso quería terminar: si cae sobre una avenida, dice a qué andén se une.
+                    boolean primero = i == 1;
+                    agregarArista(anterior, actual, clase, true,
+                            primero ? lats[0] : Double.NaN, primero ? lngs[0] : Double.NaN,
+                            i == ultimo ? lats[i] : Double.NaN, i == ultimo ? lngs[i] : Double.NaN);
+                }
                 anterior = actual;
             }
             return conectados;
@@ -218,29 +278,163 @@ public final class RedPeatonal {
             return false;
         }
 
+        // ------------------------------------------------------------------ avenidas: dos andenes y un cruce con costo
+        private double cruceDe(byte clase) {
+            return clase == VIA_PRINCIPAL ? cruceVia : clase == TRONCAL ? cruceTroncal : 0;
+        }
+
+        private boolean esBarrera(int i) { return !ep[i] && cruceDe(ec[i]) > 0; }
+
+        private boolean cercaDeUnPuente(int x, List<double[]> anclas) {
+            for (double[] a : anclas) {
+                if (Math.abs(a[0] - lat[x]) > 0.0016 || Math.abs(a[1] - lng[x]) > 0.0016) continue;      // ≈ 180 m: descarte rápido
+                if (metros(a[0], a[1], lat[x], lng[x]) <= RADIO_ZONA_PUENTE_METROS) return true;
+            }
+            return false;
+        }
+
+        /**
+         * Cada tramo de avenida (vía principal o troncal de OpenStreetMap) pasa a ser DOS andenes paralelos, uno por lado, unidos por una
+         * arista de cruce cuyo costo es lo que vale cruzar esa avenida a nivel. Así:
+         * <ul>
+         *   <li>caminar por el andén de su propio lado no cuesta nada extra;</li>
+         *   <li>pasar al otro lado cuesta el cruce, salvo que haya un puente o paso propio que enlace los dos andenes: si el puente queda
+         *       a menos desvío que ese costo se usa; si queda muy lejos, se cruza a nivel (como hace una persona);</li>
+         *   <li>un punto sólo se «pega» al andén de su lado ({@code lado}), así que ya no «salta» la avenida al ajustarse a la calle.</li>
+         * </ul>
+         * Los nodos donde la avenida se cruza con otra, se bifurca o termina no se dividen (allí hay semáforo y esquinas): el cruce es libre.
+         * Una doble calzada son dos avenidas y se cobra dos veces.
+         * <p>El cobro solo se aplica en los nodos a menos de {@link #RADIO_ZONA_PUENTE_METROS} de un extremo de un puente registrado: allí un puente
+         * cercano gana al cruce a nivel y, lejos de los puentes, no cambia nada respecto a una red sin cobro. Sin puentes no se divide ninguna avenida.
+         */
+        private void dividirBarreras() {
+            if (cruceVia <= 0 && cruceTroncal <= 0) return;
+            // Puntos de anclaje de los puentes: sus extremos (nodos y el punto exacto donde el trazo quería terminar).
+            List<double[]> anclas = new ArrayList<>();
+            for (int i = 0; i < m; i++) {
+                if (!ep[i] || ec[i] != PUENTE) continue;
+                anclas.add(new double[]{lat[eu[i]], lng[eu[i]]});
+                anclas.add(new double[]{lat[ev[i]], lng[ev[i]]});
+                if (!Double.isNaN(pistaULat[i])) anclas.add(new double[]{pistaULat[i], pistaULng[i]});
+                if (!Double.isNaN(pistaVLat[i])) anclas.add(new double[]{pistaVLat[i], pistaVLng[i]});
+            }
+            if (anclas.isEmpty()) return;
+            int[] grado = new int[n], primera = new int[n], segunda = new int[n];
+            Arrays.fill(primera, -1); Arrays.fill(segunda, -1);
+            boolean hay = false;
+            for (int i = 0; i < m; i++) {
+                if (!esBarrera(i)) continue;
+                hay = true;
+                for (int x : new int[]{eu[i], ev[i]}) {
+                    grado[x]++;
+                    if (primera[x] < 0) primera[x] = i; else if (segunda[x] < 0) segunda[x] = i;
+                }
+            }
+            if (!hay) return;
+            // Orientación coherente a lo largo de cada tramo continuo (nodos de grado 2): «izquierda» es la misma para todo el tramo.
+            int[] cola = new int[m], cabeza = new int[m];
+            Arrays.fill(cola, -1);
+            for (int i = 0; i < m; i++) {
+                if (!esBarrera(i) || cola[i] >= 0) continue;
+                cola[i] = eu[i]; cabeza[i] = ev[i];
+                int e = i, nodo = cabeza[i];
+                while (grado[nodo] == 2) {
+                    int j = primera[nodo] == e ? segunda[nodo] : primera[nodo];
+                    if (j < 0 || cola[j] >= 0) break;
+                    cola[j] = nodo; cabeza[j] = eu[j] == nodo ? ev[j] : eu[j];
+                    e = j; nodo = cabeza[j];
+                }
+                e = i; nodo = cola[i];
+                while (grado[nodo] == 2) {
+                    int j = primera[nodo] == e ? segunda[nodo] : primera[nodo];
+                    if (j < 0 || cola[j] >= 0) break;
+                    cabeza[j] = nodo; cola[j] = eu[j] == nodo ? ev[j] : eu[j];
+                    e = j; nodo = cola[j];
+                }
+            }
+            // Copia «derecha» de cada nodo intermedio (misma posición); el nodo original queda como copia «izquierda».
+            int[] derecha = new int[n];
+            Arrays.fill(derecha, -1);
+            int n0 = n;
+            for (int x = 0; x < n0; x++) {
+                if (grado[x] != 2 || !cercaDeUnPuente(x, anclas)) continue;
+                derecha[x] = nodoNuevo(lat[x], lng[x], sintetico--);
+            }
+            int m0 = m;
+            // Las calles que llegan a un nodo intermedio se unen al andén de su lado.
+            for (int j = 0; j < m0; j++) {
+                if (esBarrera(j)) continue;
+                for (int extremo = 0; extremo < 2; extremo++) {
+                    int x = extremo == 0 ? eu[j] : ev[j];
+                    if (x >= n0 || derecha[x] < 0) continue;
+                    int otro = extremo == 0 ? ev[j] : eu[j];
+                    double pLat = extremo == 0 ? pistaULat[j] : pistaVLat[j], pLng = extremo == 0 ? pistaULng[j] : pistaVLng[j];
+                    boolean conPista = !Double.isNaN(pLat);
+                    if (!conPista) { pLat = lat[otro]; pLng = lng[otro]; }
+                    int entra = primera[x], sale = segunda[x];
+                    if (cabeza[entra] != x) { int t = entra; entra = sale; sale = t; }      // «entra»: el tramo que llega a x; «sale»: el que parte
+                    double kx = Math.cos(Math.toRadians(lat[x])) * 111_320, ky = 110_574;
+                    double dx = (lng[cabeza[sale]] - lng[cola[entra]]) * kx, dy = (lat[cabeza[sale]] - lat[cola[entra]]) * ky;
+                    double qx = (pLng - lng[x]) * kx, qy = (pLat - lat[x]) * ky;
+                    double cruz = dx * qy - dy * qx, largoD = Math.sqrt(dx * dx + dy * dy);
+                    double distancia = largoD == 0 ? 0 : cruz / largoD;          // metros a la izquierda (+) o derecha (−) del eje
+                    boolean izquierda;
+                    if (Math.abs(distancia) < 1.0) {
+                        // Pegada al eje: se une al andén opuesto al lado del otro extremo, o a la izquierda si tampoco ese se sabe.
+                        double ox = (lng[otro] - lng[x]) * kx, oy = (lat[otro] - lat[x]) * ky, c2 = largoD == 0 ? 0 : (dx * oy - dy * ox) / largoD;
+                        izquierda = conPista && Math.abs(c2) >= 1.0 ? c2 < 0 : true;
+                    } else {
+                        izquierda = distancia > 0;
+                    }
+                    if (!izquierda) { if (extremo == 0) eu[j] = derecha[x]; else ev[j] = derecha[x]; }
+                }
+            }
+            // Cada tramo de avenida pasa a dos andenes (izquierdo = arista original, derecho = copia), orientados cola→cabeza.
+            for (int i = 0; i < m0; i++) {
+                if (!esBarrera(i)) continue;
+                int t = cola[i], h = cabeza[i];
+                eu[i] = t; ev[i] = h; eLado[i] = 1;
+                int dt = t < n0 && derecha[t] >= 0 ? derecha[t] : t, dh = h < n0 && derecha[h] >= 0 ? derecha[h] : h;
+                agregarArista(dt, dh, ec[i], false);
+                eLado[m - 1] = -1;
+            }
+            // La arista de cruce entre los dos andenes de cada nodo intermedio.
+            for (int x = 0; x < n0; x++) {
+                if (derecha[x] < 0) continue;
+                double c = Math.max(cruceDe(ec[primera[x]]), cruceDe(ec[segunda[x]]));
+                agregarArista(x, derecha[x], CRUCE, true);
+                ePen[m - 1] = (float) c;
+            }
+        }
+
         public RedPeatonal construir() {
             if (!bloqueos.isEmpty()) {
                 int k = 0;
                 for (int i = 0; i < m; i++) {
                     if (!ep[i] && bloqueada(i, 6)) continue;
-                    eu[k] = eu[i]; ev[k] = ev[i]; ec[k] = ec[i]; ep[k] = ep[i]; k++;
+                    eu[k] = eu[i]; ev[k] = ev[i]; ec[k] = ec[i]; ep[k] = ep[i];
+                    pistaULat[k] = pistaULat[i]; pistaULng[k] = pistaULng[i]; pistaVLat[k] = pistaVLat[i]; pistaVLng[k] = pistaVLng[i];
+                    k++;
                 }
                 m = k;
             }
+            dividirBarreras();
             int e = m * 2;
             int[] grado = new int[n + 1];
             for (int i = 0; i < m; i++) { grado[eu[i] + 1]++; grado[ev[i] + 1]++; }
             for (int i = 0; i < n; i++) grado[i + 1] += grado[i];
             int[] ini = grado, pos = Arrays.copyOf(grado, n), dst = new int[e], origen = new int[e];
             float[] largo = new float[e];
-            byte[] clase = new byte[e];
+            byte[] clase = new byte[e], lado = new byte[e];
+            boolean[] sombra = new boolean[e];
             int[] padre = new int[n];
             for (int i = 0; i < n; i++) padre[i] = i;
             for (int i = 0; i < m; i++) {
-                float d = (float) metros(lat[eu[i]], lng[eu[i]], lat[ev[i]], lng[ev[i]]);
+                float d = ePen[i] > 0 ? ePen[i] : (float) metros(lat[eu[i]], lng[eu[i]], lat[ev[i]], lng[ev[i]]);
                 int a = pos[eu[i]]++, b = pos[ev[i]]++;
-                dst[a] = ev[i]; origen[a] = eu[i]; largo[a] = d; clase[a] = ec[i];
-                dst[b] = eu[i]; origen[b] = ev[i]; largo[b] = d; clase[b] = ec[i];
+                dst[a] = ev[i]; origen[a] = eu[i]; largo[a] = d; clase[a] = ec[i]; lado[a] = eLado[i];
+                dst[b] = eu[i]; origen[b] = ev[i]; largo[b] = d; clase[b] = ec[i]; lado[b] = (byte) -eLado[i];
+                sombra[a] = sombra[b] = eLado[i] < 0;
                 unir(padre, eu[i], ev[i]);
             }
             int[] tamano = new int[n];
@@ -252,11 +446,12 @@ public final class RedPeatonal {
                 int r = raiz(padre, i);
                 valido[i] = tamano[r] >= TAMANO_MINIMO_ISLOTE || (n > 0 && r == mayor);
             }
-            // Rejilla: cada arista (una sola vez, sentido u<v) se registra en las celdas que cubre su caja.
+            // Rejilla: cada arista (una sola vez, sentido u<v) se registra en las celdas que cubre su caja. Las aristas de cruce no se registran:
+            // son virtuales y nadie se «pega» a ellas.
             Map<Long, List<Integer>> temp = new HashMap<>();
             for (int a = 0; a < e; a++) {
                 int u = origen[a], v = dst[a];
-                if (u >= v || !valido[u]) continue;
+                if (u >= v || !valido[u] || clase[a] == CRUCE) continue;
                 int x0 = celda(Math.min(lng[u], lng[v]) + 180), x1 = celda(Math.max(lng[u], lng[v]) + 180);
                 int y0 = celda(Math.min(lat[u], lat[v]) + 90), y1 = celda(Math.max(lat[u], lat[v]) + 90);
                 for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++)
@@ -264,7 +459,7 @@ public final class RedPeatonal {
             }
             Map<Long, int[]> rejilla = new HashMap<>(temp.size() * 2);
             temp.forEach((k, v) -> rejilla.put(k, v.stream().mapToInt(Integer::intValue).toArray()));
-            return new RedPeatonal(Arrays.copyOf(lat, n), Arrays.copyOf(lng, n), ini, dst, origen, largo, clase, valido, rejilla);
+            return new RedPeatonal(Arrays.copyOf(lat, n), Arrays.copyOf(lng, n), ini, dst, origen, largo, clase, lado, sombra, valido, rejilla);
         }
 
         private static int raiz(int[] p, int i) {
@@ -312,6 +507,19 @@ public final class RedPeatonal {
         return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
     }
 
+    /**
+     * ¿Puede un punto (en el origen del plano local; {@code u} y {@code v} son los extremos de la mitad de arista {@code a}, en metros relativos
+     * al punto) unirse a esta arista? Las de calle siempre; las de avenida sólo si el punto está de su lado o encima de la calzada.
+     */
+    private boolean ladoValido(int a, double ux, double uy, double vx, double vy, double tolerancia) {
+        byte l = lado[a];
+        if (l == 0) return true;
+        double dx = vx - ux, dy = vy - uy, largoArista = Math.sqrt(dx * dx + dy * dy);
+        if (largoArista == 0) return true;
+        double izquierda = (dy * ux - dx * uy) / largoArista;      // > 0: el punto queda a la izquierda de origen→dst
+        return Math.abs(izquierda) <= tolerancia || (izquierda > 0) == (l > 0);
+    }
+
     /** Ajusta un punto a la arista más cercana (máximo {@code maxMetros}); {@code null} si no hay calle cerca. */
     public Snap ajustar(double la, double lo, double maxMetros) {
         var r = ajustarVarios(la, lo, maxMetros, 1, 0);
@@ -324,10 +532,18 @@ public final class RedPeatonal {
      * todas evita elegir la que obliga a rodear.
      */
     public List<Snap> ajustarVarios(double la, double lo, double maxMetros, int k, double margenMetros) {
+        return ajustarVarios(la, lo, maxMetros, k, margenMetros, TOLERANCIA_LADO_ORIGEN_METROS);
+    }
+
+    /**
+     * Igual que el anterior; {@code toleranciaLado} es la distancia al eje de una avenida por debajo de la cual el punto se considera
+     * sobre la calzada (puede unirse a cualquiera de sus dos andenes). Más lejos que eso, sólo se une al andén de SU lado.
+     */
+    public List<Snap> ajustarVarios(double la, double lo, double maxMetros, int k, double margenMetros, double toleranciaLado) {
         if (vacia()) return List.of();
         double kx = Math.cos(Math.toRadians(la)) * 111_320, ky = 110_574, maxCuadrado = maxMetros * maxMetros;
         int cx = celda(lo + 180), cy = celda(la + 90);
-        if (k > 1) return ajustarVariosLista(la, lo, k, margenMetros, kx, ky, maxCuadrado, cx, cy);
+        if (k > 1) return ajustarVariosLista(la, lo, k, margenMetros, kx, ky, maxCuadrado, cx, cy, toleranciaLado);
         Snap mejor1 = null;
         for (int radio = 1; radio <= 2 && mejor1 == null; radio++) {
             for (int y = cy - radio; y <= cy + radio; y++) for (int x = cx - radio; x <= cx + radio; x++) {
@@ -340,6 +556,7 @@ public final class RedPeatonal {
                     double t = l2 == 0 ? 0 : Math.max(0, Math.min(1, -(ux * dx + uy * dy) / l2));
                     double px = ux + t * dx, py = uy + t * dy, d2 = px * px + py * py;
                     if (d2 > maxCuadrado) continue;        // la gran mayoría de las calles de las celdas vecinas queda fuera: sin raíz
+                    if (!ladoValido(a, ux, uy, vx, vy, toleranciaLado)) continue;
                     double d = Math.sqrt(d2);
                     if (mejor1 == null || d < mejor1.distM()) mejor1 = new Snap(a, u, v, t, la + py / ky, lo + px / kx, d);
                 }
@@ -355,7 +572,7 @@ public final class RedPeatonal {
      * Una pasada guarda (en arreglos de números) las aristas dentro del radio; la segunda solo materializa las que pueden entrar.
      */
     private List<Snap> ajustarVariosLista(double la, double lo, int k, double margenMetros, double kx, double ky,
-                                           double maxCuadrado, int cx, int cy) {
+                                           double maxCuadrado, int cx, int cy, double toleranciaLado) {
         int[] ids = new int[48];
         double[] d2s = new double[48];
         for (int radio = 1; radio <= 2; radio++) {
@@ -371,6 +588,7 @@ public final class RedPeatonal {
                     double t = l2 == 0 ? 0 : Math.max(0, Math.min(1, -(ux * dx + uy * dy) / l2));
                     double px = ux + t * dx, py = uy + t * dy, d2 = px * px + py * py;
                     if (d2 > maxCuadrado) continue;
+                    if (!ladoValido(a, ux, uy, vx, vy, toleranciaLado)) continue;
                     if (n == ids.length) { ids = Arrays.copyOf(ids, n * 2); d2s = Arrays.copyOf(d2s, n * 2); }
                     ids[n] = a; d2s[n++] = d2;
                     if (d2 < min2) min2 = d2;
@@ -413,7 +631,7 @@ public final class RedPeatonal {
         var clave = new ClaveAjuste(Double.doubleToLongBits(la), Double.doubleToLongBits(lo), maxMetros, k, margenMetros);
         var guardado = ajustesGuardados.get(clave);
         if (guardado != null) return guardado;
-        var calculado = List.copyOf(ajustarVarios(la, lo, maxMetros, k, margenMetros));
+        var calculado = List.copyOf(ajustarVarios(la, lo, maxMetros, k, margenMetros, TOLERANCIA_LADO_DESTINO_METROS));
         if (ajustesGuardados.size() >= AJUSTES_GUARDADOS_MAXIMO) ajustesGuardados.clear();     // tope de memoria (≈ 25 MB como máximo)
         ajustesGuardados.put(clave, calculado);
         return calculado;
@@ -532,7 +750,10 @@ public final class RedPeatonal {
         Snap a = inicioDe.get(n0), b = metaDe.get(fin);
         List<double[]> puntos = new ArrayList<>(nodos.size() + 2);
         puntos.add(new double[]{a.lng(), a.lat()});
-        for (int n : nodos) puntos.add(new double[]{lng[n], lat[n]});
+        for (int n : nodos) {
+            double[] ultimo = puntos.get(puntos.size() - 1);
+            if (ultimo[0] != lng[n] || ultimo[1] != lat[n]) puntos.add(new double[]{lng[n], lat[n]});     // la arista de cruce no mueve el punto
+        }
         puntos.add(new double[]{b.lng(), b.lat()});
         double total = 0;
         for (int i = 1; i < puntos.size(); i++)
@@ -549,10 +770,22 @@ public final class RedPeatonal {
     /**
      * Costo a pie (≈ metros, incluye lo que separa el punto de partida de su calle) desde las calles de salida a muchos
      * destinos con una sola exploración. {@code NaN} = sin camino dentro del costo máximo. El ajuste de cada destino a su
-     * calle ({@code distM}) no se incluye: lo suma quien llama.
+     * calle ({@code distM}) no se incluye: lo suma quien llama. El costo incluye lo que vale cruzar avenidas a nivel.
      */
     public double[] costosDesde(List<Snap> salidas, List<Snap> destinos, double costoMaximo) {
-        double[] r = new double[destinos.size()];
+        return explorar(salidas, destinos, costoMaximo, false)[0];
+    }
+
+    /**
+     * Igual que {@link #costosDesde} pero también devuelve, por destino, la parte del costo que es PENALIZACIÓN por cruzar avenidas a nivel
+     * (no son metros caminados). {@code [0]} = costo total, {@code [1]} = penalización; metros que se caminan ≈ {@code [0] - [1]}.
+     */
+    public double[][] costosDesdeDetallado(List<Snap> salidas, List<Snap> destinos, double costoMaximo) {
+        return explorar(salidas, destinos, costoMaximo, true);
+    }
+
+    private double[][] explorar(List<Snap> salidas, List<Snap> destinos, double costoMaximo, boolean conPenal) {
+        double[] r = new double[destinos.size()], penR = new double[destinos.size()];
         Arrays.fill(r, Double.NaN);
         int n = lat.length;
         boolean[] pendiente = new boolean[n];
@@ -563,6 +796,7 @@ public final class RedPeatonal {
         }
         double[] g = new double[n];
         Arrays.fill(g, Double.MAX_VALUE);
+        double[] pen = conPenal ? new double[n] : null;     // parte de g que es cobro de cruce (se hereda del camino elegido)
         boolean[] fijo = new boolean[n];
         var cola = new Monticulo(4096);
         for (Snap a : salidas) {
@@ -582,7 +816,11 @@ public final class RedPeatonal {
                 int w = dst[e];
                 if (!valido[w] || fijo[w]) continue;
                 double ng = gNodo + costoArista(e);
-                if (ng < g[w]) { g[w] = ng; cola.agregar(ng, w); }
+                if (ng < g[w]) {
+                    g[w] = ng;
+                    if (pen != null) pen[w] = pen[nodo] + (clase[e] == CRUCE ? largo[e] : 0);
+                    cola.agregar(ng, w);
+                }
             }
         }
         for (int i = 0; i < r.length; i++) {
@@ -591,14 +829,19 @@ public final class RedPeatonal {
             double fb = FACTOR[clase[d.arista()]];
             double viaU = fijo[d.u()] ? g[d.u()] + d.t() * largo[d.arista()] * fb : Double.NaN;
             double viaV = fijo[d.v()] ? g[d.v()] + (1 - d.t()) * largo[d.arista()] * fb : Double.NaN;
-            double mejor = Double.isNaN(viaU) ? viaV : Double.isNaN(viaV) ? viaU : Math.min(viaU, viaV);
+            double mejor, penalMejor = 0;
+            if (Double.isNaN(viaU)) { mejor = viaV; if (pen != null && !Double.isNaN(viaV)) penalMejor = pen[d.v()]; }
+            else if (Double.isNaN(viaV)) { mejor = viaU; if (pen != null) penalMejor = pen[d.u()]; }
+            else if (viaV < viaU) { mejor = viaV; if (pen != null) penalMejor = pen[d.v()]; }
+            else { mejor = viaU; if (pen != null) penalMejor = pen[d.u()]; }
             for (Snap a : salidas) if (a.arista() == d.arista()) {
                 double directo = a.distM() + Math.abs(a.t() - d.t()) * largo[d.arista()] * fb;
-                mejor = Double.isNaN(mejor) ? directo : Math.min(mejor, directo);
+                if (Double.isNaN(mejor) || directo < mejor) { mejor = directo; penalMejor = 0; }
             }
             r[i] = mejor;
+            penR[i] = penalMejor;
         }
-        return r;
+        return new double[][]{r, penR};
     }
 
     /** Cobertura de la red: sirve para decidir si un punto cae fuera de la zona cargada. */

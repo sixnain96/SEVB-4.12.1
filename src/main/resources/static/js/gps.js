@@ -132,7 +132,11 @@
      * y la ubicación por red (Wi-Fi/antenas), que llega en segundos aunque sea aproximada.
      * {@code onProgreso(lectura)} se llama con la mejor lectura hasta el momento.
      */
-    function obtener({ objetivo = 40, esperaMax = 20000, onProgreso, signal } = {}) {
+    // 4.17 (más rápido): para pedir un PUNTO DE SALIDA basta con unos 60–100 m (después se camina hasta el bus), así que ya no se espera 8 s como mínimo ni se exige ±40 m:
+    //  · termina en cuanto hay una lectura ≤ objetivo (60 m por defecto) o cuando deja de mejorar (1,2 s si ya es ≤ 100 m, 2 s si ≤ 150 m, 5 s si es peor), con un mínimo de 1,5–3,5 s;
+    //  · la escucha por red acepta una lectura de hasta 10 s de antigüedad (llega al instante) y el GPS afina mientras tanto; la última conocida se sigue mostrando de inmediato.
+    const MIN_MS = { buena: 1500, regular: 3500 }, PACIENCIA_MS = { excelente: 1200, buena: 2000, baja: 5000 };
+    function obtener({ objetivo = 60, esperaMax = 20000, onProgreso, signal } = {}) {
         return new Promise((resolve, reject) => {
             const prob = problema();
             if (prob) { reject(prob); return; }
@@ -166,7 +170,7 @@
             };
             const escuchar = (altaPrecision) => {
                 const id = navigator.geolocation.watchPosition((pos) => alLeer(pos, altaPrecision), alFallar,
-                    { enableHighAccuracy: altaPrecision, maximumAge: 0, timeout: esperaMax });
+                    { enableHighAccuracy: altaPrecision, maximumAge: altaPrecision ? 0 : 10000, timeout: esperaMax });
                 if (altaPrecision) ids.push(id); else redId = id;
             };
 
@@ -182,11 +186,15 @@
             }, () => {}, { enableHighAccuracy: false, maximumAge: LECTURA_CACHE_MAXIMA_EDAD_MS, timeout: 1500 });
             tick = setInterval(() => {
                 const t = Date.now() - inicio;
-                if (t >= 10000) soltarRed();
+                if (t >= 6000) soltarRed();
                 // Si la lectura ya no mejora se termina: con buena precisión a los 4 s sin mejora; con precisión baja se espera más
                 // (un GPS en frío puede empezar con una lectura por antenas y afinar después), pero sin agotar todo el tiempo.
-                const paciencia = mejor && mejor.precision <= 150 ? 4000 : 9000;
-                if (mejor && t >= 8000 && Date.now() - ultimaMejora >= paciencia) terminar(resolve, mejor);
+                if (mejor) {
+                    const p = mejor.precision;
+                    const paciencia = p <= 100 ? PACIENCIA_MS.excelente : p <= 150 ? PACIENCIA_MS.buena : PACIENCIA_MS.baja;
+                    const minimo = p <= 150 ? MIN_MS.buena : MIN_MS.regular;
+                    if (t >= minimo && Date.now() - ultimaMejora >= paciencia) terminar(resolve, mejor);
+                }
             }, 500);
             tope = setTimeout(() => (mejor ? terminar(resolve, mejor) : terminar(reject, errorGps(ultimoError || { code: 3 }))), esperaMax);
             if (signal) signal.addEventListener('abort', () => terminar(reject, crearError('CANCELADO', 'Cancelado.')));

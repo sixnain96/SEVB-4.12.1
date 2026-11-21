@@ -1188,7 +1188,7 @@
             await gpsReady();
             gpsAcquiring = true;
             setEstado($('useMyLocation'), 'buscando', 'Buscando tu ubicación…');
-            const fix = await Spevb.Gps.obtener({ objetivo: 40, onProgreso: (l) => {
+            const fix = await Spevb.Gps.obtener({ objetivo: 60, onProgreso: (l) => {
                 if (obsoleto()) { drawGps(l, false); return; }
                 gpsSay(l.desdeCache ? 'Mostrando tu última ubicación conocida; busco la actual…' : 'Mejorando la precisión… ' + gpsQuality(l), 'info', 0);
                 drawGps(l, false);
@@ -1375,9 +1375,11 @@
     const html = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
     const rotulos = new Set();        // marcadores de texto («Sube aquí», insignias…) que acomodarRotulos corre hacia adentro
     const comoRotulo = (m) => { rotulos.add(m); return m; };
-    function etiqueta(latlng, texto, cls, anchor) {
+    function etiqueta(latlng, texto, cls, anchor, n) {
+        const caja = html('div', 'map-tag ' + cls, texto);
+        if (n) caja.dataset.n = String(n);          // número del paso (se dibuja con CSS: el texto del rótulo no cambia)
         return comoRotulo(map.marker(latlng, { interactive: false, keyboard: false, z: 900,
-            className: 'map-tag-wrap', html: html('div', 'map-tag ' + cls, texto), size: [0, 0], anchor: anchor || [0, 0] }));
+            className: 'map-tag-wrap', html: caja, size: [0, 0], anchor: anchor || [0, 0] }));
     }
     /** Insignia en medio de un tramo de bus: número del bus + código de la ruta, en el color del tramo. */
     function insigniaTramo(latlngs, numero, codigo, color) {
@@ -1388,12 +1390,14 @@
         return comoRotulo(map.marker(mid, { interactive: false, keyboard: false, z: 800, className: 'map-tag-wrap', html: box, size: [0, 0], anchor: [0, 0] }));
     }
     /** El «cuadro» del transbordo: de qué bus a qué bus se cambia, justo en el punto donde se baja. */
-    function avisoCambio(latlng, de, a, colorDe, colorA) {
+    function avisoCambio(latlng, de, a, colorDe, colorA, caminaM) {
         const box = html('div', 'swap-callout');
         const chip = (t, c) => { const e = html('span', 'swap-chip', t); e.style.background = c; return e; };
         const fila = html('div', 'swap-row');
         fila.append(chip(de, colorDe), html('span', 'swap-arrow', '→'), chip(a, colorA));
-        box.append(html('small', 'swap-title', 'CAMBIO DE BUS'), fila, html('small', 'swap-sub', 'Bájate de ' + de + ' y sube a ' + a));
+        // Tres pasos en una frase: bajarse, caminar (o quedarse en el mismo sitio) y subir al otro bus.
+        const camina = Number(caminaM) >= 15 ? 'camina ' + distance(caminaM) : 'el otro bus pasa por el mismo sitio';
+        box.append(html('small', 'swap-title', 'CAMBIO DE BUS'), fila, html('small', 'swap-sub', 'Bájate de ' + de + ', ' + camina + ' y sube a ' + a));
         return comoRotulo(map.marker(latlng, { interactive: false, keyboard: false, z: 1100, className: 'map-tag-wrap', html: box, size: [0, 0], anchor: [0, 0] }));
     }
     // ---- puntos del itinerario: cada uno con su símbolo (subir, bajar, cambio de bus); no se usan para nada más
@@ -1527,6 +1531,38 @@
     }
     map.on('moveend zoomend resize', acomodarRotulos);
 
+    // ---- carteles del mapa EN SECUENCIA (4.17) ------------------------------------------------------------------------------------------------------------
+    // Todos los carteles del viaje a la vez eran demasiada información: ahora salen UNO A UNO, en el orden del viaje (sube → baja → cambio de bus → sube → bajada final), cada uno
+    // con su momento, y al terminar vuelven a empezar en ciclo hasta que se elige otra opción, se borra el viaje o EMPIEZA el viaje (ahí quedan todos a la vista, como antes).
+    // Con «reducir movimiento» no hay ciclo: todos a la vez y quietos. Solo se oculta y se muestra (opacidad); las posiciones no cambian.
+    const PASO_SECUENCIA_MS = 2600;
+    const secuenciaMapa = { t: 0, pasos: [], i: -1 };
+    const movimientoReducido = () => document.documentElement.dataset.motion === 'reduce' || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    function mostrarPaso(i) {
+        secuenciaMapa.pasos.forEach((paso, j) => paso.forEach((m) => { try { m.setClase('sec-oculto', j !== i); } catch { /* marcador ya retirado */ } }));
+    }
+    function detenerSecuencia() {
+        clearTimeout(secuenciaMapa.t);
+        secuenciaMapa.pasos.forEach((paso) => paso.forEach((m) => { try { m.setClase('sec-oculto', false); } catch { /* marcador ya retirado */ } }));
+        secuenciaMapa.pasos = []; secuenciaMapa.i = -1;
+    }
+    /** `pasos`: lista de pasos y cada paso es la lista de marcadores (carteles) que se ven juntos. */
+    function iniciarSecuencia(pasos) {
+        detenerSecuencia();
+        const lista = pasos.map((paso) => paso.filter(Boolean)).filter((paso) => paso.length);
+        if (lista.length < 2 || movimientoReducido()) return;
+        secuenciaMapa.pasos = lista;
+        const avanzar = () => {
+            const primero = lista[0][0];
+            if (secuenciaMapa.pasos !== lista) return;                                  // otra secuencia tomó el relevo
+            if (document.body.classList.contains('viaje-activo') || !primero || primero.liberado || !tripLayers.has(primero)) { detenerSecuencia(); return; }
+            if (!document.hidden) { secuenciaMapa.i = (secuenciaMapa.i + 1) % lista.length; mostrarPaso(secuenciaMapa.i); }
+            secuenciaMapa.t = setTimeout(avanzar, PASO_SECUENCIA_MS);
+        };
+        avanzar();
+    }
+    window.addEventListener('spevb-viaje-modo', (e) => { if (e.detail && e.detail.activo) detenerSecuencia(); });
+
     /** Espera como MÁXIMO 3 s al detalle de la ruta (que se sigue cargando en segundo plano) y nunca se rompe si falla: la planificación ya trae lo necesario. */
     function esperarDetalle(promesa) {
         return Promise.race([Promise.resolve(promesa).catch(() => false), new Promise((ok) => setTimeout(() => ok('lento'), 3000))]);
@@ -1540,7 +1576,30 @@
     function resumenSeleccion(card, titulo) {
         const reco = card.dataset.recomendada === 'true';
         const m = card._itin && card._itin.modelo;
-        return (reco ? 'Recomendada: ' : 'Opción seleccionada: ') + titulo + (m ? ' · ' + m.detalle : '') + '. Sigue los pasos de abajo; «Ver subida» y «Ver bajada» centran el mapa en esos puntos.';
+        return (reco ? 'Recomendada: ' : 'Opción seleccionada: ') + titulo + (m ? ' · ' + m.detalle : '') + '.';
+    }
+
+    /** Camino a pie de un tramo para la animación del viaje: por calles si ya se conoce (o llega en menos de 1,6 s); si no, la línea recta. Devuelve [[lng, lat], …]. */
+    function caminoPie(from, to) {
+        const recta = [[from[1], from[0]], [to[1], to[0]]];
+        if (Geo.distancia(from, to) < 30) return Promise.resolve(recta);
+        const calles = getWalk(from, to).then((d) => (Array.isArray(d?.coordinates) && d.coordinates.length ? [[from[1], from[0]], ...d.coordinates, [to[1], to[0]]] : recta)).catch(() => recta);
+        return Promise.race([calles, new Promise((ok) => setTimeout(() => ok(recta), 1600))]);
+    }
+    /**
+     * Animación del viaje COMPLETO en bucle (4.17): a pie (chigüiro) → bus → [a pie → bus] → a pie, dejando la línea blanca de lo ya recorrido; al llegar a B espera un momento y
+     * vuelve a empezar. `buses`: tramos de bus como GeoJSON [[lng, lat], …]; `puntos`: [A, subida1, bajada1, (subida2, bajada2,) B] como [lat, lng].
+     */
+    function animarViaje(current, buses, puntos, color) {
+        try { explorer.bus.stop(); } catch { /* sin bus */ }
+        const pares = [];
+        for (let i = 0; i < puntos.length; i += 2) pares.push([puntos[i], puntos[i + 1]]);      // [A, sube1], [baja1, sube2], [baja2, B]
+        Promise.all(pares.map(([f, t]) => caminoPie(f, t))).then((pies) => {
+            if (current !== sequence) return;
+            const tramos = [];
+            pies.forEach((pie, i) => { tramos.push({ tipo: 'walk', coordinates: pie }); if (buses[i]) tramos.push({ tipo: 'bus', coordinates: buses[i] }); });
+            explorer.bus.play([], { color, tramos });
+        });
     }
 
     function showOption(option, start, finish, current, card, scroll) {
@@ -1564,7 +1623,7 @@
             const segment = map.polyline(tramoLatLngs,
                 { color: '#e53935', weight: 8, opacity: 1, interactive: false, smoothFactor: 0.4 }).addTo(tripLayers);
             revelar([casing, segment], tramoLatLngs, 480);
-            explorer.bus.play(option.tramo.coordinates, { color: option.color });
+            animarViaje(current, [option.tramo.coordinates], [coordinates(start), [a[1], a[0]], [b[1], b[0]], coordinates(finish)], option.color);
             const walkIn = map.polyline([coordinates(start), [a[1], a[0]]], { ...walkStyle,
                 tooltip: Spevb.text('Caminar aprox. ' + distance(option.acercamientoInicioMetros) + (option.caminataPorCalles ? ' caminando' : ' en línea recta') + ' hasta la ruta') })
                 .addTo(tripLayers);
@@ -1587,8 +1646,9 @@
             [[a, 'sube', option.paraderoSubida ? 'Aquí tomas el bus: paradero ' + option.paraderoSubida : option.caminataPorCalles ? 'Aquí tomas el bus (el punto con menos caminata)' : 'Aquí tomas el bus (punto aproximado)'], [b, 'baja', option.paraderoBajada ? 'Aquí te bajas: paradero ' + option.paraderoBajada : option.caminataPorCalles ? 'Aquí te bajas (el punto con menos caminata)' : 'Aquí te bajas (punto aproximado)']].forEach(([pt, tipo, label]) => {
                 punto(tipo, [pt[1], pt[0]], label).addTo(tripLayers);
             });
-            etiqueta([a[1], a[0]], 'Sube aquí · ' + Spevb.rutaNombre(option.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
-            etiqueta([b[1], b[0]], 'Baja aquí', 'tag-down', [-4, 34]).addTo(tripLayers);
+            const cartelSube = etiqueta([a[1], a[0]], 'Sube aquí · ' + Spevb.rutaNombre(option.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
+            const cartelBaja = etiqueta([b[1], b[0]], 'Baja aquí', 'tag-down', [-4, 34]).addTo(tripLayers);
+            iniciarSecuencia([[cartelSube], [cartelBaja]]);
             const bounds = Geo.limites([...segment.getPath(), coordinates(start), coordinates(finish)]);
             Spevb.fitMap(map, bounds, { maxZoom: 17 });
             const tokenParadas = revealToken, extremos = [[a[1], a[0]], [b[1], b[0]]];
@@ -1730,21 +1790,23 @@
             // Modo para daltónicos: azul y naranja (distinguibles para todos) y el segundo tramo con trazo discontinuo; además cada tramo lleva su número.
             const dalt = daltonico();
             const color1 = dalt ? '#D55E00' : '#e53935', color2 = dalt ? '#0072B2' : BUS2_COLOR;
+            const insignias = {};
             const line = (leg, color, numero) => {
                 const latlngs = Geo.desdeGeoJSON(leg.tramo.coordinates);
                 const borde = map.polyline(latlngs, { color: '#fff', weight: 13, opacity: 0.95, interactive: false, smoothFactor: 0.4 }).addTo(tripLayers);
                 const l = map.polyline(latlngs, { color, weight: 8, opacity: 1, interactive: false, smoothFactor: 0.4, dashArray: dalt && numero === 2 ? '16 9' : null,
                     tooltip: Spevb.text('Ruta ' + Spevb.rutaNombre(leg.codigo) + ' · ' + leg.nombre), tooltipPegajoso: true }).addTo(tripLayers);
                 revelar([borde, l], latlngs, 420, (numero - 1) * 420);       // primero el bus 1 y después el bus 2
-                insigniaTramo(latlngs, numero, Spevb.rutaNombre(leg.codigo), color).addTo(tripLayers);
+                insignias[numero] = insigniaTramo(latlngs, numero, Spevb.rutaNombre(leg.codigo), color).addTo(tripLayers);
                 return l;
             };
             const seg1 = line(t.primerBus, color1, 1), seg2 = line(t.segundoBus, color2, 2);
             // El bus recorre primero el tramo 1 y luego el 2.
-            explorer.bus.play(t.primerBus.tramo.coordinates.concat(t.segundoBus.tramo.coordinates), { color: t.primerBus.color });
             const p = (leg, key) => [leg[key].coordinates[1], leg[key].coordinates[0]];
             const board1 = p(t.primerBus, 'puntoSubida'), out1 = p(t.primerBus, 'puntoBajada');
             const board2 = p(t.segundoBus, 'puntoSubida'), out2 = p(t.segundoBus, 'puntoBajada');
+            // El bus recorre el viaje entero: a pie hasta el primer bus, el primero, a pie al segundo, el segundo y a pie hasta B (el chigüiro camina en los tramos a pie).
+            animarViaje(current, [t.primerBus.tramo.coordinates, t.segundoBus.tramo.coordinates], [coordinates(start), board1, out1, board2, out2, coordinates(finish)], t.primerBus.color);
             setSeleccion({ codigos: [t.primerBus.codigo, t.segundoBus.codigo], paradas: [
                 { lat: out1[0], lng: out1[1], texto: 'Bájate de la ruta ' + Spevb.rutaNombre(t.primerBus.codigo) + ' y camina al transbordo' },
                 { lat: out2[0], lng: out2[1], texto: 'Bájate de la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo) }], viaje: viajeDe(start, finish, [t.primerBus, t.segundoBus]), resumen: resumenTransbordo(t) });
@@ -1763,12 +1825,14 @@
             punto('baja', out1, 'Aquí te bajas de la ruta ' + Spevb.rutaNombre(t.primerBus.codigo)).addTo(tripLayers);
             punto('cambio', board2, 'Cambio de bus: aquí tomas la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo) + ' (transbordo)', [color1, color2]).addTo(tripLayers);
             punto('baja', out2, 'Aquí te bajas de la ruta ' + Spevb.rutaNombre(t.segundoBus.codigo)).addTo(tripLayers);
-            etiqueta(board1, 'Sube al primer bus · ' + Spevb.rutaNombre(t.primerBus.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
-            etiqueta(out1, 'Baja del primer bus', 'tag-down', [-4, 34]).addTo(tripLayers);
-            etiqueta(board2, 'Sube al segundo bus · ' + Spevb.rutaNombre(t.segundoBus.codigo), 'tag-up', [-4, 34]).addTo(tripLayers);
-            etiqueta(out2, 'Bajada final', 'tag-down', [-4, 34]).addTo(tripLayers);
+            // Los rótulos van numerados en el orden del viaje (1 sube · 2 baja · el cuadro de cambio · 3 sube · 4 baja) para que nadie se pierda.
+            const c1 = etiqueta(board1, 'Sube al primer bus · ' + Spevb.rutaNombre(t.primerBus.codigo), 'tag-up', [-4, 34], 1).addTo(tripLayers);
+            const c2 = etiqueta(out1, 'Baja del primer bus', 'tag-down', [-4, 34], 2).addTo(tripLayers);
+            const c3 = etiqueta(board2, 'Sube al segundo bus · ' + Spevb.rutaNombre(t.segundoBus.codigo), 'tag-up', [-4, 34], 3).addTo(tripLayers);
+            const c4 = etiqueta(out2, 'Bajada final', 'tag-down', [-4, 34], 4).addTo(tripLayers);
             // Aviso grande en el punto del cambio: de qué bus a cuál (se ubica en el punto medio entre donde bajas y donde subes).
-            avisoCambio([(out1[0] + board2[0]) / 2, (out1[1] + board2[1]) / 2], Spevb.rutaNombre(t.primerBus.codigo), Spevb.rutaNombre(t.segundoBus.codigo), color1, color2).addTo(tripLayers);
+            const cuadroCambio = avisoCambio([(out1[0] + board2[0]) / 2, (out1[1] + board2[1]) / 2], Spevb.rutaNombre(t.primerBus.codigo), Spevb.rutaNombre(t.segundoBus.codigo), color1, color2, t.caminataCambio && t.caminataCambio.metros).addTo(tripLayers);
+            iniciarSecuencia([[c1, insignias[1]], [c2], [cuadroCambio], [c3, insignias[2]], [c4]]);      // sube → baja → cambio de bus → sube → bajada final, en ciclo
             const bounds = Geo.limites([...seg1.getPath(), ...seg2.getPath(), coordinates(start), coordinates(finish)]);
             Spevb.fitMap(map, bounds, { maxZoom: 17 });
             const tokenT = revealToken;
@@ -2013,13 +2077,13 @@
         const armar = (lista) => lista.map((e) => { const c = hacer(e); decorar(c, e, items.get(e.id), e.t && e.t.esperaCambioMinutos); return c; });
         const trans = resto.filter((e) => e.tipo === 'transbordo'), normales = resto.filter((e) => e.tipo === 'normal'), contrarias = resto.filter((e) => e.tipo === 'contraria');
         if (trans.length) {
-            box.append(resultGroup('Con transbordo (2 buses)', 'Cuestan dos buses e incluyen una espera estimada en el cambio. Se muestran con su caminata inicial, de cambio y final.', armar(trans), true));
+            box.append(resultGroup('Con transbordo (2 buses)', 'Dos buses y dos pasajes.', armar(trans), true));
         }
         if (normales.length) {
-            box.append(resultGroup('Otras opciones en este sentido · ' + normales.length, 'En el orden que calculó el servidor. «Más rápida» es la misma ruta con otros puntos, si ahorra tiempo.', armar(normales), false, true));
+            box.append(resultGroup('Otras opciones en este sentido · ' + normales.length, 'Ordenadas de la mejor a la menos buena.', armar(normales), false, true));
         }
         if (contrarias.length) {
-            box.append(resultGroup('Otras opciones en sentido contrario · ' + contrarias.length, 'Solo sirven si el bus también pasa de regreso por esas calles: no se recomiendan.', armar(contrarias), false, true));
+            box.append(resultGroup('Otras opciones en sentido contrario · ' + contrarias.length, 'Solo sirven si el bus también regresa por esas calles.', armar(contrarias), false, true));
         }
         return cardInicial;
     }
@@ -2211,16 +2275,16 @@
                     // El servidor solo ofrece transbordos que conviene mostrar (ahorran tiempo o caminata, o no hay ruta directa).
                     const list = otherTransfers.map((t, index) => renderTransfer(t, index + (bestTransfer ? 1 : 0), start, finish, current));
                     box.append(resultGroup('Con transbordo (2 buses)', options.length || alternatives.length
-                        ? 'Ahorran tiempo o caminata frente a las rutas directas. Cuestan dos pasajes e incluyen una espera estimada en el cambio.'
-                        : 'No hay una ruta directa que sirva: combina dos rutas. Cuestan dos pasajes e incluyen una espera estimada en el cambio.', list, true));
+                        ? 'Ahorran tiempo o caminata. Dos pasajes.'
+                        : 'No hay ruta directa: combina dos rutas. Dos pasajes.', list, true));
                 }
                 if (options.length > 1) {
                     const list = options.slice(1).map((option, index) => renderOption(option, index + 1, start, finish, current, false));
-                    box.append(resultGroup('Otras opciones en este sentido · ' + list.length, 'Ordenadas por lo que menos caminas. «Más rápida» es la misma ruta con otros puntos, si ahorra tiempo.', list, false, true));
+                    box.append(resultGroup('Otras opciones en este sentido · ' + list.length, 'Ordenadas por lo que menos caminas.', list, false, true));
                 }
                 if (alternatives.length > 1) {
                     const list = alternatives.slice(1).map((option, index) => renderOption(option, index + 1, start, finish, current, true));
-                    box.append(resultGroup('Otras opciones en sentido contrario · ' + list.length, 'Solo sirven si el bus también pasa de regreso por esas calles.', list, false, true));
+                    box.append(resultGroup('Otras opciones en sentido contrario · ' + list.length, 'Solo sirven si el bus también regresa por esas calles.', list, false, true));
                 }
             }
             if (!options.length && !alternatives.length && !transfers.length) {
@@ -2258,12 +2322,11 @@
                 const best = options[0] || alternatives[0];
                 const total = options.length + alternatives.length + transfers.length;
                 // Con recomendación: se dice POR QUÉ (frase del servidor con las cifras reales) junto con las instrucciones de la opción dibujada.
-                if (rec && rec.idRecomendada) status($('tripStatus').textContent + (total > 1 ? ' Toca otra tarjeta para ver las demás opciones.' : ''), 'success');
+                if (rec && rec.idRecomendada) status($('tripStatus').textContent, 'success');
                 else if (rec && !rec.idRecomendada) status('No hay una opción recomendada que respete el sentido de las rutas. Estas son las opciones disponibles: revisa cada una antes de salir.', 'info');
                 // Sin ruta directa, el mensaje lo dejó ya la tarjeta de transbordo que se acaba de dibujar.
                 else if (best && !transfers.length) status('La ruta más cercana es ' + Spevb.rutaNombre(best.codigo) + ': caminas ' + distance(best.acercamientoInicioMetros)
-                    + ' hasta ella y ' + distance(best.acercamientoFinMetros) + ' desde ella hasta tu destino. '
-                    + (total > 1 ? 'Toca otra tarjeta para ver las demás opciones.' : ''), 'success');
+                    + ' hasta ella y ' + distance(best.acercamientoFinMetros) + ' desde ella hasta tu destino.', 'success');
                 window.dispatchEvent(new CustomEvent('spevb-results'));
             }
         } catch (error) {

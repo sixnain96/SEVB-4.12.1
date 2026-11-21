@@ -255,11 +255,29 @@
             const roll = 'rotateY(' + lean.toFixed(1) + 'deg)';
             if (roll !== sprRoll) { sprRoll = roll; sprLean.style.transform = roll; }
         }
-        wrap.append(ground, stage, spr);
-        return { wrap, rot, body, ensure3D, useSprites, setSprite };
+        const caminante = buildWalker();
+        wrap.append(ground, stage, spr, caminante);
+        return { wrap, rot, body, ensure3D, useSprites, setSprite, caminante };
     }
 
-    const VUELTAS_MAXIMAS = 3;       // vueltas de la animación de demostración antes de pausarse sola
+    const PAUSA_ENTRE_VUELTAS_MS = 1200;      // 4.17: la animación es un BUCLE sin fin (el botón de pausa la detiene); al llegar a B espera un momento y vuelve a empezar desde A
+    /** Peso de cada tipo de tramo en el TIEMPO de la animación: el chigüiro que camina tarda más por metro que el bus, para que se alcance a ver (los tramos a pie son cortos). */
+    const PESO_TRAMO = { bus: 1, walk: 5 };
+
+    /** El chigüiro que camina (somos nosotros cuando nos bajamos): una insignia con la mascota que rebota al caminar y mira hacia donde va. */
+    function buildWalker() {
+        const w = document.createElement('div');
+        w.className = 'chigui-camina';
+        w.setAttribute('aria-hidden', 'true');
+        const cuerpo = document.createElement('div'); cuerpo.className = 'chigui-cuerpo';
+        const img = document.createElement('img'); img.src = '/img/marca/sevb-chiguiro-logo.webp'; img.alt = ''; img.width = 40; img.height = 40; img.decoding = 'async'; img.draggable = false;
+        cuerpo.append(img);
+        const huellas = document.createElement('span'); huellas.className = 'chigui-huellas';
+        for (let i = 0; i < 3; i++) huellas.append(document.createElement('i'));
+        w.append(document.createElement('span'), cuerpo, huellas);
+        w.firstChild.className = 'chigui-sombra';
+        return w;
+    }
     function createBusPlayer(map) {
         let st = null;
         let panel, btnPlay, btnSpeed, btnRestart, btn3d, range, readout, followBox;
@@ -450,6 +468,17 @@
             st.rot.style.transform = 'rotateZ(' + st.heading.toFixed(1) + 'deg)';
             st.body.style.transform = 'rotateY(' + st.lean.toFixed(1) + 'deg)';
             st.model.setSprite(st.heading, st.lean);
+            if (st.tramos) {
+                const k = st.tramos.findIndex((t) => p.i <= t.i1 || t === st.tramos[st.tramos.length - 1]);
+                const modo = st.tramos[Math.max(0, k)].tipo;
+                if (modo !== st.modo) {
+                    st.modo = modo;
+                    st.box.classList.toggle('modo-pie', modo === 'walk');
+                    st.box.classList.remove('cambia'); void st.box.offsetWidth; st.box.classList.add('cambia');      // «pop» al bajarse del bus o al volver a subir
+                    const cajaBus = st.box; clearTimeout(st.tCambia); st.tCambia = setTimeout(() => { if (cajaBus) cajaBus.classList.remove('cambia'); }, 600);      // st puede ser null cuando vence el temporizador
+                }
+                if (modo === 'walk') st.model.caminante.classList.toggle('mira-izq', Math.sin((st.heading * Math.PI) / 180) < -0.05);      // mira hacia donde camina (izquierda o derecha)
+            }
             if (p.i !== st.trailIdx) {
                 const now = performance.now();
                 // La estela crece sin copiar el arreglo y se repinta como máximo cada 80 ms.
@@ -488,16 +517,13 @@
                 st.wrap = false;
             }
             if (st.playing && !st.wrap) {
-                st.d += st.speed * SPEEDS[st.speedIdx] * dt;
+                st.d += (st.speed / (st.modo ? PESO_TRAMO[st.modo] || 1 : 1)) * SPEEDS[st.speedIdx] * dt;
                 if (st.d >= st.total) {
                     st.d = st.total;
-                    if (st.loop && ++st.vueltas < VUELTAS_MAXIMAS) {
+                    if (st.loop) {      // bucle: espera un instante en B y vuelve a empezar (se reinicia también la línea blanca recorrida)
+                        st.vueltas++;
                         st.wrap = true;
-                        st.pauseUntil = ts + 1500;
-                    } else if (st.loop) {      // demostración en reposo: vuelve al inicio y espera; «reproducir» la retoma
-                        st.playing = false;
-                        st.d = 0; st.dirty = true; st.vueltas = 0;
-                        syncButtons();
+                        st.pauseUntil = ts + PAUSA_ENTRE_VUELTAS_MS;
                     } else {
                         st.playing = false;
                         syncButtons();
@@ -519,7 +545,7 @@
 
         function detener() {
             if (!st) return;
-            cancelAnimationFrame(st.raf);
+            cancelAnimationFrame(st.raf); clearTimeout(st.tCambia);
             [st.marker, st.trail, st.head].forEach((l) => l.remove());
             st = null;
             panel.hidden = true;
@@ -542,15 +568,28 @@
         function play(coordinates, opts = {}) {
             if (suspendido) { pendiente = { coordinates, opts }; return; }
             stop();
-            const lines = Array.isArray(coordinates?.[0]?.[0]) ? coordinates.flat() : coordinates;
-            const pts = (lines || [])
-                .filter((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]))
-                .map((c) => [c[1], c[0]]);
+            const valido = (c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]);
+            let pts, tramos = null;
+            if (Array.isArray(opts.tramos) && opts.tramos.length) {
+                // Viaje completo: a pie → bus → (a pie → bus) → a pie. Cada tramo guarda el índice del último punto que le pertenece y si es de bus o a pie.
+                pts = []; tramos = [];
+                opts.tramos.forEach((t) => {
+                    const arr = (Array.isArray(t.coordinates) ? t.coordinates : []).filter(valido).map((c) => [c[1], c[0]]);
+                    arr.forEach((pt) => { const u = pts[pts.length - 1]; if (!u || u[0] !== pt[0] || u[1] !== pt[1]) pts.push(pt); });
+                    if (arr.length) tramos.push({ tipo: t.tipo === 'walk' ? 'walk' : 'bus', i1: pts.length - 1 });
+                });
+            } else {
+                const lines = Array.isArray(coordinates?.[0]?.[0]) ? coordinates.flat() : coordinates;
+                pts = (lines || []).filter(valido).map((c) => [c[1], c[0]]);
+            }
             if (pts.length < 2) return;
             const cum = [0];
             for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + window.Spevb.Geo.distancia(pts[i - 1], pts[i]));
             const total = cum[cum.length - 1];
             if (!(total > 0)) return;
+            // Largo «virtual»: los tramos a pie pesan más en el tiempo (ver PESO_TRAMO).
+            let virtual = total;
+            if (tramos) { virtual = 0; let previo = 0; tramos.forEach((t) => { virtual += (cum[t.i1] - cum[previo]) * (PESO_TRAMO[t.tipo] || 1); previo = t.i1; }); virtual = Math.max(virtual, total); }
             const color = safeColor(opts.color);
 
             const built = build3DBus(color);
@@ -561,15 +600,15 @@
                 interactive: false, // el bus nunca debe interceptar clics del mapa (p. ej. «Elegir en mapa»)
             }).addTo(map);
             // lienzo:'propio' (Leaflet): la estela se repinta sin redibujar las demás capas del mapa. Google lo ignora.
-            const lineOpts = { color: '#fff', weight: 4, opacity: 0.95, interactive: false, lienzo: 'propio' };
+            const lineOpts = { color: '#fff', weight: 5, opacity: 1, interactive: false, lienzo: 'propio' };
             const trail = map.polyline([pts[0]], lineOpts).addTo(map);
             const head = map.polyline([pts[0], pts[0]], lineOpts).addTo(map);
 
-            const seconds = Math.min(45, Math.max(12, total / 200));
+            const seconds = Math.min(tramos ? 60 : 45, Math.max(12, virtual / 200));
             st = {
                 args: { coordinates, opts }, pts, cum, total, marker, rot: built.rot, body: built.body, box: built.wrap, model: built, lean: 0, dHeading: 0, trail, head,
                 d: 0, heading: 0, trailIdx: -1, trailAt: 0, headAt: 0, vueltas: 0, trailPts: [], dirty: true, speedIdx: 0,
-                speed: total / seconds, loop: opts.loop !== false,
+                speed: virtual / seconds, loop: opts.loop !== false, tramos, modo: null, tCambia: 0,
                 playing: !reducedMotion, follow: false, wrap: false, pauseUntil: 0,
                 last: performance.now(), raf: 0,
             };

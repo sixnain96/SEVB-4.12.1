@@ -80,8 +80,14 @@ public final class Recomendador {
         };
     }
 
-    /** Desempate estable: caminata total, tiempo, buses, tipo e id. */
-    static final Comparator<Candidato> DESEMPATE = Comparator.comparingDouble(Candidato::totalM)
+    /**
+     * Costo «puerta a puerta» en minutos (4.17): el tiempo total estimado MÁS el tiempo caminando otra vez (caminar pesa el doble que ir sentado, como en los planificadores
+     * de transporte público). Evita recomendar una ruta que queda 30 m más cerca pero da una vuelta de decenas de kilómetros.
+     */
+    static double costo(Candidato c) { return c.minutos() + c.totalM() / TransbordoService.CAMINA_M_MIN; }
+
+    /** Desempate estable: costo puerta a puerta, caminata total, tiempo, buses, tipo e id. */
+    static final Comparator<Candidato> DESEMPATE = Comparator.comparingDouble(Recomendador::costo).thenComparingDouble(Candidato::totalM)
             .thenComparingDouble(Candidato::minutos).thenComparingInt(Candidato::buses)
             .thenComparingInt((Candidato c) -> rangoTipo(c.tipo()))
             .thenComparing(Candidato::id, Comparator.nullsLast(Comparator.naturalOrder()));

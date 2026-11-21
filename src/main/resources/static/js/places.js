@@ -86,7 +86,7 @@
         $('useCurrentPlace').disabled = true;
         try {
             status('Buscando tu ubicación… Si el navegador lo pide, elige «Permitir».');
-            const fix = await Spevb.Gps.obtener({ objetivo: 40, onProgreso: (l) => status('Mejorando la precisión… ±' + Math.round(l.precision) + ' m') });
+            const fix = await Spevb.Gps.obtener({ objetivo: 60, onProgreso: (l) => status('Mejorando la precisión… ±' + Math.round(l.precision) + ' m') });
             if (!Spevb.Gps.dentroDeCiudad(fix.lat, fix.lng)) { status('Tu ubicación está fuera de Villavicencio. Puedes elegir el punto en el mapa.', 'error'); return; }
             if (fix.precision > 1000) { status('Solo se obtuvo una ubicación muy aproximada (±' + Math.round(fix.precision) + ' m). Elige el punto en el mapa.', 'error'); return; }
             await reverse(fix.lat, fix.lng);
